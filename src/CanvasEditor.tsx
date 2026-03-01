@@ -1,23 +1,20 @@
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useState } from 'react';
 
 export default function CanvasEditor() {
-  // キャンバス本体にアクセスするための参照
   const canvasRef = useRef<HTMLCanvasElement>(null);
   
-  // 今選んでいる色 & マウスが押されているかどうかの状態
   const [color, setColor] = useState('#000000');
   const [isDrawing, setIsDrawing] = useState(false);
+  const [isEraser, setIsEraser] = useState(false); 
 
-  // ドットを塗るメインの関数
   const drawPixel = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!isDrawing) return; // クリックされてない時は塗らない
+    if (!isDrawing) return;
     
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // 画面上のクリック位置を、64x64のピクセル座標に変換する計算
     const rect = canvas.getBoundingClientRect();
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
@@ -25,21 +22,57 @@ export default function CanvasEditor() {
     const x = Math.floor((e.clientX - rect.left) * scaleX);
     const y = Math.floor((e.clientY - rect.top) * scaleY);
 
-    // 選択中の色で、1ピクセルを塗る
-    ctx.fillStyle = color;
-    ctx.fillRect(x, y, 1, 1);
+    if (isEraser) {
+      // 消しゴム：1ピクセル分を透明にくり抜く
+      ctx.clearRect(x, y, 1, 1);
+    } else {
+      // ペン：選択中の色で塗る
+      ctx.fillStyle = color;
+      ctx.fillRect(x, y, 1, 1);
+    }
+  };
+
+  // 全消し機能：キャンバス全体を透明にする
+  const clearCanvas = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
-      {/* 色を選ぶカラーパレット */}
-      <input 
-        type="color" 
-        value={color} 
-        onChange={(e) => setColor(e.target.value)} 
-      />
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '15px' }}>
       
-      {/* 64x64のマイクラスキン用キャンバス */}
+      {/* ツールバー（色、消しゴム、全消し） */}
+      <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+        <input 
+          type="color" 
+          value={color} 
+          onChange={(e) => setColor(e.target.value)} 
+          disabled={isEraser} // 消しゴム中は色変更をロック
+          style={{ cursor: isEraser ? 'not-allowed' : 'pointer' }}
+        />
+        <button 
+          onClick={() => setIsEraser(!isEraser)}
+          style={{ 
+            backgroundColor: isEraser ? '#ffcccc' : '#f0f0f0',
+            border: '1px solid #ccc',
+            padding: '5px 10px',
+            cursor: 'pointer'
+          }}
+        >
+          {isEraser ? '消しゴムモード (ON)' : 'ペンモード'}
+        </button>
+        <button 
+          onClick={clearCanvas}
+          style={{ padding: '5px 10px', cursor: 'pointer' }}
+        >
+          全消し 🗑️
+        </button>
+      </div>
+      
+      {/* キャンバス */}
       <canvas
         ref={canvasRef}
         width={64}
@@ -48,8 +81,11 @@ export default function CanvasEditor() {
           width: '512px', 
           height: '512px', 
           imageRendering: 'pixelated',
-          border: '2px solid #ccc',
-          cursor: 'crosshair'
+          border: '2px solid #555',
+          cursor: 'crosshair',
+          // 背景を透明とグレーの市松模様にする
+          backgroundImage: 'repeating-conic-gradient(#f0f0f0 0% 25%, transparent 0% 50%)',
+          backgroundSize: '32px 32px'
         }}
         onMouseDown={(e) => { setIsDrawing(true); drawPixel(e); }}
         onMouseUp={() => setIsDrawing(false)}
