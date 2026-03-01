@@ -41,6 +41,20 @@ export default function CanvasEditor() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
   };
 
+  const downloadImage = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    
+    // キャンバスのデータをPNG画像形式のURLに変換
+    const dataUrl = canvas.toDataURL('image/png');
+    
+    // 見えないリンクを裏で作り、自動でクリックさせる
+    const link = document.createElement('a');
+    link.download = 'NewSkin.png'; // 保存されるデフォルトのファイル名
+    link.href = dataUrl;
+    link.click();
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '15px' }}>
       
@@ -70,8 +84,21 @@ export default function CanvasEditor() {
         >
           全消し 🗑️
         </button>
+
+        {/* ダウンロードボタン */}
+        <button 
+          onClick={downloadImage}
+          style={{ 
+            padding: '5px 10px', 
+            cursor: 'pointer', 
+            backgroundColor: '#e0f7fa', 
+            border: '1px solid #ccc' 
+          }}
+        >
+          保存 💾
+        </button>
       </div>
-      
+    
       {/* キャンバス */}
       <canvas
         ref={canvasRef}
