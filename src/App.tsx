@@ -13,7 +13,7 @@ function App() {
 
   return (
     <div className="editor-container">
-      <h1>Minecraft Skin Editor</h1>
+      <h1>Vextra - Minecraft Skin Editor</h1>
       <div className="editor-layout">
         <div className="editor-main">
           <CanvasEditor
