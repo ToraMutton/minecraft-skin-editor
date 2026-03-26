@@ -12,32 +12,31 @@ function App() {
   }, [])
 
   return (
-    // 外枠
     < div className="editor-container" >
       {/* タイトル */}
-      <h1>Vextra - Minecraft Skin Editor</h1>
+      < h1 > Vextra - Minecraft Skin Editor</h1 >
       {/* 左右レイアウト */}
-      <div className="editor-layout">
+      < div className="editor-layout" >
         {/* 2Dキャンバス */}
-        <div className="editor-main">
+        < div className="editor-main" >
           {/* 付箋と関数を渡す */}
-          <CanvasEditor
+          < CanvasEditor
             canvasRef={canvasRef}
             onTextureUpdate={handleTextureUpdate}
           />
-        </div>
+        </div >
 
         {/* 3Dプレビュー */}
-        <div className="editor-preview">
+        < div className="editor-preview" >
           {/* 付箋とカウンターを渡す */}
-          <SkinPreview3D
+          < SkinPreview3D
             canvasRef={canvasRef}
             textureVersion={textureVersion}
           />
           {/* 解説文 */}
-          <p className="preview-hint">ドラッグで回転 / スクロールでズーム</p>
-        </div>
-      </div>
+          < p className="preview-hint" > ドラッグで回転 / スクロールでズーム</p >
+        </div >
+      </div >
     </div >
   )
 }
