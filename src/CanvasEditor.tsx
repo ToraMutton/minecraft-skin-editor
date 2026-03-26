@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect, useCallback } from 'react';
 
-// 使えるツール一覧
+// 使えるツール定義
 type Tool = 'pen' | 'eraser' | 'bucket' | 'picker';
 
 // 定数
@@ -9,7 +9,7 @@ const MAX_RECENT_COLORS = 16;
 const AUTOSAVE_KEY = 'mc-skin-editor-canvas';
 const AUTOSAVE_DELAY = 1000;
 
-// ブラシサイズ選択肢
+// ブラシサイズ型
 type BrushSize = 1 | 2 | 3;
 
 // スキンのパーツ定義
