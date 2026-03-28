@@ -113,30 +113,36 @@ interface Props {
 }
 
 export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
-  const overlayRef = useRef<HTMLCanvasElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
+  // 描画ツール系
+  const [color, setColor] = useState('#000000')
+  const [tool, setTool] = useState<Tool>('pen')
+  const [brushSize, setBrushSize] = useState<BrushSize>(1)
 
-  // Undo/Redo 履歴
-  const undoStack = useRef<ImageData[]>([]);
-  const redoStack = useRef<ImageData[]>([]);
-  const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // 表示設定系
+  const [showGuide, setShowGuide] = useState(true)
+  const [showGrid, setShowGrid] = useState(false)
+  const [mirror, setMirror] = useState(false)
 
-  const [color, setColor] = useState('#000000');
-  const [isDrawing, setIsDrawing] = useState(false);
-  const [tool, setTool] = useState<Tool>('pen');
-  const [brushSize, setBrushSize] = useState<BrushSize>(1);
-  const [showGuide, setShowGuide] = useState(true);
-  const [showGrid, setShowGrid] = useState(false);
-  const [mirror, setMirror] = useState(false);
-  const [canUndo, setCanUndo] = useState(false);
-  const [canRedo, setCanRedo] = useState(false);
-  const [recentColors, setRecentColors] = useState<string[]>([]);
-  const [hoverPart, setHoverPart] = useState('');
-  const [zoom, setZoom] = useState(1);
-  const [pan, setPan] = useState({ x: 0, y: 0 });
-  const [isPanning, setIsPanning] = useState(false);
-  const panStart = useRef({ x: 0, y: 0, panX: 0, panY: 0 });
+  // UI状態系
+  const [isDrawing, setIsDrawing] = useState(false)
+  const [canUndo, setCanUndo] = useState(false)
+  const [canRedo, setCanRedo] = useState(false)
+  const [recentColors, setRecentColors] = useState<string[]>([])
+  const [hoverPart, setHoverPart] = useState('')
+
+  // ズーム&パン系
+  const [zoom, setZoom] = useState(1)
+  const [pan, setPan] = useState({ x: 0, y: 0 })
+  const [isPanning, setIsPanning] = useState(false)
+
+  // useRef系
+  const overlayRef = useRef<HTMLCanvasElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const undoStack = useRef<ImageData[]>([])
+  const redoStack = useRef<ImageData[]>([])
+  const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const panStart = useRef({ x: 0, y: 0, panX: 0, panY: 0 })
 
   // 3Dプレビューにテクスチャ変更を通知 + 自動保存
   const notifyUpdate = useCallback(() => {
