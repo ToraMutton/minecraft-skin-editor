@@ -34,7 +34,6 @@ const SKIN_PARTS: SkinPart[] = [
 ];
 
 // ミラー描画用の対応マッピング
-// 右のパーツに描いたら左にも描く（パーツ内の相対座標を反転して対応）
 interface MirrorMapping {
   src: SkinPart;
   dst: SkinPart;
@@ -42,12 +41,15 @@ interface MirrorMapping {
 const MIRROR_PAIRS: MirrorMapping[] = [
   { src: SKIN_PARTS[3], dst: SKIN_PARTS[5] },   // 右腕 → 左腕
   { src: SKIN_PARTS[5], dst: SKIN_PARTS[3] },   // 左腕 → 右腕
+
   { src: SKIN_PARTS[1], dst: SKIN_PARTS[4] },   // 右足 → 左足
   { src: SKIN_PARTS[4], dst: SKIN_PARTS[1] },   // 左足 → 右足
-  { src: SKIN_PARTS[9], dst: SKIN_PARTS[11] },  // 右腕装飾 → 左腕装飾
-  { src: SKIN_PARTS[11], dst: SKIN_PARTS[9] },  // 左腕装飾 → 右腕装飾
-  { src: SKIN_PARTS[7], dst: SKIN_PARTS[10] },  // 右足装飾 → 左足装飾
-  { src: SKIN_PARTS[10], dst: SKIN_PARTS[7] },  // 左足装飾 → 右足装飾
+
+  { src: SKIN_PARTS[9], dst: SKIN_PARTS[11] },  // 右腕over → 左腕over
+  { src: SKIN_PARTS[11], dst: SKIN_PARTS[9] },  // 左腕over → 右腕over
+
+  { src: SKIN_PARTS[7], dst: SKIN_PARTS[10] },  // 右足over → 左足over
+  { src: SKIN_PARTS[10], dst: SKIN_PARTS[7] },  // 左足over → 右足over
 ];
 
 function getPartName(px: number, py: number): string {
