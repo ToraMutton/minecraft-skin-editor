@@ -147,18 +147,27 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null) // 自動保存タイマー
   const panStart = useRef({ x: 0, y: 0, panX: 0, panY: 0 }) // パン開始位置
 
+
   // 3Dプレビューにテクスチャ変更を通知 + 自動保存
   const notifyUpdate = useCallback(() => {
+    // 親コンポーネントに変更を通知
     onTextureUpdate?.();
 
-    // 自動保存（デバウンス）
-    if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
+    // 自動保存(デバウンス)
+    if (autosaveTimer.current) {
+      clearTimeout(autosaveTimer.current); // 前回のタイマーをキャンセル
+    }
+
+    // 新しくタイマーをセット(1000ミリ秒後に実行)
     autosaveTimer.current = setTimeout(() => {
       const canvas = canvasRef.current;
       if (canvas) {
         try {
+          // キャンバスの内容を画像としてブラウザに保存
           localStorage.setItem(AUTOSAVE_KEY, canvas.toDataURL('image/png'));
-        } catch { /* localStorageが満杯の場合は無視 */ }
+        } catch {
+          /* localStorageが満杯の場合は無視 */
+        }
       }
     }, AUTOSAVE_DELAY);
   }, [onTextureUpdate, canvasRef]);
