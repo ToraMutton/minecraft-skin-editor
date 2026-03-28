@@ -6,7 +6,7 @@ type Tool = 'pen' | 'eraser' | 'bucket' | 'picker';
 // 定数
 const MAX_HISTORY = 30;
 const MAX_RECENT_COLORS = 16;
-const AUTOSAVE_KEY = 'mc-skin-editor-canvas';
+const AUTOSAVE_KEY = 'vextora-mc-skin-editor-canvas';
 const AUTOSAVE_DELAY = 1000;
 
 // ブラシサイズ型
@@ -174,21 +174,26 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
 
   // 起動時にlocalStorageからキャンバスを復元
   useEffect(() => {
+    // localStorageをチェック
     const saved = localStorage.getItem(AUTOSAVE_KEY);
     if (!saved) return;
+
+    // キャンバスを準備
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const img = new Image();
+    // 画像を読み込む
+    const img = new Image(); // 空の画像オブジェクトを作成
     img.onload = () => {
       ctx.clearRect(0, 0, 64, 64);
       ctx.drawImage(img, 0, 0, 64, 64);
       onTextureUpdate?.();
     };
     img.src = saved;
-  }, [canvasRef, onTextureUpdate]);
+  }, [onTextureUpdate, canvasRef]);
+
 
   // --- 履歴操作 ---
 
