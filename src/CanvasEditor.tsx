@@ -47,6 +47,7 @@ const MIRROR_PAIRS: MirrorMapping[] = [
   { src: SKIN_PARTS[1], dst: SKIN_PARTS[4] },   // 右足 → 左足
   { src: SKIN_PARTS[4], dst: SKIN_PARTS[1] },   // 左足 → 右足
 
+
   { src: SKIN_PARTS[9], dst: SKIN_PARTS[11] },  // 右腕over → 左腕over
   { src: SKIN_PARTS[11], dst: SKIN_PARTS[9] },  // 左腕over → 右腕over
 
@@ -88,7 +89,7 @@ function rgbaToHex(r: number, g: number, b: number): string {
   return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
 }
 
-// ミラー座標を計算する
+// 描いたピクセルのミラー先座標を返す関数
 function getMirrorCoord(x: number, y: number): [number, number] | null {
   for (const { src, dst } of MIRROR_PAIRS) {
     if (x >= src.x && x < src.x + src.w && y >= src.y && y < src.y + src.h) {
@@ -103,6 +104,7 @@ function getMirrorCoord(x: number, y: number): [number, number] | null {
   }
   return null;
 }
+
 
 interface Props {
   // テクスチャ更新を親に通知するコールバック
