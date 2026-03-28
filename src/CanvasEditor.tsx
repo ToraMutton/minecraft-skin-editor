@@ -12,6 +12,7 @@ const AUTOSAVE_DELAY = 1000;
 // ブラシサイズ型
 type BrushSize = 1 | 2 | 3;
 
+
 // スキンのパーツ定義
 interface SkinPart {
   name: string;
@@ -38,6 +39,7 @@ interface MirrorMapping {
   src: SkinPart;
   dst: SkinPart;
 }
+
 const MIRROR_PAIRS: MirrorMapping[] = [
   { src: SKIN_PARTS[3], dst: SKIN_PARTS[5] },   // 右腕 → 左腕
   { src: SKIN_PARTS[5], dst: SKIN_PARTS[3] },   // 左腕 → 右腕
@@ -52,21 +54,36 @@ const MIRROR_PAIRS: MirrorMapping[] = [
   { src: SKIN_PARTS[10], dst: SKIN_PARTS[7] },  // 左足over → 右足over
 ];
 
+
+// クリックしたピクセルがどのパーツかを返す
 function getPartName(px: number, py: number): string {
   for (const part of SKIN_PARTS) {
-    if (px >= part.x && px < part.x + part.w && py >= part.y && py < part.y + part.h) {
+    if (
+      px >= part.x &&
+      px < part.x + part.w &&
+      py >= part.y &&
+      py < part.y + part.h
+    ) {
       return part.name;
     }
   }
   return '未使用領域';
 }
 
+// 色コードを数値に変換する関数
 function hexToRgba(hex: string) {
   const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  // 変換失敗(mがnull)なら黒を返す
   if (!m) return { r: 0, g: 0, b: 0, a: 255 };
-  return { r: parseInt(m[1], 16), g: parseInt(m[2], 16), b: parseInt(m[3], 16), a: 255 };
+  return {
+    r: parseInt(m[1], 16),
+    g: parseInt(m[2], 16),
+    b: parseInt(m[3], 16),
+    a: 255
+  };
 }
 
+// 数値を色コードに変換する関数
 function rgbaToHex(r: number, g: number, b: number): string {
   return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
 }
