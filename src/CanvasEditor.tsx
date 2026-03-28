@@ -114,35 +114,38 @@ interface Props {
 
 export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
   // 描画ツール系
-  const [color, setColor] = useState('#000000')
-  const [tool, setTool] = useState<Tool>('pen')
-  const [brushSize, setBrushSize] = useState<BrushSize>(1)
+  const [color, setColor] = useState('#000000') // 現在の色
+  const [tool, setTool] = useState<Tool>('pen') // 現在のツール
+  const [brushSize, setBrushSize] = useState<BrushSize>(1) // ブラシサイズ
 
   // 表示設定系
-  const [showGuide, setShowGuide] = useState(true)
-  const [showGrid, setShowGrid] = useState(false)
-  const [mirror, setMirror] = useState(false)
+  const [showGuide, setShowGuide] = useState(true) // ガイド表示
+  const [showGrid, setShowGrid] = useState(false) // グリッド表示
+  const [mirror, setMirror] = useState(false) // ミラー
 
   // UI状態系
-  const [isDrawing, setIsDrawing] = useState(false)
-  const [canUndo, setCanUndo] = useState(false)
-  const [canRedo, setCanRedo] = useState(false)
-  const [recentColors, setRecentColors] = useState<string[]>([])
-  const [hoverPart, setHoverPart] = useState('')
+  const [isDrawing, setIsDrawing] = useState(false) // 描画中かどうか
+  const [canUndo, setCanUndo] = useState(false) // Undo可能か
+  const [canRedo, setCanRedo] = useState(false) // Redo可能か
+  const [recentColors, setRecentColors] = useState<string[]>([]) //最近の色
+  const [hoverPart, setHoverPart] = useState('') // ホバー中のパーツ名
 
   // ズーム&パン系
-  const [zoom, setZoom] = useState(1)
-  const [pan, setPan] = useState({ x: 0, y: 0 })
-  const [isPanning, setIsPanning] = useState(false)
+  const [zoom, setZoom] = useState(1) // ズーム倍率
+  const [pan, setPan] = useState({ x: 0, y: 0 }) // パン位置
+  const [isPanning, setIsPanning] = useState(false) // パン中かどうか
 
   // useRef系
-  const overlayRef = useRef<HTMLCanvasElement>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const containerRef = useRef<HTMLDivElement>(null)
-  const undoStack = useRef<ImageData[]>([])
-  const redoStack = useRef<ImageData[]>([])
-  const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const panStart = useRef({ x: 0, y: 0, panX: 0, panY: 0 })
+  // 直接掴む
+  const overlayRef = useRef<HTMLCanvasElement>(null) // ガイド用canvas
+  const fileInputRef = useRef<HTMLInputElement>(null) // ファイル入力
+  const containerRef = useRef<HTMLDivElement>(null) // div要素
+
+  // 裏のメモ帳
+  const undoStack = useRef<ImageData[]>([]) // Undo履歴
+  const redoStack = useRef<ImageData[]>([]) // Redo履歴
+  const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null) // 自動保存タイマー
+  const panStart = useRef({ x: 0, y: 0, panX: 0, panY: 0 }) // パン開始位置
 
   // 3Dプレビューにテクスチャ変更を通知 + 自動保存
   const notifyUpdate = useCallback(() => {
