@@ -334,14 +334,19 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     }
   }, [showGuide, showGrid]);
 
-  // --- 座標変換（ズーム＆パン対応） ---
+  // --- 座標変換(ズーム＆パン対応) ---
 
   const toPixelCoords = (e: React.MouseEvent<HTMLCanvasElement>): [number, number] | null => {
     const canvas = canvasRef.current;
     if (!canvas) return null;
+
+    // canvasの画面上の位置を取得
     const rect = canvas.getBoundingClientRect();
+
+    // canvas内の相対座標 × 縮小比率(64 / 512)
     const x = Math.floor((e.clientX - rect.left) * (canvas.width / rect.width));
     const y = Math.floor((e.clientY - rect.top) * (canvas.height / rect.height));
+    // キャンバス外は無視
     if (x < 0 || x >= 64 || y < 0 || y >= 64) return null;
     return [x, y];
   };
