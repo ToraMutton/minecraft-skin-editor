@@ -278,39 +278,59 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-    ctx.clearRect(0, 0, 64, 64);
 
+    // キャンバスの解像度設定
+    // CSSで指定しているサイズと一致させる
+    const displaySize = 512;
+    canvas.width = displaySize;
+    canvas.height = displaySize;
+
+    // スキンの1pxが、画面上の何px分か (512 / 64 = 8)
+    const scale = 8;
+
+    // 全範囲掃除
+    ctx.clearRect(0, 0, displaySize, displaySize);
+
+    // グリッド描画
     if (showGrid) {
-      ctx.strokeStyle = 'rgba(128, 128, 128, 0.2)';
-      ctx.lineWidth = 0.5;
+      ctx.strokeStyle = 'rgba(128, 128, 128, 0.3)';
+      ctx.lineWidth = 1;
       ctx.beginPath();
-      for (let i = 1; i < 64; i++) {
-        ctx.moveTo(i, 0); ctx.lineTo(i, 64);
-        ctx.moveTo(0, i); ctx.lineTo(64, i);
+      for (let i = 0; i <= 64; i++) {
+        // 縦線
+        ctx.moveTo(i * scale, 0);
+        ctx.lineTo(i * scale, displaySize);
+        // 横戦
+        ctx.moveTo(0, i * scale);
+        ctx.lineTo(displaySize, i * scale);
       }
       ctx.stroke();
     }
 
     if (showGuide) {
-      ctx.lineWidth = 1;
-      ctx.strokeStyle = 'rgba(255, 0, 0, 0.5)';
-      ctx.strokeRect(0, 0, 32, 16);
-      ctx.strokeRect(16, 16, 24, 16);
-      ctx.strokeRect(40, 16, 16, 16);
-      ctx.strokeRect(0, 16, 16, 16);
-      ctx.strokeRect(32, 48, 16, 16);
-      ctx.strokeRect(16, 48, 16, 16);
+      ctx.lineWidth = 2;
 
+      // メイングループ
+      ctx.strokeStyle = 'rgba(255, 0, 0, 0.6)';
+      ctx.strokeRect(0 * scale, 0 * scale, 32 * scale, 16 * scale);   // 頭
+      ctx.strokeRect(16 * scale, 16 * scale, 24 * scale, 16 * scale); // 胴体
+      ctx.strokeRect(40 * scale, 16 * scale, 16 * scale, 16 * scale); // 右腕
+      ctx.strokeRect(0 * scale, 16 * scale, 16 * scale, 16 * scale);  // 右足
+      ctx.strokeRect(32 * scale, 48 * scale, 16 * scale, 16 * scale); // 左腕
+      ctx.strokeRect(16 * scale, 48 * scale, 16 * scale, 16 * scale); // 左足
+
+      // オーバーレイ
       ctx.strokeStyle = 'rgba(0, 180, 0, 0.5)';
-      ctx.strokeRect(32, 0, 32, 16);
-      ctx.strokeRect(0, 32, 16, 16);
-      ctx.strokeRect(16, 32, 24, 16);
-      ctx.strokeRect(40, 32, 16, 16);
-      ctx.strokeRect(0, 48, 16, 16);
-      ctx.strokeRect(48, 48, 16, 16);
+      ctx.strokeRect(32 * scale, 0 * scale, 32 * scale, 16 * scale);  // 頭(over)
+      ctx.strokeRect(0 * scale, 32 * scale, 16 * scale, 16 * scale);  // 右足(over)
+      ctx.strokeRect(16 * scale, 32 * scale, 24 * scale, 16 * scale); // 胴体(over)
+      ctx.strokeRect(40 * scale, 32 * scale, 16 * scale, 16 * scale); // 右腕(over)
+      ctx.strokeRect(0 * scale, 48 * scale, 16 * scale, 16 * scale);  // 左足(over)
+      ctx.strokeRect(48 * scale, 48 * scale, 16 * scale, 16 * scale); // 左腕(over)
 
+      // おまけ(削除するかも)
       ctx.strokeStyle = 'rgba(0, 100, 255, 0.5)';
-      ctx.strokeRect(8, 8, 8, 8);
+      ctx.strokeRect(8 * scale, 8 * scale, 8 * scale, 8 * scale);
     }
   }, [showGuide, showGrid]);
 
