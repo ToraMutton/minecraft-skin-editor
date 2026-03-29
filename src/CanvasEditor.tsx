@@ -360,26 +360,52 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     if (!ctx) return;
 
     const { width, height } = canvas;
-    const imageData = ctx.getImageData(0, 0, width, height);
-    const data = imageData.data;
+    const imageData = ctx.getImageData(0, 0, width, height); // putImageDataで再利用するため
+    const data = imageData.data; // ピクセルの読み書き用
     const fill = hexToRgba(fillColor);
 
+    // クリックした座標からdata配列のインデックスを計算
     const idx = (startY * width + startX) * 4;
+    // クリックした座標の色を取得
     const tR = data[idx], tG = data[idx + 1], tB = data[idx + 2], tA = data[idx + 3];
+    // クリックした色と塗りたい色が同じなら何もしない
     if (tR === fill.r && tG === fill.g && tB === fill.b && tA === fill.a) return;
 
+    // ---
+
+    // キューにクリックした座標をいれて開始
     const queue: [number, number][] = [[startX, startY]];
+
+    // 64 × 64 = 4096個の0が並んだ配列
+    // 0 → まだ訪れていない
+    // 1 → 既に訪れた
     const visited = new Uint8Array(width * height);
 
+    // キューが空になるまで繰り返す
     while (queue.length > 0) {
+      // 先端の座標を取り出す
       const [cx, cy] = queue.shift()!;
+
+      // キャンバス範囲外チェック
       if (cx < 0 || cx >= width || cy < 0 || cy >= height) continue;
-      const pos = cy * width + cx;
-      if (visited[pos]) continue;
-      visited[pos] = 1;
+
+      // 訪問済みチェック
+      const pos = cy * width + cx; // visited配列用に2次元座標を1次元インデックスに変換
+      if (visited[pos]) continue; // 0 → Falsy, 1 → Truthy
+      visited[pos] = 1; // 訪れた印をつける(1を代入)
+
+      // 色チェック
       const i = pos * 4;
+      // クリックした色と違う色なら次のループへ
       if (data[i] !== tR || data[i + 1] !== tG || data[i + 2] !== tB || data[i + 3] !== tA) continue;
-      data[i] = fill.r; data[i + 1] = fill.g; data[i + 2] = fill.b; data[i + 3] = fill.a;
+
+      // 塗る
+      data[i] = fill.r
+      data[i + 1] = fill.g
+      data[i + 2] = fill.b
+      data[i + 3] = fill.a
+
+      // 右、左、下、上をキューに追加して次のループで処理
       queue.push([cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1]);
     }
     ctx.putImageData(imageData, 0, 0);
