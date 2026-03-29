@@ -259,16 +259,6 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     notifyUpdate();
   }, [canvasRef, notifyUpdate]);
 
-  // Ctrl+Z / Ctrl+Y
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (!(e.ctrlKey || e.metaKey)) return;
-      if (e.key === 'z' && !e.shiftKey) { e.preventDefault(); handleUndo(); }
-      else if (e.key === 'y' || (e.key === 'z' && e.shiftKey)) { e.preventDefault(); handleRedo(); }
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [handleUndo, handleRedo]);
 
   // --- 最近使った色 ---
 
