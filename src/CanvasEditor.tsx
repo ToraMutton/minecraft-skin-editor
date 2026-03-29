@@ -201,7 +201,6 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
   const pushUndo = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
@@ -220,16 +219,24 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     setCanRedo(false);
   }, [canvasRef]);
 
-
+  // 履歴を使って1つ前に戻る
   const handleUndo = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
+
+    // undoStackが空なら何もしない
     if (undoStack.current.length === 0) return;
 
+    // 現在の状態をredoStackに積む
     redoStack.current.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
+
+    // undoStackから1つ取り出してcanvasに反映
     ctx.putImageData(undoStack.current.pop()!, 0, 0);
+
+    // ボタンの状態を更新
+    // まだundoStackに履歴があればtrueのまま、なければfalse
     setCanUndo(undoStack.current.length > 0);
     setCanRedo(true);
     notifyUpdate();
