@@ -219,7 +219,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     setCanRedo(false);
   }, [canvasRef]);
 
-  // 履歴を使って1つ前に戻る
+  // Undo履歴を使って1つ前に戻る
   const handleUndo = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -242,15 +242,18 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     notifyUpdate();
   }, [canvasRef, notifyUpdate]);
 
+  // Redo履歴を使って1つ先に進む
   const handleRedo = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
+
     if (redoStack.current.length === 0) return;
 
     undoStack.current.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
     ctx.putImageData(redoStack.current.pop()!, 0, 0);
+
     setCanUndo(true);
     setCanRedo(redoStack.current.length > 0);
     notifyUpdate();
