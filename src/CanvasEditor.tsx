@@ -264,7 +264,9 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
 
   const addRecentColor = useCallback((c: string) => {
     setRecentColors(prev => {
+      // prevの中からcと違う色だけ残す
       const filtered = prev.filter(e => e !== c);
+      // 配列を展開し、1つの配列にまとめる
       return [c, ...filtered].slice(0, MAX_RECENT_COLORS);
     });
   }, []);
