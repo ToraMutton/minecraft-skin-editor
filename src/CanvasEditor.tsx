@@ -418,12 +418,17 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
+
+    // 1ピクセルだけ取得
     const pixel = ctx.getImageData(x, y, 1, 1).data;
+    // 透明なら無視
     if (pixel[3] === 0) return;
     const hex = rgbaToHex(pixel[0], pixel[1], pixel[2]);
-    setColor(hex);
-    addRecentColor(hex);
-    setTool('pen');
+
+    // 状態を更新
+    setColor(hex); // 現在の色を変更
+    addRecentColor(hex); // 最近使った色に追加
+    setTool('pen'); // penに自動切り替え
   };
 
   // --- 描画（ブラシサイズ＆ミラー対応） ---
