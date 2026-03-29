@@ -197,18 +197,29 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
 
   // --- 履歴操作 ---
 
+  // 現在の状態をUndo履歴に保存する関数
   const pushUndo = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    undoStack.current.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
+    // 状態を履歴に積む
+    undoStack.current.push(
+      ctx.getImageData(0, 0, canvas.width, canvas.height)
+    );
+
+    // 履歴が30件を超えたら古いものを削除
     if (undoStack.current.length > MAX_HISTORY) undoStack.current.shift();
+
+    // 新しく描くとredoStackを空に
     redoStack.current = [];
+    // ボタンの状態を更新
     setCanUndo(true);
     setCanRedo(false);
   }, [canvasRef]);
+
 
   const handleUndo = useCallback(() => {
     const canvas = canvasRef.current;
