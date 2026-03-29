@@ -431,23 +431,29 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     setTool('pen'); // penに自動切り替え
   };
 
-  // --- 描画（ブラシサイズ＆ミラー対応） ---
+  // --- 描画(ブラシサイズ＆ミラー対応) ---
 
+  // 1点を中心にブラスサイズ分のピクセルを塗る
   const applyToolAt = useCallback((x: number, y: number, ctx: CanvasRenderingContext2D) => {
+    // ブラシサイズの半径
     const half = Math.floor(brushSize / 2);
+
     for (let dy = -half; dy < brushSize - half; dy++) {
       for (let dx = -half; dx < brushSize - half; dx++) {
         const px = x + dx, py = y + dy;
         if (px < 0 || px >= 64 || py < 0 || py >= 64) continue;
         if (tool === 'eraser') {
-          ctx.clearRect(px, py, 1, 1);
+          ctx.clearRect(px, py, 1, 1); // 消しゴム: 透明にする
         } else {
           ctx.fillStyle = color;
-          ctx.fillRect(px, py, 1, 1);
+          ctx.fillRect(px, py, 1, 1); // 1×1ピクセルを塗る
         }
       }
     }
   }, [tool, color, brushSize]);
+
+
+
 
   const applyTool = useCallback((x: number, y: number) => {
     const canvas = canvasRef.current;
