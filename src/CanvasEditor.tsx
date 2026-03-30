@@ -549,6 +549,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     }
   };
 
+  // マウスを離したときの挙動管理関数
   const handleMouseUp = (e: React.MouseEvent<HTMLCanvasElement>) => {
     // 右/中クリックを離す → パン終了
     if (e.button === 2 || e.button === 1) {
@@ -559,6 +560,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     setIsDrawing(false);
   };
 
+  // キャンバス外に出たとき全フラグをリセット
   const handleMouseLeave = () => {
     setIsDrawing(false);
     setIsPanning(false);
