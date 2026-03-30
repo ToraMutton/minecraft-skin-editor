@@ -528,16 +528,21 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
     // パン中
     if (isPanning) {
-      const dx = e.clientX - panStart.current.x;
-      const dy = e.clientY - panStart.current.y;
-      setPan({ x: panStart.current.panX + dx, y: panStart.current.panY + dy });
+      const dx = e.clientX - panStart.current.x; // x方向の移動量
+      const dy = e.clientY - panStart.current.y; // y方向の移動量
+      setPan({
+        x: panStart.current.panX + dx,
+        y: panStart.current.panY + dy,
+      });
       return;
     }
 
+    // 常時ホバー中のパーツ名を更新
     const coords = toPixelCoords(e);
     if (!coords) return;
     setHoverPart(getPartName(coords[0], coords[1]));
 
+    // 描画中なら描く
     if (isDrawing) {
       applyTool(coords[0], coords[1]);
       notifyUpdate();
@@ -545,10 +550,12 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
   };
 
   const handleMouseUp = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    // 右/中クリックを離す → パン終了
     if (e.button === 2 || e.button === 1) {
       setIsPanning(false);
       return;
     }
+    // 左クリックを離す → 描画終了
     setIsDrawing(false);
   };
 
