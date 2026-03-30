@@ -489,34 +489,38 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
 
   // --- マウスイベント ---
 
+  // クリックしたとき
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
     // 右クリック or 中ボタンでパン開始
     if (e.button === 2 || e.button === 1) {
-      e.preventDefault();
-      setIsPanning(true);
+      e.preventDefault(); // ブラウザのデフォルト動作をキャンセル
+      setIsPanning(true); // パン中のフラグをtrueに
+
+      // クリックした位置、そのときのパン位置をを記録
       panStart.current = { x: e.clientX, y: e.clientY, panX: pan.x, panY: pan.y };
       return;
     }
 
     const coords = toPixelCoords(e);
-    if (!coords) return;
+    if (!coords) return; // キャンバス外は無視
     const [x, y] = coords;
 
     if (tool === 'picker') {
       pickColor(x, y);
-      return;
+      return; // キャンバスを変更しないためpushUndoは不要
     }
 
-    pushUndo();
+    pushUndo(); // 描く前に現在の状態を保存
 
-    if (tool === 'bucket') {
+    if (tool === 'bucket') { // バケツの場合
       floodFill(x, y, color);
       addRecentColor(color);
       notifyUpdate();
     } else {
-      setIsDrawing(true);
+      // ペンか消しゴムの場合
+      setIsDrawing(true); // 描画中フラグをtrueに → MouseMoveで使用
       applyTool(x, y);
-      if (tool === 'pen') addRecentColor(color);
+      if (tool === 'pen') addRecentColor(color); // ペンなら色追加(消しゴムは色追加なし)
       notifyUpdate();
     }
   };
