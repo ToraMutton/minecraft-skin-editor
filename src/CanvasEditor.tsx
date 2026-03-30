@@ -567,16 +567,16 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     setHoverPart('');
   };
 
-  // ズーム（ホイール）
+  // マウスホイールでズームイン/アウト
   const handleWheel = (e: React.WheelEvent) => {
-    e.preventDefault();
+    e.preventDefault(); // デフォルト動作(ページスクロール)をキャンセル
     setZoom(prev => {
       const next = prev + (e.deltaY < 0 ? 0.5 : -0.5);
-      return Math.max(1, Math.min(16, next));
+      return Math.max(1, Math.min(16, next)); // 範囲指定
     });
   };
 
-  // ズームリセット（ダブルクリック）
+  // ダブルクリックでズームリセット
   const handleDoubleClick = () => {
     setZoom(1);
     setPan({ x: 0, y: 0 });
