@@ -441,7 +441,9 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     for (let dy = -half; dy < brushSize - half; dy++) {
       for (let dx = -half; dx < brushSize - half; dx++) {
         const px = x + dx, py = y + dy;
+        // キャンバス外なら次のループへ
         if (px < 0 || px >= 64 || py < 0 || py >= 64) continue;
+
         if (tool === 'eraser') {
           ctx.clearRect(px, py, 1, 1); // 消しゴム: 透明にする
         } else {
@@ -452,9 +454,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     }
   }, [tool, color, brushSize]);
 
-
-
-
+  // ミラーも考慮して塗るver
   const applyTool = useCallback((x: number, y: number) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -466,10 +466,14 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     // ミラー描画
     if (mirror) {
       const half = Math.floor(brushSize / 2);
+
       for (let dy = -half; dy < brushSize - half; dy++) {
         for (let dx = -half; dx < brushSize - half; dx++) {
           const px = x + dx, py = y + dy;
+          // ミラー先座標を取得
           const mc = getMirrorCoord(px, py);
+
+          // ミラー先座標が存在する場合だけ
           if (mc) {
             if (tool === 'eraser') {
               ctx.clearRect(mc[0], mc[1], 1, 1);
