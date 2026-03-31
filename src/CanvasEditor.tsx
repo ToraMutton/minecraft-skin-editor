@@ -622,6 +622,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
+    // 画像保存をブラウザだけで完結させる流れ
     const link = document.createElement('a'); // aタグを動的に作成
     link.download = 'NewSkin.png'; // ダウンロードファイル名を設定
     link.href = canvas.toDataURL('image/png'); // キャンバスをPNG形式の文字列に変換
@@ -631,12 +632,12 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
   // --- 画像インポート ---
 
   const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+    const file = e.target.files?.[0]; // 選ばれたファイルが複数の場合でも最初の1枚を対象にする
     if (!file) return; // ファイルがなければ終了
 
     const img = new Image(); // ブラウザ組み込みの画像オブジェクトを作成
 
-    // 読み込み完了したら実行
+    // 画像読み込みが完了したら実行
     img.onload = () => {
       const canvas = canvasRef.current;
       if (!canvas) return;
