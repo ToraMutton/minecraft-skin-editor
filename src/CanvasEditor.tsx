@@ -601,6 +601,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     notifyUpdate(); // 3Dプレビューに通知
   };
 
+
   // --- 新規作成 ---
 
   const newCanvas = () => {
@@ -608,9 +609,10 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
+
     pushUndo();
     ctx.clearRect(0, 0, 64, 64);
-    localStorage.removeItem(AUTOSAVE_KEY);
+    localStorage.removeItem(AUTOSAVE_KEY); // オートセーブのデータも削除
     notifyUpdate();
   };
 
@@ -619,30 +621,35 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
   const downloadImage = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const link = document.createElement('a');
-    link.download = 'NewSkin.png';
-    link.href = canvas.toDataURL('image/png');
-    link.click();
+
+    const link = document.createElement('a'); // aタグを動的に作成
+    link.download = 'NewSkin.png'; // ダウンロードファイル名を設定
+    link.href = canvas.toDataURL('image/png'); // キャンバスをPNG形式の文字列に変換
+    link.click(); // プログラムからクリックしてダウンロード開始
   };
 
   // --- 画像インポート ---
 
   const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
-    const img = new Image();
+    if (!file) return; // ファイルがなければ終了
+
+    const img = new Image(); // ブラウザ組み込みの画像オブジェクトを作成
+
+    // 読み込み完了したら実行
     img.onload = () => {
       const canvas = canvasRef.current;
       if (!canvas) return;
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
+
       pushUndo();
       ctx.clearRect(0, 0, 64, 64);
       ctx.drawImage(img, 0, 0, 64, 64);
       notifyUpdate();
     };
     img.src = URL.createObjectURL(file);
-    e.target.value = '';
+    e.target.value = ''; // 同じファイルを再度選べるようにリセット
   };
 
   // --- ツール定義 ---
