@@ -587,6 +587,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     e.preventDefault();
   };
 
+
   // --- 全消し ---
 
   const clearCanvas = () => {
@@ -594,9 +595,10 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-    pushUndo();
-    ctx.clearRect(0, 0, 64, 64);
-    notifyUpdate();
+
+    pushUndo(); // 消す前の状態を履歴に保存
+    ctx.clearRect(0, 0, 64, 64); // キャンバス全体を透明に
+    notifyUpdate(); // 3Dプレビューに通知
   };
 
   // --- 新規作成 ---
