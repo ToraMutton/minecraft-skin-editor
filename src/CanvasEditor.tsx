@@ -753,11 +753,20 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
         {/* 縦線 */}
         <div style={{ width: '1px', height: '22px', backgroundColor: '#ccc' }} />
 
+        {/* 新規作成 */}
         <button onClick={newCanvas} style={btn}>新規 📄</button>
+
+        {/* 全消し */}
         <button onClick={clearCanvas} style={btn}>全消し 🗑️</button>
+
+        {/* 読込 */}
         <button onClick={() => fileInputRef.current?.click()} style={{ ...btn, backgroundColor: '#fff3e0' }}>
-          読込 📂</button>
+          読込 📂
+        </button>
+
         <input ref={fileInputRef} type="file" accept=".png" onChange={handleImport} style={{ display: 'none' }} />
+
+        {/* 保存 */}
         <button onClick={downloadImage} style={{ ...btn, backgroundColor: '#e0f7fa' }}>保存 💾</button>
 
         {/* 縦線 */}
