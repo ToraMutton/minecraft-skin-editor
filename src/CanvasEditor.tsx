@@ -666,6 +666,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
 
   // --- スタイル ---
 
+  // ボタン基本デザイン
   const btn: React.CSSProperties = {
     padding: '4px 8px',
     cursor: 'pointer',
@@ -682,9 +683,10 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     fontWeight: tool === t ? 'bold' : 'normal',
   });
 
+  // トグルボタン
   const toggleBtn = (active: boolean, color?: string): React.CSSProperties => ({
     ...btn,
-    backgroundColor: active ? (color || '#e8eaf6') : '#f0f0f0',
+    backgroundColor: active ? (color || '#e8eaf6') : '#f0f0f0', // color指定
     fontWeight: active ? 'bold' : 'normal',
   });
 
