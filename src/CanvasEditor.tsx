@@ -827,8 +827,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
 
         {/* ズーム＆パン用ラッパー */}
         <div style={{
-          width: '512px',
-          height: '512px',
+          width: '512px', height: '512px',
           transform: `scale(${zoom}) translate(${pan.x / zoom}px, ${pan.y / zoom}px)`,
           transformOrigin: 'center center',
           position: 'relative',
