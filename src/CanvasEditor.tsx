@@ -690,9 +690,11 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     fontWeight: active ? 'bold' : 'normal',
   });
 
+  // ブラシの太さ
   const sizeBtn = (s: BrushSize): React.CSSProperties => ({
     ...btn,
-    width: '28px', textAlign: 'center',
+    width: '28px',
+    textAlign: 'center',
     backgroundColor: brushSize === s ? '#ffe0b2' : '#f0f0f0',
     border: brushSize === s ? '2px solid #f57c00' : '1px solid #ccc',
     fontWeight: brushSize === s ? 'bold' : 'normal',
@@ -704,7 +706,8 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
       {/* ===== ツールバー 1行目: ツール選択 ===== */}
       <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'center' }}>
         <input
-          type="color" value={color}
+          type="color"
+          value={color}
           onChange={(e) => { setColor(e.target.value); addRecentColor(e.target.value); }}
           disabled={colorDisabled}
           style={{ cursor: colorDisabled ? 'not-allowed' : 'pointer', width: '32px', height: '28px' }}
@@ -716,6 +719,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
           </button>
         ))}
 
+        {/* 縦線 */}
         <div style={{ width: '1px', height: '22px', backgroundColor: '#ccc' }} />
 
         {/* ブラシサイズ */}
@@ -726,6 +730,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
           </button>
         ))}
 
+        {/* 縦線 */}
         <div style={{ width: '1px', height: '22px', backgroundColor: '#ccc' }} />
 
         {/* ミラー */}
