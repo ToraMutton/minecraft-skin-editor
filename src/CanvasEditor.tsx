@@ -772,9 +772,12 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
         {/* 縦線 */}
         <div style={{ width: '1px', height: '22px', backgroundColor: '#ccc' }} />
 
+        {/* グリッド切り替え */}
         <button onClick={() => setShowGrid(!showGrid)} style={toggleBtn(showGrid)}>
           グリッド {showGrid ? 'ON' : 'OFF'}
         </button>
+
+        {/* ガイド切り替え */}
         <button onClick={() => setShowGuide(!showGuide)} style={toggleBtn(showGuide, '#fff3e0')}>
           ガイド {showGuide ? 'ON' : 'OFF'}
         </button>
