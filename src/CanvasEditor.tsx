@@ -743,11 +743,14 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
 
       {/* ===== ツールバー 2行目: 操作ボタン ===== */}
       <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'center' }}>
-        <button onClick={handleUndo} disabled={!canUndo}
-          style={{ ...btn, opacity: canUndo ? 1 : 0.4 }} title="元に戻す (Ctrl+Z)">↩️</button>
-        <button onClick={handleRedo} disabled={!canRedo}
-          style={{ ...btn, opacity: canRedo ? 1 : 0.4 }} title="やり直す (Ctrl+Y)">↪️</button>
 
+        {/* Undo / Redo ボタン */}
+        <button onClick={handleUndo} disabled={!canUndo}
+          style={{ ...btn, opacity: canUndo ? 1 : 0.4 }} title="元に戻す">↩️</button>
+        <button onClick={handleRedo} disabled={!canRedo}
+          style={{ ...btn, opacity: canRedo ? 1 : 0.4 }} title="やり直す">↪️</button>
+
+        {/* 縦線 */}
         <div style={{ width: '1px', height: '22px', backgroundColor: '#ccc' }} />
 
         <button onClick={newCanvas} style={btn}>新規 📄</button>
@@ -757,6 +760,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
         <input ref={fileInputRef} type="file" accept=".png" onChange={handleImport} style={{ display: 'none' }} />
         <button onClick={downloadImage} style={{ ...btn, backgroundColor: '#e0f7fa' }}>保存 💾</button>
 
+        {/* 縦線 */}
         <div style={{ width: '1px', height: '22px', backgroundColor: '#ccc' }} />
 
         <button onClick={() => setShowGrid(!showGrid)} style={toggleBtn(showGrid)}>
