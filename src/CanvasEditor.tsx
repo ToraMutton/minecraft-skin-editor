@@ -667,8 +667,11 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
   // --- スタイル ---
 
   const btn: React.CSSProperties = {
-    padding: '4px 8px', cursor: 'pointer',
-    border: '1px solid #ccc', borderRadius: '4px', fontSize: '12px',
+    padding: '4px 8px',
+    cursor: 'pointer',
+    border: '1px solid #ccc',
+    borderRadius: '4px',
+    fontSize: '12px',
   };
 
   const toolBtn = (t: Tool): React.CSSProperties => ({
