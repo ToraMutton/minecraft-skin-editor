@@ -674,6 +674,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     fontSize: '12px',
   };
 
+  // 現在のツール判定
   const toolBtn = (t: Tool): React.CSSProperties => ({
     ...btn,
     backgroundColor: tool === t ? '#cce5ff' : '#f0f0f0',
