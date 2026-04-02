@@ -782,6 +782,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
           ガイド {showGuide ? 'ON' : 'OFF'}
         </button>
 
+        {/* ズーム倍率(拡大時のみ) */}
         {zoom > 1 && (
           <span style={{ fontSize: '11px', color: '#666', fontFamily: 'monospace' }}>
             🔍 {zoom.toFixed(1)}x
@@ -790,6 +791,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
       </div>
 
       {/* ===== 最近使った色パレット ===== */}
+      {/* 最近使った色が1つ以上あるときだけ表示 */}
       {recentColors.length > 0 && (
         <div style={{ display: 'flex', gap: '3px', flexWrap: 'wrap', justifyContent: 'center' }}>
           {recentColors.map((c, i) => (
@@ -797,9 +799,13 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
               onClick={() => { setColor(c); setTool('pen'); }}
               title={c}
               style={{
-                width: '20px', height: '20px', backgroundColor: c,
+                width: '20px',
+                height: '20px',
+                backgroundColor: c,
                 border: c === color ? '2px solid #333' : '1px solid #aaa',
-                borderRadius: '3px', cursor: 'pointer', padding: 0,
+                borderRadius: '3px',
+                cursor: 'pointer',
+                padding: 0,
               }}
             />
           ))}
