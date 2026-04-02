@@ -673,6 +673,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     border: '1px solid #ccc',
     borderRadius: '4px',
     fontSize: '12px',
+    color: '#333',
   };
 
   // 現在のツール判定
@@ -842,8 +843,8 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
               width: '100%', height: '100%',
               imageRendering: 'pixelated',
               cursor: isPanning ? 'grabbing' : toolConfig[tool].cursor,
-              backgroundImage: 'repeating-conic-gradient(#f0f0f0 0% 25%, transparent 0% 50%)',
-              backgroundSize: '32px 32px',
+              backgroundImage: 'repeating-conic-gradient(#333 0% 25%, #2a2a2a 0% 50%)',
+              backgroundSize: '16px 16px',
             }}
             onMouseDown={handleMouseDown}
             onMouseUp={handleMouseUp}
