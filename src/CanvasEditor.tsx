@@ -705,6 +705,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
 
       {/* ===== ツールバー 1行目: ツール選択 ===== */}
       <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'center' }}>
+        {/* カラーピッカー */}
         <input
           type="color"
           value={color}
@@ -713,6 +714,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
           style={{ cursor: colorDisabled ? 'not-allowed' : 'pointer', width: '32px', height: '28px' }}
         />
 
+        {/* ペン、消しゴム、バケツ、スポイト */}
         {(['pen', 'eraser', 'bucket', 'picker'] as Tool[]).map(t => (
           <button key={t} onClick={() => setTool(t)} style={toolBtn(t)}>
             {toolConfig[t].label}
