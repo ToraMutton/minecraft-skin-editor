@@ -657,7 +657,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
 
   const toolConfig: Record<Tool, { label: string; cursor: string }> = {
     pen: { label: 'ペン ✏️', cursor: 'crosshair' },
-    eraser: { label: '消しゴム 🧹', cursor: 'crosshair' },
+    eraser: { label: '消しゴム 🧹', cursor: 'cell' },
     bucket: { label: 'バケツ 🪣', cursor: 'cell' },
     picker: { label: 'スポイト 💧', cursor: 'copy' },
   };
