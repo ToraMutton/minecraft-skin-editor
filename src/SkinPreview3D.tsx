@@ -3,9 +3,9 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 interface Props {
-    // 描画用キャンバスへの参照（テクスチャ取得元）
+    // 描画用キャンバスへの参照
     canvasRef: React.RefObject<HTMLCanvasElement | null>;
-    // テクスチャ更新トリガー（値が変わるたびにテクスチャを再読み込み）
+    // キャンバス更新カウンター(増加で更新)
     textureVersion: number;
 }
 
