@@ -9,12 +9,12 @@ interface Props {
     textureVersion: number;
 }
 
-// Minecraftプレイヤーの各パーツのUV座標定義
-// [u, v, width, height] を 64x64 テクスチャ上の比率に変換して使う
+// Minecraftスキンの各パーツのUV座標定義
 interface UVFace {
     u: number; v: number; w: number; h: number;
 }
 
+// 1パーツにつき6面の定義
 interface PartUV {
     front: UVFace;
     back: UVFace;
