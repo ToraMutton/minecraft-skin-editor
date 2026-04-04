@@ -9,6 +9,30 @@ const MAX_RECENT_COLORS = 16;
 const AUTOSAVE_KEY = 'vextora-mc-skin-editor-canvas';
 const AUTOSAVE_DELAY = 1000;
 
+type PartKey = 'head' | 'body' | 'rightArm' | 'leftArm' | 'rightLeg' | 'leftLeg';
+type FaceKey = 'front' | 'back' | 'top' | 'bottom' | 'right' | 'left';
+
+const FACE_COORDS: Record<PartKey, Record<FaceKey, { x: number; y: number; w: number; h: number }>> = {
+  head: {
+    right: { x: 0, y: 8, w: 8, h: 8 },
+    front: { x: 8, y: 8, w: 8, h: 8 },
+    left: { x: 16, y: 8, w: 8, h: 8 },
+    back: { x: 24, y: 8, w: 8, h: 8 },
+    top: { x: 8, y: 0, w: 8, h: 8 },
+    bottom: { x: 16, y: 0, w: 8, h: 8 },
+  },
+  body: {
+    right: { x: 16, y: 20, w: 4, h: 12 },
+    front: { x: 20, y: 20, w: 8, h: 12 },
+    left: { x: 28, y: 20, w: 4, h: 12 },
+    back: { x: 32, y: 20, w: 8, h: 12 },
+    top: { x: 20, y: 16, w: 8, h: 4 },
+    bottom: { x: 28, y: 16, w: 8, h: 4 },
+  },
+  // TODO: 腕や足は一旦空っぽにしておく
+  rightArm: {} as any, leftArm: {} as any, rightLeg: {} as any, leftLeg: {} as any,
+};
+
 // ブラシサイズ型
 type BrushSize = 1 | 2 | 3;
 
@@ -135,11 +159,17 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
   const [pan, setPan] = useState({ x: 0, y: 0 }) // パン位置
   const [isPanning, setIsPanning] = useState(false) // パン中かどうか
 
+  // 編集パーツ系
+  const [selectedPart, setSelectedPart] = useState<PartKey>('head'); // 今選んでるパーツ
+  const [selectedFace, setSelectedFace] = useState<FaceKey>('front'); // 今選んでる面
+
   // useRef系
   // 直接掴む
   const overlayRef = useRef<HTMLCanvasElement>(null) // ガイド用canvas
   const fileInputRef = useRef<HTMLInputElement>(null) // ファイル入力
   const containerRef = useRef<HTMLDivElement>(null) // div要素
+
+  const masterCanvasRef = useRef<HTMLCanvasElement>(null); // 裏方のマスターデータ
 
   // 裏のメモ帳
   const undoStack = useRef<ImageData[]>([]) // Undo履歴
@@ -179,7 +209,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     if (!saved) return;
 
     // キャンバスを準備
-    const canvas = canvasRef.current;
+    const canvas = masterCanvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
@@ -873,6 +903,14 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
         {hoverPart && `📍 ${hoverPart}`}
         {zoom > 1 && ' | ホイール: ズーム | 右ドラッグ: パン | ダブルクリック: リセット'}
       </div>
+
+      {/* --- 見えない裏方キャンバス --- */}
+      <canvas
+        ref={masterCanvasRef}
+        width={64}
+        height={64}
+        style={{ display: 'none' }}
+      />
     </div>
   );
 }
