@@ -162,11 +162,11 @@ export default function SkinPreview3D({ canvasRef, textureVersion }: Props) {
             0.1,        // ニアークリップ
             100,        // ファークリップ
         );
-        camera.position.set(0, 15, 60); // 初期ポジション
+        camera.position.set(0, 16, 60); // 初期ポジション
 
         // コントローラー
         const controls = new OrbitControls(camera, renderer.domElement);
-        controls.target.set(0, 10, 0); // 回転の中心(注視点)
+        controls.target.set(0, 16, 0); // 回転の中心(注視点)
         controls.enablePan = false; // パン不可
         controls.minDistance = 20; // ズームインの限界値
         controls.maxDistance = 60; // ズームアウトの限界値
@@ -202,47 +202,52 @@ export default function SkinPreview3D({ canvasRef, textureVersion }: Props) {
             side: THREE.FrontSide, // 箱の外側だけ描画
         });
 
-        // プレイヤーモデル構築（Minecraftの1ピクセル = 1ユニット）
+        // プレイヤーモデル構築（Minecraftの1ピクセル = 1ユニット、地面をY=0）
         // 頭: 8x8x8
         const headGeo = new THREE.BoxGeometry(8, 8, 8);
         applyPartUV(headGeo, SKIN_UV.head);
+        headGeo.translate(0, 4, 0);
         const head = new THREE.Mesh(headGeo, material);
-        head.position.set(0, 22, 0);
+        head.position.set(0, 24, 0);
         scene.add(head);
 
         // 胴体: 8x12x4
         const bodyGeo = new THREE.BoxGeometry(8, 12, 4);
         applyPartUV(bodyGeo, SKIN_UV.body);
         const body = new THREE.Mesh(bodyGeo, material);
-        body.position.set(0, 12, 0);
+        body.position.set(0, 18, 0);
         scene.add(body);
 
         // 右腕: 4x12x4
         const rArmGeo = new THREE.BoxGeometry(4, 12, 4);
         applyPartUV(rArmGeo, SKIN_UV.rightArm);
+        rArmGeo.translate(0, -6, 0);
         const rArm = new THREE.Mesh(rArmGeo, material);
-        rArm.position.set(-6, 12, 0);
+        rArm.position.set(-6, 24, 0);
         scene.add(rArm);
 
         // 左腕: 4x12x4
         const lArmGeo = new THREE.BoxGeometry(4, 12, 4);
         applyPartUV(lArmGeo, SKIN_UV.leftArm);
+        lArmGeo.translate(0, -6, 0);
         const lArm = new THREE.Mesh(lArmGeo, material);
-        lArm.position.set(6, 12, 0);
+        lArm.position.set(6, 24, 0);
         scene.add(lArm);
 
         // 右足: 4x12x4
         const rLegGeo = new THREE.BoxGeometry(4, 12, 4);
         applyPartUV(rLegGeo, SKIN_UV.rightLeg);
+        rLegGeo.translate(0, -6, 0);
         const rLeg = new THREE.Mesh(rLegGeo, material);
-        rLeg.position.set(-2, 0, 0);
+        rLeg.position.set(-2, 12, 0);
         scene.add(rLeg);
 
         // 左足: 4x12x4
         const lLegGeo = new THREE.BoxGeometry(4, 12, 4);
         applyPartUV(lLegGeo, SKIN_UV.leftLeg);
+        lLegGeo.translate(0, -6, 0);
         const lLeg = new THREE.Mesh(lLegGeo, material);
-        lLeg.position.set(2, 0, 0);
+        lLeg.position.set(2, 12, 0);
         scene.add(lLeg);
 
         // アニメーションループ
