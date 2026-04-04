@@ -83,6 +83,58 @@ const SKIN_UV: Record<string, PartUV> = {
     },
 };
 
+// オーバーレイ用UVマッピング定義
+const SKIN_UV_OVER: Record<string, PartUV> = {
+    head: {
+        right: { u: 32, v: 8, w: 8, h: 8 },
+        front: { u: 40, v: 8, w: 8, h: 8 },
+        left: { u: 48, v: 8, w: 8, h: 8 },
+        back: { u: 56, v: 8, w: 8, h: 8 },
+        top: { u: 40, v: 0, w: 8, h: 8 },
+        bottom: { u: 48, v: 0, w: 8, h: 8 },
+    },
+    rightLeg: {
+        right: { u: 0, v: 36, w: 4, h: 12 },
+        front: { u: 4, v: 36, w: 4, h: 12 },
+        left: { u: 8, v: 36, w: 4, h: 12 },
+        back: { u: 12, v: 36, w: 4, h: 12 },
+        top: { u: 4, v: 32, w: 4, h: 4 },
+        bottom: { u: 8, v: 32, w: 4, h: 4 },
+    },
+    body: {
+        right: { u: 16, v: 36, w: 4, h: 12 },
+        front: { u: 20, v: 36, w: 8, h: 12 },
+        left: { u: 28, v: 36, w: 4, h: 12 },
+        back: { u: 32, v: 36, w: 8, h: 12 },
+        top: { u: 20, v: 32, w: 8, h: 4 },
+        bottom: { u: 28, v: 32, w: 8, h: 4 },
+    },
+    rightArm: {
+        right: { u: 40, v: 36, w: 4, h: 12 },
+        front: { u: 44, v: 36, w: 4, h: 12 },
+        left: { u: 48, v: 36, w: 4, h: 12 },
+        back: { u: 52, v: 36, w: 4, h: 12 },
+        top: { u: 44, v: 32, w: 4, h: 4 },
+        bottom: { u: 48, v: 32, w: 4, h: 4 },
+    },
+    leftLeg: {
+        right: { u: 0, v: 52, w: 4, h: 12 },
+        front: { u: 4, v: 52, w: 4, h: 12 },
+        left: { u: 8, v: 52, w: 4, h: 12 },
+        back: { u: 12, v: 52, w: 4, h: 12 },
+        top: { u: 4, v: 48, w: 4, h: 4 },
+        bottom: { u: 8, v: 48, w: 4, h: 4 },
+    },
+    leftArm: {
+        right: { u: 48, v: 52, w: 4, h: 12 },
+        front: { u: 52, v: 52, w: 4, h: 12 },
+        left: { u: 56, v: 52, w: 4, h: 12 },
+        back: { u: 60, v: 52, w: 4, h: 12 },
+        top: { u: 52, v: 48, w: 4, h: 4 },
+        bottom: { u: 56, v: 48, w: 4, h: 4 },
+    },
+};
+
 // UVFaceからThree.jsのUV座標を設定する
 // Three.jsのUV座標系: 左下が(0,0)、右上が(1,1)
 // Minecraftのテクスチャ座標系: 左上が(0,0)、右上が(64,64)
@@ -220,12 +272,23 @@ export default function SkinPreview3D({ canvasRef, textureVersion, pose }: Props
         head.position.set(0, 24, 0);
         scene.add(head);
 
+        const headOverGeo = new THREE.BoxGeometry(9, 9, 9); // 各面+0.5
+        applyPartUV(headOverGeo, SKIN_UV_OVER.head);
+        headOverGeo.translate(0, 4, 0);
+        const headOver = new THREE.Mesh(headOverGeo, material);
+        head.add(headOver);
+
         // 胴体: 8x12x4
         const bodyGeo = new THREE.BoxGeometry(8, 12, 4);
         applyPartUV(bodyGeo, SKIN_UV.body);
         const body = new THREE.Mesh(bodyGeo, material);
         body.position.set(0, 18, 0);
         scene.add(body);
+
+        const bodyOverGeo = new THREE.BoxGeometry(8.5, 12.5, 4.5); // 各面+0.25
+        applyPartUV(bodyOverGeo, SKIN_UV_OVER.body);
+        const bodyOver = new THREE.Mesh(bodyOverGeo, material);
+        body.add(bodyOver);
 
         // 右腕: 4x12x4
         const rArmGeo = new THREE.BoxGeometry(4, 12, 4);
@@ -235,6 +298,12 @@ export default function SkinPreview3D({ canvasRef, textureVersion, pose }: Props
         rArm.position.set(-6, 24, 0);
         scene.add(rArm);
 
+        const rArmOverGeo = new THREE.BoxGeometry(4.5, 12.5, 4.5); // 各面+0.25
+        applyPartUV(rArmOverGeo, SKIN_UV_OVER.rightArm);
+        rArmOverGeo.translate(0, -6, 0);
+        const rArmOver = new THREE.Mesh(rArmOverGeo, material);
+        rArm.add(rArmOver);
+
         // 左腕: 4x12x4
         const lArmGeo = new THREE.BoxGeometry(4, 12, 4);
         applyPartUV(lArmGeo, SKIN_UV.leftArm);
@@ -242,6 +311,12 @@ export default function SkinPreview3D({ canvasRef, textureVersion, pose }: Props
         const lArm = new THREE.Mesh(lArmGeo, material);
         lArm.position.set(6, 24, 0);
         scene.add(lArm);
+
+        const lArmOverGeo = new THREE.BoxGeometry(4.5, 12.5, 4.5);
+        applyPartUV(lArmOverGeo, SKIN_UV_OVER.leftArm);
+        lArmOverGeo.translate(0, -6, 0);
+        const lArmOver = new THREE.Mesh(lArmOverGeo, material);
+        lArm.add(lArmOver);
 
         // 右足: 4x12x4
         const rLegGeo = new THREE.BoxGeometry(4, 12, 4);
@@ -251,6 +326,12 @@ export default function SkinPreview3D({ canvasRef, textureVersion, pose }: Props
         rLeg.position.set(-2, 12, 0);
         scene.add(rLeg);
 
+        const rLegOverGeo = new THREE.BoxGeometry(4.5, 12.5, 4.5);
+        applyPartUV(rLegOverGeo, SKIN_UV_OVER.rightLeg);
+        rLegOverGeo.translate(0, -6, 0);
+        const rLegOver = new THREE.Mesh(rLegOverGeo, material);
+        rLeg.add(rLegOver);
+
         // 左足: 4x12x4
         const lLegGeo = new THREE.BoxGeometry(4, 12, 4);
         applyPartUV(lLegGeo, SKIN_UV.leftLeg);
@@ -258,6 +339,12 @@ export default function SkinPreview3D({ canvasRef, textureVersion, pose }: Props
         const lLeg = new THREE.Mesh(lLegGeo, material);
         lLeg.position.set(2, 12, 0);
         scene.add(lLeg);
+
+        const lLegOverGeo = new THREE.BoxGeometry(4.5, 12.5, 4.5);
+        applyPartUV(lLegOverGeo, SKIN_UV_OVER.leftLeg);
+        lLegOverGeo.translate(0, -6, 0);
+        const lLegOver = new THREE.Mesh(lLegOverGeo, material);
+        lLeg.add(lLegOver);
 
         // アニメーションループ
         const animate = () => {
@@ -291,6 +378,13 @@ export default function SkinPreview3D({ canvasRef, textureVersion, pose }: Props
             lLegGeo.dispose();
             material.dispose();
             texture.dispose();
+
+            headOverGeo.dispose();
+            bodyOverGeo.dispose();
+            rArmOverGeo.dispose();
+            lArmOverGeo.dispose();
+            rLegOverGeo.dispose();
+            lLegOverGeo.dispose();
 
             // 画面から引っこ抜く 
             if (container && renderer.domElement.parentNode === container) {
