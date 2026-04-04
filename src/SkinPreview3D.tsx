@@ -162,14 +162,14 @@ export default function SkinPreview3D({ canvasRef, textureVersion }: Props) {
             0.1,        // ニアークリップ
             100,        // ファークリップ
         );
-        camera.position.set(0, 15, 60);
+        camera.position.set(0, 15, 60); // 初期ポジション
 
-        // 移動可能にするコントローラー
+        // コントローラー
         const controls = new OrbitControls(camera, renderer.domElement);
-        controls.target.set(0, 10, 0);
-        controls.enablePan = false;
-        controls.minDistance = 20;
-        controls.maxDistance = 60;
+        controls.target.set(0, 10, 0); // 回転の中心(注視点)
+        controls.enablePan = false; // パン不可
+        controls.minDistance = 20; // ズームインの限界値
+        controls.maxDistance = 60; // ズームアウトの限界値
         controls.update();
 
         // ライティング
