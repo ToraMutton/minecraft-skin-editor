@@ -262,7 +262,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
   const currentFace = FACE_COORDS[selectedLayer][selectedPart][selectedFace];
 
   // 描画面積の動的計算(最大512pxの枠にぴったり収まるようにスケールを計算)
-  const maxDisplaySize = 512;
+  const maxDisplaySize = 400;
   const currentScale = maxDisplaySize / Math.max(currentFace.w, currentFace.h);
   const displayWidth = currentFace.w * currentScale;
   const displayHeight = currentFace.h * currentScale;
