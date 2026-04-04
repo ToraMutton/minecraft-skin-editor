@@ -137,7 +137,7 @@ export default function SkinPreview3D({ canvasRef, textureVersion }: Props) {
         animId: number;
     } | null>(null);
 
-    // シーン初期化
+    // 初期化
     useEffect(() => {
         const container = containerRef.current;
         if (!container) return; // div要素がなかったら終了
@@ -152,11 +152,17 @@ export default function SkinPreview3D({ canvasRef, textureVersion }: Props) {
         renderer.setClearColor(0x000000, 0); // 透明で塗りつぶす
         container.appendChild(renderer.domElement); // キャンバス要素とdiv要素を合体
 
+        // シーン
         const scene = new THREE.Scene();
 
         // カメラ
-        const camera = new THREE.PerspectiveCamera(35, 300 / 400, 0.1, 100);
-        camera.position.set(0, 15, 40);
+        const camera = new THREE.PerspectiveCamera(
+            35,         // 視野角
+            300 / 400,  // アスペクト比
+            0.1,        // ニアークリップ
+            100,        // ファークリップ
+        );
+        camera.position.set(0, 15, 60);
 
         // 移動可能にするコントローラー
         const controls = new OrbitControls(camera, renderer.domElement);
