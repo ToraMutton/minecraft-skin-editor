@@ -7,6 +7,7 @@ interface Props {
     canvasRef: React.RefObject<HTMLCanvasElement | null>;
     // キャンバス更新カウンター(増加で更新)
     textureVersion: number;
+    pose: 'idle' | 'walk';
 }
 
 // Minecraftスキンの各パーツのUV座標定義
@@ -126,7 +127,7 @@ function applyPartUV(geometry: THREE.BoxGeometry, partUV: PartUV) {
     geometry.attributes.uv.needsUpdate = true;
 }
 
-export default function SkinPreview3D({ canvasRef, textureVersion }: Props) {
+export default function SkinPreview3D({ canvasRef, textureVersion, pose }: Props) {
     const containerRef = useRef<HTMLDivElement>(null);
     const sceneRef = useRef<{
         renderer: THREE.WebGLRenderer;
@@ -135,6 +136,13 @@ export default function SkinPreview3D({ canvasRef, textureVersion }: Props) {
         controls: OrbitControls;
         texture: THREE.CanvasTexture;
         animId: number;
+        parts: {
+            head: THREE.Mesh;
+            rArm: THREE.Mesh;
+            lArm: THREE.Mesh;
+            rLeg: THREE.Mesh;
+            lLeg: THREE.Mesh;
+        };
     } | null>(null);
 
     // 初期化
@@ -202,6 +210,7 @@ export default function SkinPreview3D({ canvasRef, textureVersion }: Props) {
             side: THREE.FrontSide, // 箱の外側だけ描画
         });
 
+
         // プレイヤーモデル構築（Minecraftの1ピクセル = 1ユニット、地面をY=0）
         // 頭: 8x8x8
         const headGeo = new THREE.BoxGeometry(8, 8, 8);
@@ -260,7 +269,10 @@ export default function SkinPreview3D({ canvasRef, textureVersion }: Props) {
         const animId = requestAnimationFrame(animate); // 初期キック
 
         // 初回予約番号全てをぶち込む
-        sceneRef.current = { renderer, scene, camera, controls, texture, animId };
+        sceneRef.current = {
+            renderer, scene, camera, controls, texture, animId,
+            parts: { head, rArm, lArm, rLeg, lLeg }
+        };
 
         // ループ・メモリ解放
         return () => {
@@ -290,6 +302,29 @@ export default function SkinPreview3D({ canvasRef, textureVersion }: Props) {
         };
     }, []);
 
+    // ポーズ
+    const applyPose = (pose: 'idle' | 'walk') => {
+        if (!sceneRef.current) return;
+        const { head, rArm, lArm, rLeg, lLeg } = sceneRef.current.parts;
+
+        if (pose === 'walk') {
+            // 歩行ポーズ: 腕と足を前後に 30度(PI/6) 振る
+            const angle = Math.PI / 6;
+            rArm.rotation.x = -angle;
+            lArm.rotation.x = angle;
+            rLeg.rotation.x = angle;
+            lLeg.rotation.x = -angle;
+            head.rotation.x = 0.1;
+        } else {
+            // 直立ポーズ: 全部 0 に戻す
+            rArm.rotation.x = 0;
+            lArm.rotation.x = 0;
+            rLeg.rotation.x = 0;
+            lLeg.rotation.x = 0;
+            head.rotation.x = 0;
+        }
+    };
+
     // テクスチャ更新, ダミーから真キャンバスへ
     useEffect(() => {
         if (!sceneRef.current || !canvasRef.current) return;
@@ -297,6 +332,10 @@ export default function SkinPreview3D({ canvasRef, textureVersion }: Props) {
         texture.image = canvasRef.current;
         texture.needsUpdate = true;
     }, [textureVersion, canvasRef]);
+
+    useEffect(() => {
+        applyPose(pose);
+    }, [pose]);
 
     return (
         <div
