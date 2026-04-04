@@ -140,20 +140,25 @@ export default function SkinPreview3D({ canvasRef, textureVersion }: Props) {
     // シーン初期化
     useEffect(() => {
         const container = containerRef.current;
-        if (!container) return;
+        if (!container) return; // div要素がなかったら終了
 
         // Three.jsの基本セットアップ
-        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-        renderer.setSize(300, 400);
+        const renderer = new THREE.WebGLRenderer({
+            antialias: true, // アンチエリアシング
+            alpha: true // 描画の背景を透明に
+        });
+        renderer.setSize(300, 400); // レンダラーのサイズ指定(幅300px, 高さ400px)
         renderer.setPixelRatio(window.devicePixelRatio);
-        renderer.setClearColor(0x000000, 0);
-        container.appendChild(renderer.domElement);
+        renderer.setClearColor(0x000000, 0); // 透明で塗りつぶす
+        container.appendChild(renderer.domElement); // キャンバス要素とdiv要素を合体
 
         const scene = new THREE.Scene();
 
+        // カメラ
         const camera = new THREE.PerspectiveCamera(35, 300 / 400, 0.1, 100);
         camera.position.set(0, 15, 40);
 
+        // 移動可能にするコントローラー
         const controls = new OrbitControls(camera, renderer.domElement);
         controls.target.set(0, 10, 0);
         controls.enablePan = false;
