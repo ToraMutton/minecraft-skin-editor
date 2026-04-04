@@ -648,6 +648,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
       ctx.clearRect(0, 0, 64, 64);
       ctx.drawImage(img, 0, 0, 64, 64);
       notifyUpdate();
+      URL.revokeObjectURL(img.src);
     };
     img.src = URL.createObjectURL(file);
     e.target.value = ''; // 同じファイルを再度選べるようにリセット
