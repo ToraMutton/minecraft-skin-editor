@@ -254,12 +254,19 @@ export default function SkinPreview3D({ canvasRef, textureVersion, pose }: Props
         // 色表示をsRGBに合わせる
         texture.colorSpace = THREE.SRGBColorSpace;
 
-        // マテリアル
-        const material = new THREE.MeshLambertMaterial({
+        // 1. ベース用マテリアル
+        const baseMaterial = new THREE.MeshLambertMaterial({
+            map: texture,
+            transparent: false, // ← #透明を許さない
+            side: THREE.FrontSide,
+        });
+
+        // 2. オーバーレイ用マテリアル
+        const overlayMaterial = new THREE.MeshLambertMaterial({
             map: texture,
             transparent: true,
-            alphaTest: 0.1,
-            side: THREE.FrontSide, // 箱の外側だけ描画
+            alphaTest: 0.1, // 透明なピクセルを綺麗に切り抜く
+            side: THREE.FrontSide,
         });
 
 
@@ -268,82 +275,82 @@ export default function SkinPreview3D({ canvasRef, textureVersion, pose }: Props
         const headGeo = new THREE.BoxGeometry(8, 8, 8);
         applyPartUV(headGeo, SKIN_UV.head);
         headGeo.translate(0, 4, 0);
-        const head = new THREE.Mesh(headGeo, material);
+        const head = new THREE.Mesh(headGeo, baseMaterial);
         head.position.set(0, 24, 0);
         scene.add(head);
 
         const headOverGeo = new THREE.BoxGeometry(9, 9, 9); // 各面+0.5
         applyPartUV(headOverGeo, SKIN_UV_OVER.head);
         headOverGeo.translate(0, 4, 0);
-        const headOver = new THREE.Mesh(headOverGeo, material);
+        const headOver = new THREE.Mesh(headOverGeo, overlayMaterial);
         head.add(headOver);
 
         // 胴体: 8x12x4
         const bodyGeo = new THREE.BoxGeometry(8, 12, 4);
         applyPartUV(bodyGeo, SKIN_UV.body);
-        const body = new THREE.Mesh(bodyGeo, material);
+        const body = new THREE.Mesh(bodyGeo, baseMaterial);
         body.position.set(0, 18, 0);
         scene.add(body);
 
         const bodyOverGeo = new THREE.BoxGeometry(8.5, 12.5, 4.5); // 各面+0.25
         applyPartUV(bodyOverGeo, SKIN_UV_OVER.body);
-        const bodyOver = new THREE.Mesh(bodyOverGeo, material);
+        const bodyOver = new THREE.Mesh(bodyOverGeo, overlayMaterial);
         body.add(bodyOver);
 
         // 右腕: 4x12x4
         const rArmGeo = new THREE.BoxGeometry(4, 12, 4);
         applyPartUV(rArmGeo, SKIN_UV.rightArm);
         rArmGeo.translate(0, -6, 0);
-        const rArm = new THREE.Mesh(rArmGeo, material);
+        const rArm = new THREE.Mesh(rArmGeo, baseMaterial);
         rArm.position.set(-6, 24, 0);
         scene.add(rArm);
 
         const rArmOverGeo = new THREE.BoxGeometry(4.5, 12.5, 4.5); // 各面+0.25
         applyPartUV(rArmOverGeo, SKIN_UV_OVER.rightArm);
         rArmOverGeo.translate(0, -6, 0);
-        const rArmOver = new THREE.Mesh(rArmOverGeo, material);
+        const rArmOver = new THREE.Mesh(rArmOverGeo, overlayMaterial);
         rArm.add(rArmOver);
 
         // 左腕: 4x12x4
         const lArmGeo = new THREE.BoxGeometry(4, 12, 4);
         applyPartUV(lArmGeo, SKIN_UV.leftArm);
         lArmGeo.translate(0, -6, 0);
-        const lArm = new THREE.Mesh(lArmGeo, material);
+        const lArm = new THREE.Mesh(lArmGeo, baseMaterial);
         lArm.position.set(6, 24, 0);
         scene.add(lArm);
 
         const lArmOverGeo = new THREE.BoxGeometry(4.5, 12.5, 4.5);
         applyPartUV(lArmOverGeo, SKIN_UV_OVER.leftArm);
         lArmOverGeo.translate(0, -6, 0);
-        const lArmOver = new THREE.Mesh(lArmOverGeo, material);
+        const lArmOver = new THREE.Mesh(lArmOverGeo, overlayMaterial);
         lArm.add(lArmOver);
 
         // 右足: 4x12x4
         const rLegGeo = new THREE.BoxGeometry(4, 12, 4);
         applyPartUV(rLegGeo, SKIN_UV.rightLeg);
         rLegGeo.translate(0, -6, 0);
-        const rLeg = new THREE.Mesh(rLegGeo, material);
+        const rLeg = new THREE.Mesh(rLegGeo, baseMaterial);
         rLeg.position.set(-2, 12, 0);
         scene.add(rLeg);
 
         const rLegOverGeo = new THREE.BoxGeometry(4.5, 12.5, 4.5);
         applyPartUV(rLegOverGeo, SKIN_UV_OVER.rightLeg);
         rLegOverGeo.translate(0, -6, 0);
-        const rLegOver = new THREE.Mesh(rLegOverGeo, material);
+        const rLegOver = new THREE.Mesh(rLegOverGeo, overlayMaterial);
         rLeg.add(rLegOver);
 
         // 左足: 4x12x4
         const lLegGeo = new THREE.BoxGeometry(4, 12, 4);
         applyPartUV(lLegGeo, SKIN_UV.leftLeg);
         lLegGeo.translate(0, -6, 0);
-        const lLeg = new THREE.Mesh(lLegGeo, material);
+        const lLeg = new THREE.Mesh(lLegGeo, baseMaterial);
         lLeg.position.set(2, 12, 0);
         scene.add(lLeg);
 
         const lLegOverGeo = new THREE.BoxGeometry(4.5, 12.5, 4.5);
         applyPartUV(lLegOverGeo, SKIN_UV_OVER.leftLeg);
         lLegOverGeo.translate(0, -6, 0);
-        const lLegOver = new THREE.Mesh(lLegOverGeo, material);
+        const lLegOver = new THREE.Mesh(lLegOverGeo, overlayMaterial);
         lLeg.add(lLegOver);
 
         // アニメーションループ
@@ -376,7 +383,8 @@ export default function SkinPreview3D({ canvasRef, textureVersion, pose }: Props
             lArmGeo.dispose();
             rLegGeo.dispose();
             lLegGeo.dispose();
-            material.dispose();
+            baseMaterial.dispose();
+            overlayMaterial.dispose();
             texture.dispose();
 
             headOverGeo.dispose();
