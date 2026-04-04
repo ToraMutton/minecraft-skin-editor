@@ -225,7 +225,6 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
   const [brushSize, setBrushSize] = useState<BrushSize>(1) // ブラシサイズ
 
   // 表示設定系
-  const [showGuide, setShowGuide] = useState(true) // ガイド表示
   const [showGrid, setShowGrid] = useState(false) // グリッド表示
   const [mirror, setMirror] = useState(false) // ミラー
 
@@ -245,6 +244,14 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
   const [selectedLayer, setSelectedLayer] = useState<LayerKey>('base');
   const [selectedPart, setSelectedPart] = useState<PartKey>('head'); // 今選んでるパーツ
   const [selectedFace, setSelectedFace] = useState<FaceKey>('front'); // 今選んでる面
+
+  const currentFace = FACE_COORDS[selectedLayer][selectedPart][selectedFace];
+
+  // 描画面積の動的計算(最大512pxの枠にぴったり収まるようにスケールを計算)
+  const maxDisplaySize = 512;
+  const currentScale = maxDisplaySize / Math.max(currentFace.w, currentFace.h);
+  const displayWidth = currentFace.w * currentScale;
+  const displayHeight = currentFace.h * currentScale;
 
   // useRef系
   // 直接掴む
@@ -411,7 +418,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     });
   }, []);
 
-  // --- ガイドライン＆グリッド描画 ---
+  // --- グリッド描画 ---
 
   useEffect(() => {
     const canvas = overlayRef.current;
@@ -419,60 +426,31 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // キャンバスの解像度設定
-    // CSSで指定しているサイズと一致させる
-    const displaySize = 512;
-    canvas.width = displaySize;
-    canvas.height = displaySize;
-
-    // スキンの1pxが、画面上の何px分か (512 / 64 = 8)
-    const scale = 8;
+    // キャンバス解像度を画面表示サイズに合わせる
+    canvas.width = displayWidth;
+    canvas.height = displayHeight;
 
     // 全範囲掃除
-    ctx.clearRect(0, 0, displaySize, displaySize);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // グリッド描画
+    // グリッド描画(現在の面の縦横ピクセル数に合わせて線を引く)
     if (showGrid) {
-      ctx.strokeStyle = 'rgba(128, 128, 128, 0.3)';
+      ctx.strokeStyle = 'rgba(128, 128, 128, 0.4)';
       ctx.lineWidth = 1;
       ctx.beginPath();
-      for (let i = 0; i <= 64; i++) {
-        // 縦線
-        ctx.moveTo(i * scale, 0);
-        ctx.lineTo(i * scale, displaySize);
-        // 横戦
-        ctx.moveTo(0, i * scale);
-        ctx.lineTo(displaySize, i * scale);
+      // 縦線
+      for (let x = 0; x <= currentFace.w; x++) {
+        ctx.moveTo(x * currentScale, 0);
+        ctx.lineTo(x * currentScale, canvas.height);
+      }
+      // 横線
+      for (let y = 0; y <= currentFace.h; y++) {
+        ctx.moveTo(0, y * currentScale);
+        ctx.lineTo(canvas.width, y * currentScale);
       }
       ctx.stroke();
     }
-
-    if (showGuide) {
-      ctx.lineWidth = 2;
-
-      // メイングループ
-      ctx.strokeStyle = 'rgba(255, 0, 0, 0.6)';
-      ctx.strokeRect(0 * scale, 0 * scale, 32 * scale, 16 * scale);   // 頭
-      ctx.strokeRect(16 * scale, 16 * scale, 24 * scale, 16 * scale); // 胴体
-      ctx.strokeRect(40 * scale, 16 * scale, 16 * scale, 16 * scale); // 右腕
-      ctx.strokeRect(0 * scale, 16 * scale, 16 * scale, 16 * scale);  // 右足
-      ctx.strokeRect(32 * scale, 48 * scale, 16 * scale, 16 * scale); // 左腕
-      ctx.strokeRect(16 * scale, 48 * scale, 16 * scale, 16 * scale); // 左足
-
-      // オーバーレイ
-      ctx.strokeStyle = 'rgba(0, 180, 0, 0.5)';
-      ctx.strokeRect(32 * scale, 0 * scale, 32 * scale, 16 * scale);  // 頭(over)
-      ctx.strokeRect(0 * scale, 32 * scale, 16 * scale, 16 * scale);  // 右足(over)
-      ctx.strokeRect(16 * scale, 32 * scale, 24 * scale, 16 * scale); // 胴体(over)
-      ctx.strokeRect(40 * scale, 32 * scale, 16 * scale, 16 * scale); // 右腕(over)
-      ctx.strokeRect(0 * scale, 48 * scale, 16 * scale, 16 * scale);  // 左足(over)
-      ctx.strokeRect(48 * scale, 48 * scale, 16 * scale, 16 * scale); // 左腕(over)
-
-      // おまけ(削除するかも)
-      ctx.strokeStyle = 'rgba(0, 100, 255, 0.5)';
-      ctx.strokeRect(8 * scale, 8 * scale, 8 * scale, 8 * scale);
-    }
-  }, [showGuide, showGrid]);
+  }, [showGrid, currentFace, displayWidth, displayHeight, currentScale]);
 
   // --- 座標変換(ズーム＆パン対応) ---
 
@@ -853,7 +831,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     fontWeight: brushSize === s ? 'bold' : 'normal',
   });
 
-  const currentFace = FACE_COORDS[selectedLayer][selectedPart][selectedFace];
+
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
@@ -932,10 +910,6 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
           グリッド {showGrid ? 'ON' : 'OFF'}
         </button>
 
-        {/* ガイド切り替え */}
-        <button onClick={() => setShowGuide(!showGuide)} style={toggleBtn(showGuide, '#fff3e0')}>
-          ガイド {showGuide ? 'ON' : 'OFF'}
-        </button>
 
         {/* ズーム倍率(拡大時のみ) */}
         {zoom > 1 && (
@@ -1032,6 +1006,10 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
           border: '2px solid #555',
           overflow: 'hidden',
           position: 'relative',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          backgroundColor: '#222'
         }}
         onWheel={handleWheel}
         onContextMenu={handleContextMenu}
@@ -1039,7 +1017,8 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
 
         {/* ズーム＆パン用ラッパー */}
         <div style={{
-          width: '512px', height: '512px',
+          width: `${displayWidth}px`,   // ← 固定の512pxから動的サイズに変更！
+          height: `${displayHeight}px`,
           transform: `scale(${zoom}) translate(${pan.x / zoom}px, ${pan.y / zoom}px)`,
           transformOrigin: 'center center',
           position: 'relative',
