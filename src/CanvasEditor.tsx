@@ -169,7 +169,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null) // ファイル入力
   const containerRef = useRef<HTMLDivElement>(null) // div要素
 
-  const masterCanvasRef = useRef<HTMLCanvasElement>(null); // 裏方のマスターデータ
+  const workCanvasRef = useRef<HTMLCanvasElement>(null); // 表の作業用モニター
 
   // 裏のメモ帳
   const undoStack = useRef<ImageData[]>([]) // Undo履歴
@@ -202,6 +202,32 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     }, AUTOSAVE_DELAY);
   }, [onTextureUpdate, canvasRef]);
 
+
+  // マスターからワークへ映像を送る関数
+  const syncToWorkCanvas = useCallback(() => {
+    const master = canvasRef.current;
+    const work = workCanvasRef.current;
+    if (!master || !work) return;
+
+    const mCtx = master.getContext('2d');
+    const wCtx = work.getContext('2d');
+    if (!mCtx || !wCtx) return;
+
+    const face = FACE_COORDS[selectedPart][selectedFace];
+
+    wCtx.clearRect(0, 0, face.w, face.h);
+    wCtx.drawImage(
+      master,
+      face.x, face.y, face.w, face.h,
+      0, 0, face.w, face.h
+    );
+  }, [selectedPart, selectedFace, canvasRef]);
+
+  // パーツや面が切り替わったときに、自動で映像を送り直す
+  useEffect(() => {
+    syncToWorkCanvas();
+  }, [syncToWorkCanvas]);
+
   // 起動時にlocalStorageからキャンバスを復元
   useEffect(() => {
     // localStorageをチェック
@@ -209,7 +235,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     if (!saved) return;
 
     // キャンバスを準備
-    const canvas = masterCanvasRef.current;
+    const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
@@ -219,10 +245,11 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     img.onload = () => {
       ctx.clearRect(0, 0, 64, 64);
       ctx.drawImage(img, 0, 0, 64, 64);
+      syncToWorkCanvas();
       onTextureUpdate?.();
     };
     img.src = saved;
-  }, [onTextureUpdate, canvasRef]);
+  }, [onTextureUpdate, canvasRef, syncToWorkCanvas]);
 
 
   // --- 履歴操作 ---
@@ -684,6 +711,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     e.target.value = ''; // 同じファイルを再度選べるようにリセット
   };
 
+
   // --- ツール定義 ---
 
   const toolConfig: Record<Tool, { label: string; cursor: string }> = {
@@ -731,6 +759,8 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     border: brushSize === s ? '2px solid #f57c00' : '1px solid #ccc',
     fontWeight: brushSize === s ? 'bold' : 'normal',
   });
+
+  const currentFace = FACE_COORDS[selectedPart][selectedFace];
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
@@ -867,8 +897,9 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
 
           {/* 描画用キャンバス */}
           <canvas
-            ref={canvasRef}
-            width={64} height={64}
+            ref={workCanvasRef}
+            width={currentFace.w}
+            height={currentFace.h}
             style={{
               position: 'absolute', top: 0, left: 0,
               width: '100%', height: '100%',
@@ -906,7 +937,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
 
       {/* --- 見えない裏方キャンバス --- */}
       <canvas
-        ref={masterCanvasRef}
+        ref={canvasRef}
         width={64}
         height={64}
         style={{ display: 'none' }}
