@@ -579,12 +579,14 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     if (tool === 'bucket') { // バケツの場合
       floodFill(x, y, color);
       addRecentColor(color);
+      syncToWorkCanvas();
       notifyUpdate();
     } else {
       // ペンか消しゴムの場合
       setIsDrawing(true); // 描画中フラグをtrueに → MouseMoveで使用
       applyTool(x, y);
       if (tool === 'pen') addRecentColor(color); // ペンなら色追加(消しゴムは色追加なし)
+      syncToWorkCanvas();
       notifyUpdate();
     }
   };
@@ -609,6 +611,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     // 描画中なら描く
     if (isDrawing) {
       applyTool(coords[0], coords[1]);
+      syncToWorkCanvas();
       notifyUpdate();
     }
   };
