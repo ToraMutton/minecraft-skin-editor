@@ -173,9 +173,10 @@ export default function SkinPreview3D({ canvasRef, textureVersion }: Props) {
         controls.update();
 
         // ライティング
-        const ambient = new THREE.AmbientLight(0xffffff, 0.7);
+        const ambient = new THREE.AmbientLight(0xffffff, 0.7); // 環境光
         scene.add(ambient);
-        const dir = new THREE.DirectionalLight(0xffffff, 0.8);
+
+        const dir = new THREE.DirectionalLight(0xffffff, 0.8); // 平行光源
         dir.position.set(5, 10, 7);
         scene.add(dir);
 
