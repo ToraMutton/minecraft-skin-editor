@@ -285,7 +285,7 @@ export default function SkinPreview3D({ canvasRef, textureVersion }: Props) {
         };
     }, []);
 
-    // テクスチャ更新
+    // テクスチャ更新, ダミーから真キャンバスへ
     useEffect(() => {
         if (!sceneRef.current || !canvasRef.current) return;
         const { texture } = sceneRef.current;
