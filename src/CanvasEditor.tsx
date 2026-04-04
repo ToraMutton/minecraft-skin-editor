@@ -384,7 +384,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     // キューが空になるまで繰り返す
     while (queue.length > 0) {
       // 先端の座標を取り出す
-      const [cx, cy] = queue.shift()!;
+      const [cx, cy] = queue.pop()!;
 
       // キャンバス範囲外チェック
       if (cx < 0 || cx >= width || cy < 0 || cy >= height) continue;
