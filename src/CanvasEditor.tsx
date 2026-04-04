@@ -9,28 +9,110 @@ const MAX_RECENT_COLORS = 16;
 const AUTOSAVE_KEY = 'vextora-mc-skin-editor-canvas';
 const AUTOSAVE_DELAY = 1000;
 
+type LayerKey = 'base' | 'overlay';
 type PartKey = 'head' | 'body' | 'rightArm' | 'leftArm' | 'rightLeg' | 'leftLeg';
 type FaceKey = 'front' | 'back' | 'top' | 'bottom' | 'right' | 'left';
 
-const FACE_COORDS: Record<PartKey, Record<FaceKey, { x: number; y: number; w: number; h: number }>> = {
-  head: {
-    right: { x: 0, y: 8, w: 8, h: 8 },
-    front: { x: 8, y: 8, w: 8, h: 8 },
-    left: { x: 16, y: 8, w: 8, h: 8 },
-    back: { x: 24, y: 8, w: 8, h: 8 },
-    top: { x: 8, y: 0, w: 8, h: 8 },
-    bottom: { x: 16, y: 0, w: 8, h: 8 },
+const FACE_COORDS: Record<LayerKey, Record<PartKey, Record<FaceKey, { x: number; y: number; w: number; h: number }>>> = {
+  base: {
+    head: {
+      top: { x: 8, y: 0, w: 8, h: 8 },
+      bottom: { x: 16, y: 0, w: 8, h: 8 },
+      right: { x: 0, y: 8, w: 8, h: 8 },
+      front: { x: 8, y: 8, w: 8, h: 8 },
+      left: { x: 16, y: 8, w: 8, h: 8 },
+      back: { x: 24, y: 8, w: 8, h: 8 },
+    },
+    body: {
+      top: { x: 20, y: 16, w: 8, h: 4 },
+      bottom: { x: 28, y: 16, w: 8, h: 4 },
+      right: { x: 16, y: 20, w: 4, h: 12 },
+      front: { x: 20, y: 20, w: 8, h: 12 },
+      left: { x: 28, y: 20, w: 4, h: 12 },
+      back: { x: 32, y: 20, w: 8, h: 12 },
+    },
+    rightArm: {
+      top: { x: 44, y: 16, w: 4, h: 4 },
+      bottom: { x: 48, y: 16, w: 4, h: 4 },
+      right: { x: 40, y: 20, w: 4, h: 12 },
+      front: { x: 44, y: 20, w: 4, h: 12 },
+      left: { x: 48, y: 20, w: 4, h: 12 },
+      back: { x: 52, y: 20, w: 4, h: 12 },
+    },
+    rightLeg: {
+      top: { x: 4, y: 16, w: 4, h: 4 },
+      bottom: { x: 8, y: 16, w: 4, h: 4 },
+      right: { x: 0, y: 20, w: 4, h: 12 },
+      front: { x: 4, y: 20, w: 4, h: 12 },
+      left: { x: 8, y: 20, w: 4, h: 12 }, back: { x: 12, y: 20, w: 4, h: 12 },
+    },
+    leftArm: {
+      top: { x: 36, y: 48, w: 4, h: 4 },
+      bottom: { x: 40, y: 48, w: 4, h: 4 },
+      right: { x: 32, y: 52, w: 4, h: 12 },
+      front: { x: 36, y: 52, w: 4, h: 12 },
+      left: { x: 40, y: 52, w: 4, h: 12 },
+      back: { x: 44, y: 52, w: 4, h: 12 },
+    },
+    leftLeg: {
+      top: { x: 20, y: 48, w: 4, h: 4 },
+      bottom: { x: 24, y: 48, w: 4, h: 4 },
+      right: { x: 16, y: 52, w: 4, h: 12 },
+      front: { x: 20, y: 52, w: 4, h: 12 },
+      left: { x: 24, y: 52, w: 4, h: 12 },
+      back: { x: 28, y: 52, w: 4, h: 12 },
+    },
   },
-  body: {
-    right: { x: 16, y: 20, w: 4, h: 12 },
-    front: { x: 20, y: 20, w: 8, h: 12 },
-    left: { x: 28, y: 20, w: 4, h: 12 },
-    back: { x: 32, y: 20, w: 8, h: 12 },
-    top: { x: 20, y: 16, w: 8, h: 4 },
-    bottom: { x: 28, y: 16, w: 8, h: 4 },
-  },
-  // TODO: 腕や足は一旦空っぽにしておく
-  rightArm: {} as any, leftArm: {} as any, rightLeg: {} as any, leftLeg: {} as any,
+  overlay: {
+    head: {
+      top: { x: 40, y: 0, w: 8, h: 8 },
+      bottom: { x: 48, y: 0, w: 8, h: 8 },
+      right: { x: 32, y: 8, w: 8, h: 8 },
+      front: { x: 40, y: 8, w: 8, h: 8 },
+      left: { x: 48, y: 8, w: 8, h: 8 },
+      back: { x: 56, y: 8, w: 8, h: 8 },
+    },
+    body: {
+      top: { x: 20, y: 32, w: 8, h: 4 },
+      bottom: { x: 28, y: 32, w: 8, h: 4 },
+      right: { x: 16, y: 36, w: 4, h: 12 },
+      front: { x: 20, y: 36, w: 8, h: 12 },
+      left: { x: 28, y: 36, w: 4, h: 12 },
+      back: { x: 32, y: 36, w: 8, h: 12 },
+    },
+    rightArm: {
+      top: { x: 44, y: 32, w: 4, h: 4 },
+      bottom: { x: 48, y: 32, w: 4, h: 4 },
+      right: { x: 40, y: 36, w: 4, h: 12 },
+      front: { x: 44, y: 36, w: 4, h: 12 },
+      left: { x: 48, y: 36, w: 4, h: 12 },
+      back: { x: 52, y: 36, w: 4, h: 12 },
+    },
+    rightLeg: {
+      top: { x: 4, y: 32, w: 4, h: 4 },
+      bottom: { x: 8, y: 32, w: 4, h: 4 },
+      right: { x: 0, y: 36, w: 4, h: 12 },
+      front: { x: 4, y: 36, w: 4, h: 12 },
+      left: { x: 8, y: 36, w: 4, h: 12 },
+      back: { x: 12, y: 36, w: 4, h: 12 },
+    },
+    leftArm: {
+      top: { x: 52, y: 48, w: 4, h: 4 },
+      bottom: { x: 56, y: 48, w: 4, h: 4 },
+      right: { x: 48, y: 52, w: 4, h: 12 },
+      front: { x: 52, y: 52, w: 4, h: 12 },
+      left: { x: 56, y: 52, w: 4, h: 12 },
+      back: { x: 60, y: 52, w: 4, h: 12 },
+    },
+    leftLeg: {
+      top: { x: 4, y: 48, w: 4, h: 4 },
+      bottom: { x: 8, y: 48, w: 4, h: 4 },
+      right: { x: 0, y: 52, w: 4, h: 12 },
+      front: { x: 4, y: 52, w: 4, h: 12 },
+      left: { x: 8, y: 52, w: 4, h: 12 },
+      back: { x: 12, y: 52, w: 4, h: 12 },
+    },
+  }
 };
 
 // ブラシサイズ型
@@ -160,6 +242,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
   const [isPanning, setIsPanning] = useState(false) // パン中かどうか
 
   // 編集パーツ系
+  const [selectedLayer, setSelectedLayer] = useState<LayerKey>('base');
   const [selectedPart, setSelectedPart] = useState<PartKey>('head'); // 今選んでるパーツ
   const [selectedFace, setSelectedFace] = useState<FaceKey>('front'); // 今選んでる面
 
@@ -213,7 +296,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     const wCtx = work.getContext('2d');
     if (!mCtx || !wCtx) return;
 
-    const face = FACE_COORDS[selectedPart][selectedFace];
+    const face = FACE_COORDS[selectedLayer][selectedPart][selectedFace];
 
     wCtx.clearRect(0, 0, face.w, face.h);
     wCtx.drawImage(
@@ -221,7 +304,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
       face.x, face.y, face.w, face.h,
       0, 0, face.w, face.h
     );
-  }, [selectedPart, selectedFace, canvasRef]);
+  }, [selectedLayer, selectedPart, selectedFace, canvasRef]);
 
   // パーツや面が切り替わったときに、自動で映像を送り直す
   useEffect(() => {
@@ -407,7 +490,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     if (localX < 0 || localX >= canvas.width || localY < 0 || localY >= canvas.height) return null;
 
     // モニターの座標をマスターキャンバスの真座標に変換
-    const face = FACE_COORDS[selectedPart][selectedFace];
+    const face = FACE_COORDS[selectedLayer][selectedPart][selectedFace];
     const trueX = face.x + localX;
     const trueY = face.y + localY;
 
@@ -770,7 +853,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     fontWeight: brushSize === s ? 'bold' : 'normal',
   });
 
-  const currentFace = FACE_COORDS[selectedPart][selectedFace];
+  const currentFace = FACE_COORDS[selectedLayer][selectedPart][selectedFace];
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
