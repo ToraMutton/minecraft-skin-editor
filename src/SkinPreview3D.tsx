@@ -82,24 +82,27 @@ const SKIN_UV: Record<string, PartUV> = {
     },
 };
 
-// UVFaceからTHREE.jsのUV座標を設定する
+// UVFaceからThree.jsのUV座標を設定する
 // Three.jsのUV座標系: 左下が(0,0)、右上が(1,1)
-// Minecraftのテクスチャ座標系: 左上が(0,0)
+// Minecraftのテクスチャ座標系: 左上が(0,0)、右上が(64,64)
 function setFaceUV(
-    geometry: THREE.BoxGeometry,
-    faceIndex: number,
-    face: UVFace,
-    flipH: boolean = false,
+    geometry: THREE.BoxGeometry, // どの箱に貼るか
+    faceIndex: number, // 箱の何番目の面か
+    face: UVFace, // どの画像部分を貼るか
+    flipH: boolean = false, // 左右反転するか(デフォルト: false)
 ) {
     const uv = geometry.attributes.uv;
-    const texW = 64, texH = 64;
+    const texW = 64, texH = 64; // スキン画像の幅と高さ
 
     // テクスチャ上のピクセル座標 → 0〜1の比率に変換
+    // 横方向(X/U)の計算
     let u0 = face.u / texW;
     let u1 = (face.u + face.w) / texW;
-    const v0 = 1 - face.v / texH;          // Y軸反転
+    // 縦方向(Y/V)の計算
+    const v0 = 1 - face.v / texH; // Y軸反転
     const v1 = 1 - (face.v + face.h) / texH;
 
+    // 反転処理
     if (flipH) { [u0, u1] = [u1, u0]; }
 
     // BoxGeometryの面の順番: +x, -x, +y, -y, +z, -z
