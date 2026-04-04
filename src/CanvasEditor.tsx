@@ -980,7 +980,12 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
           <span style={{ fontSize: '13px', fontWeight: 'bold', width: '60px', color: '#555' }}>パーツ</span>
           {(['head', 'body', 'rightArm', 'leftArm', 'rightLeg', 'leftLeg'] as PartKey[]).map(p => (
-            <button key={p} onClick={() => setSelectedPart(p)} style={toggleBtn(selectedPart === p, '#bbdefb')}>
+            <button key={p} onClick={() => {
+              setSelectedPart(p);
+              setIsEditing(true); // パーツを選んだ瞬間に編集モードへ
+            }}
+              style={toggleBtn(selectedPart === p, '#bbdefb')
+              }>
               {
                 p === 'head' ? '頭' :
                   p === 'body' ? '胴体' :
