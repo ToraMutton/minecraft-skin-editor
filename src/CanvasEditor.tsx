@@ -303,15 +303,13 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     const wCtx = work.getContext('2d');
     if (!mCtx || !wCtx) return;
 
-    const face = FACE_COORDS[selectedLayer][selectedPart][selectedFace];
-
-    wCtx.clearRect(0, 0, face.w, face.h);
+    wCtx.clearRect(0, 0, currentFace.w, currentFace.h);
     wCtx.drawImage(
       master,
-      face.x, face.y, face.w, face.h,
-      0, 0, face.w, face.h
+      currentFace.x, currentFace.y, currentFace.w, currentFace.h,
+      0, 0, currentFace.w, currentFace.h
     );
-  }, [selectedLayer, selectedPart, selectedFace, canvasRef]);
+  }, [currentFace, canvasRef]);
 
   // パーツや面が切り替わったときに、自動で映像を送り直す
   useEffect(() => {
@@ -468,9 +466,8 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     if (localX < 0 || localX >= canvas.width || localY < 0 || localY >= canvas.height) return null;
 
     // モニターの座標をマスターキャンバスの真座標に変換
-    const face = FACE_COORDS[selectedLayer][selectedPart][selectedFace];
-    const trueX = face.x + localX;
-    const trueY = face.y + localY;
+    const trueX = currentFace.x + localX;
+    const trueY = currentFace.y + localY;
 
     return [trueX, trueY];
   };
