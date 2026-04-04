@@ -921,6 +921,13 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
           グリッド {showGrid ? 'ON' : 'OFF'}
         </button>
 
+        {/* 編集モードから全体に戻るボタン */}
+        {isEditing && (
+          <button onClick={() => setIsEditing(false)} style={{ ...btn, backgroundColor: '#ffebee' }}>
+            ◀ 全体に戻る
+          </button>
+        )}
+
 
         {/* ズーム倍率(拡大時のみ) */}
         {zoom > 1 && (
