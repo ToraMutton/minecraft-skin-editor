@@ -122,7 +122,7 @@ function applyPartUV(geometry: THREE.BoxGeometry, partUV: PartUV) {
     setFaceUV(geometry, 2, partUV.top);
     setFaceUV(geometry, 3, partUV.bottom);
     setFaceUV(geometry, 4, partUV.front);
-    setFaceUV(geometry, 5, partUV.back, true);
+    setFaceUV(geometry, 5, partUV.back, true); // 背面は左右反転
     geometry.attributes.uv.needsUpdate = true;
 }
 
