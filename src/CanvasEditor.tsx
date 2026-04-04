@@ -967,6 +967,63 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
         </div>
       )}
 
+      {/* ===== 編集対象の選択パネル ===== */}
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '6px',
+        backgroundColor: '#f8f9fa',
+        padding: '12px',
+        borderRadius: '8px',
+        width: '100%',
+        maxWidth: '512px',
+        border: '1px solid #ddd'
+      }}>
+
+        {/* レイヤー選択 */}
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <span style={{ fontSize: '13px', fontWeight: 'bold', width: '60px', color: '#555' }}>レイヤー</span>
+          <button onClick={() => setSelectedLayer('base')} style={toggleBtn(selectedLayer === 'base', '#c8e6c9')}>
+            ベース (体)
+          </button>
+          <button onClick={() => setSelectedLayer('overlay')} style={toggleBtn(selectedLayer === 'overlay', '#ffcc80')}>
+            オーバーレイ (服/装飾)
+          </button>
+        </div>
+
+        {/* パーツ選択 */}
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <span style={{ fontSize: '13px', fontWeight: 'bold', width: '60px', color: '#555' }}>パーツ</span>
+          {(['head', 'body', 'rightArm', 'leftArm', 'rightLeg', 'leftLeg'] as PartKey[]).map(p => (
+            <button key={p} onClick={() => setSelectedPart(p)} style={toggleBtn(selectedPart === p, '#bbdefb')}>
+              {
+                p === 'head' ? '頭' :
+                  p === 'body' ? '胴体' :
+                    p === 'rightArm' ? '右腕' :
+                      p === 'leftArm' ? '左腕' :
+                        p === 'rightLeg' ? '右足' : '左足'
+              }
+            </button>
+          ))}
+        </div>
+
+        {/* 面選択 */}
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <span style={{ fontSize: '13px', fontWeight: 'bold', width: '60px', color: '#555' }}>面</span>
+          {(['front', 'back', 'top', 'bottom', 'right', 'left'] as FaceKey[]).map(f => (
+            <button key={f} onClick={() => setSelectedFace(f)} style={toggleBtn(selectedFace === f, '#e1bee7')}>
+              {
+                f === 'front' ? '正面' :
+                  f === 'back' ? '背面' :
+                    f === 'top' ? '上' :
+                      f === 'bottom' ? '下' :
+                        f === 'right' ? '右' : '左'
+              }
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* ===== キャンバスエリア ===== */}
       <div
         ref={containerRef}
