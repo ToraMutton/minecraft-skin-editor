@@ -115,6 +115,16 @@ const FACE_COORDS: Record<LayerKey, Record<PartKey, Record<FaceKey, { x: number;
   }
 };
 
+// 各面の隣接関係を定義(カルーセルUIのための辞書)
+const NEIGHBOR_MAP: Record<FaceKey, { up: FaceKey; down: FaceKey; left: FaceKey; right: FaceKey }> = {
+  front: { up: 'top', down: 'bottom', left: 'right', right: 'left' },
+  back: { up: 'top', down: 'bottom', left: 'left', right: 'right' },
+  right: { up: 'top', down: 'bottom', left: 'back', right: 'front' },
+  left: { up: 'top', down: 'bottom', left: 'front', right: 'back' },
+  top: { up: 'back', down: 'front', left: 'right', right: 'left' },
+  bottom: { up: 'front', down: 'back', left: 'right', right: 'left' },
+};
+
 // ブラシサイズ型
 type BrushSize = 1 | 2 | 3;
 
