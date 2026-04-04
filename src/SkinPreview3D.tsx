@@ -190,6 +190,7 @@ export default function SkinPreview3D({ canvasRef, textureVersion, pose }: Props
         animId: number;
         parts: {
             head: THREE.Mesh;
+            body: THREE.Mesh;
             rArm: THREE.Mesh;
             lArm: THREE.Mesh;
             rLeg: THREE.Mesh;
