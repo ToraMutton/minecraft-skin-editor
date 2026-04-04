@@ -255,6 +255,10 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
   const [selectedPart, setSelectedPart] = useState<PartKey>('head'); // 今選んでるパーツ
   const [selectedFace, setSelectedFace] = useState<FaceKey>('front'); // 今選んでる面
 
+  // --- 編集モードの切り替えスイッチ ---
+  // false: パーツを選んでいる全体画面 / true: 1つの面をガッツリ塗る画面
+  const [isEditing, setIsEditing] = useState(false);
+
   const currentFace = FACE_COORDS[selectedLayer][selectedPart][selectedFace];
 
   // 描画面積の動的計算(最大512pxの枠にぴったり収まるようにスケールを計算)
@@ -983,22 +987,6 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
                     p === 'rightArm' ? '右腕' :
                       p === 'leftArm' ? '左腕' :
                         p === 'rightLeg' ? '右足' : '左足'
-              }
-            </button>
-          ))}
-        </div>
-
-        {/* 面選択 */}
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          <span style={{ fontSize: '13px', fontWeight: 'bold', width: '60px', color: '#555' }}>面</span>
-          {(['front', 'back', 'top', 'bottom', 'right', 'left'] as FaceKey[]).map(f => (
-            <button key={f} onClick={() => setSelectedFace(f)} style={toggleBtn(selectedFace === f, '#e1bee7')}>
-              {
-                f === 'front' ? '正面' :
-                  f === 'back' ? '背面' :
-                    f === 'top' ? '上' :
-                      f === 'bottom' ? '下' :
-                        f === 'right' ? '右' : '左'
               }
             </button>
           ))}
