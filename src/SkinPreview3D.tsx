@@ -1,4 +1,4 @@
-import { useRef, useEffect } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
@@ -197,6 +197,21 @@ export default function SkinPreview3D({ canvasRef, textureVersion, pose }: Props
         };
     } | null>(null);
 
+    // ゴースト機能(表示/非表示)の状態管理
+    const [visibleParts, setVisibleParts] = useState({
+        head: true,
+        body: true,
+        rightArm: true,
+        leftArm: true,
+        rightLeg: true,
+        leftLeg: true
+    });
+
+    // 特定のパーツの表示を切り替える関数
+    const toggleVisibility = (part: keyof typeof visibleParts) => {
+        setVisibleParts(prev => ({ ...prev, [part]: !prev[part] }));
+    };
+
     // 初期化
     useEffect(() => {
         const container = containerRef.current;
@@ -365,7 +380,7 @@ export default function SkinPreview3D({ canvasRef, textureVersion, pose }: Props
         // 初回予約番号全てをぶち込む
         sceneRef.current = {
             renderer, scene, camera, controls, texture, animId,
-            parts: { head, rArm, lArm, rLeg, lLeg }
+            parts: { head, body, rArm, lArm, rLeg, lLeg }
         };
 
         // ループ・メモリ解放
@@ -404,6 +419,19 @@ export default function SkinPreview3D({ canvasRef, textureVersion, pose }: Props
         };
     }, []);
 
+    // Stateが変わったら、Three.jsのモデルの表示/非表示を切り替える
+    useEffect(() => {
+        if (!sceneRef.current) return;
+        const { head, body, rArm, lArm, rLeg, lLeg } = sceneRef.current.parts;
+
+        head.visible = visibleParts.head;
+        body.visible = visibleParts.body;
+        rArm.visible = visibleParts.rightArm;
+        lArm.visible = visibleParts.leftArm;
+        rLeg.visible = visibleParts.rightLeg;
+        lLeg.visible = visibleParts.leftLeg;
+    }, [visibleParts]);
+
     // ポーズ
     const applyPose = (pose: 'idle' | 'walk') => {
         if (!sceneRef.current) return;
@@ -439,17 +467,66 @@ export default function SkinPreview3D({ canvasRef, textureVersion, pose }: Props
         applyPose(pose);
     }, [pose]);
 
+    // パーツ名とStateのキーを対応させるリスト
+    const partLabels: { key: keyof typeof visibleParts; label: string }[] = [
+        { key: 'head', label: '頭' },
+        { key: 'body', label: '胴体' },
+        { key: 'rightArm', label: '右腕' },
+        { key: 'leftArm', label: '左腕' },
+        { key: 'rightLeg', label: '右足' },
+        { key: 'leftLeg', label: '左足' },
+    ];
+
     return (
-        <div
-            ref={containerRef}
-            style={{
-                width: '300px',
-                height: '400px',
-                border: '2px solid #555',
+        <div style={{ position: 'relative', width: '300px', height: '400px' }}>
+            {/* 3Dキャンバスが入る箱 */}
+            <div
+                ref={containerRef}
+                style={{
+                    width: '100%', height: '100%',
+                    border: '2px solid #555',
+                    borderRadius: '8px',
+                    overflow: 'hidden',
+                    background: 'linear-gradient(135deg, #ffffffff 0%, #b3e6fbff 100%)',
+                }}
+            />
+
+            {/* ゴースト機能のパネル */}
+            <div style={{
+                position: 'absolute',
+                top: '8px',
+                left: '8px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '4px',
+                background: 'rgba(255, 255, 255, 0.7)',
+                padding: '8px',
                 borderRadius: '8px',
-                overflow: 'hidden',
-                background: 'linear-gradient(135deg, #ffffffff 0%, #b3e6fbff 100%)',
-            }}
-        />
+                boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+            }}>
+                <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#555', marginBottom: '2px' }}>👁️ 表示切替</span>
+                {partLabels.map(({ key, label }) => (
+                    <button
+                        key={key}
+                        onClick={() => toggleVisibility(key)}
+                        style={{
+                            padding: '2px 6px',
+                            fontSize: '11px',
+                            cursor: 'pointer',
+                            border: `1px solid ${visibleParts[key] ? '#4caf50' : '#ccc'}`,
+                            backgroundColor: visibleParts[key] ? '#e8f5e9' : '#f5f5f5',
+                            color: visibleParts[key] ? '#2e7d32' : '#999',
+                            borderRadius: '4px',
+                            textAlign: 'left',
+                            display: 'flex',
+                            justifyContent: 'space-between'
+                        }}
+                    >
+                        <span>{label}</span>
+                        <span>{visibleParts[key] ? 'ON' : 'OFF'}</span>
+                    </button>
+                ))}
+            </div>
+        </div>
     );
 }
