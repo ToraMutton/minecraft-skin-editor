@@ -247,19 +247,40 @@ export default function SkinPreview3D({ canvasRef, textureVersion }: Props) {
 
         // アニメーションループ
         const animate = () => {
-            const id = requestAnimationFrame(animate);
+            const id = requestAnimationFrame(animate); // 呼び出し
             sceneRef.current!.animId = id;
             controls.update();
-            renderer.render(scene, camera);
+            renderer.render(scene, camera); // レンダリング
         };
-        const animId = requestAnimationFrame(animate);
+        const animId = requestAnimationFrame(animate); // 初期キック
 
+        // 初回予約番号全てをぶち込む
         sceneRef.current = { renderer, scene, camera, controls, texture, animId };
 
+        // ループ・メモリ解放
         return () => {
+            // 撮影ストップ
             cancelAnimationFrame(sceneRef.current?.animId ?? animId);
+
+            // 描画エンジンの電源を切る
             renderer.dispose();
-            container.removeChild(renderer.domElement);
+
+            // Three.jsのメモリ破棄
+            headGeo.dispose();
+            bodyGeo.dispose();
+            rArmGeo.dispose();
+            lArmGeo.dispose();
+            rLegGeo.dispose();
+            lLegGeo.dispose();
+            material.dispose();
+            texture.dispose();
+
+            // 画面から引っこ抜く 
+            if (container && renderer.domElement.parentNode === container) {
+                container.removeChild(renderer.domElement);
+            }
+
+            // 金庫を空に
             sceneRef.current = null;
         };
     }, []);
