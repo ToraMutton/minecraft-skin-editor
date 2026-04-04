@@ -180,20 +180,26 @@ export default function SkinPreview3D({ canvasRef, textureVersion }: Props) {
         dir.position.set(5, 10, 7);
         scene.add(dir);
 
-        // テクスチャ（最初はダミーのキャンバスで作成）
+        // テクスチャ(最初はダミーのキャンバスで作成)
         const dummyCanvas = document.createElement('canvas');
         dummyCanvas.width = 64;
         dummyCanvas.height = 64;
-        const texture = new THREE.CanvasTexture(dummyCanvas);
+
+        const texture = new THREE.CanvasTexture(dummyCanvas); // 仮キャンバスを3D用テクスチャに変換
+
+        // 勝手にぼかさない
         texture.magFilter = THREE.NearestFilter;
         texture.minFilter = THREE.NearestFilter;
+
+        // 色表示をsRGBに合わせる
         texture.colorSpace = THREE.SRGBColorSpace;
 
+        // マテリアル
         const material = new THREE.MeshLambertMaterial({
             map: texture,
             transparent: true,
             alphaTest: 0.1,
-            side: THREE.FrontSide,
+            side: THREE.FrontSide, // 箱の外側だけ描画
         });
 
         // プレイヤーモデル構築（Minecraftの1ピクセル = 1ユニット）
