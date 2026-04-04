@@ -394,19 +394,26 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
   // --- 座標変換(ズーム＆パン対応) ---
 
   const toPixelCoords = (e: React.MouseEvent<HTMLCanvasElement>): [number, number] | null => {
-    const canvas = canvasRef.current;
+    const canvas = workCanvasRef.current;
     if (!canvas) return null;
 
     // canvasの画面上の位置を取得
     const rect = canvas.getBoundingClientRect();
 
-    // canvas内の相対座標 × 縮小比率(64 / 512)
-    const x = Math.floor((e.clientX - rect.left) * (canvas.width / rect.width));
-    const y = Math.floor((e.clientY - rect.top) * (canvas.height / rect.height));
-    // キャンバス外は無視
-    if (x < 0 || x >= 64 || y < 0 || y >= 64) return null;
-    return [x, y];
+    // モニター上の相対座標(8 × 8なら 0 ~ 7になる)
+    const localX = Math.floor((e.clientX - rect.left) * (canvas.width / rect.width));
+    const localY = Math.floor((e.clientY - rect.top) * (canvas.height / rect.height));
+    // モニター外は無視
+    if (localX < 0 || localX >= canvas.width || localY < 0 || localY >= canvas.height) return null;
+
+    // モニターの座標をマスターキャンバスの真座標に変換
+    const face = FACE_COORDS[selectedPart][selectedFace];
+    const trueX = face.x + localX;
+    const trueY = face.y + localY;
+
+    return [trueX, trueY];
   };
+
 
   // --- バケツ ---
 
