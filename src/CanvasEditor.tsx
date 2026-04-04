@@ -832,6 +832,17 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     fontWeight: active ? 'bold' : 'normal',
   });
 
+  // ラベルの共通ベーススタイル
+  const labelBase: React.CSSProperties = {
+    position: 'absolute',
+    color: '#00b4ff',
+    fontSize: '12px',
+    fontWeight: 'bold',
+    whiteSpace: 'nowrap',
+    cursor: 'pointer',
+    userSelect: 'none', // 文字選択されないように
+  };
+
   // ブラシの太さ
   const sizeBtn = (s: BrushSize): React.CSSProperties => ({
     ...btn,
@@ -1018,51 +1029,83 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
           alignItems: 'center',
           backgroundColor: '#222'
         }}
-        onWheel={handleWheel}
-        onContextMenu={handleContextMenu}
       >
 
-        {/* ズーム＆パン用ラッパー */}
-        <div style={{
-          width: `${displayWidth}px`,   // ← 固定の512pxから動的サイズに変更！
-          height: `${displayHeight}px`,
-          transform: `scale(${zoom}) translate(${pan.x / zoom}px, ${pan.y / zoom}px)`,
-          transformOrigin: 'center center',
-          position: 'relative',
-        }}>
+        {!isEditing ? (
+          // 全体画面
+          <div style={{ color: '#aaa' }}>全体画面(準備中)</div>
+        ) : (
+          // 編集画面
+          <div style={{
+            position: 'relative',
+            width: `${displayWidth}px`,
+            height: `${displayHeight}px`
+          }}>
 
-          {/* 描画用キャンバス */}
-          <canvas
-            ref={workCanvasRef}
-            width={currentFace.w}
-            height={currentFace.h}
-            style={{
-              position: 'absolute', top: 0, left: 0,
-              width: '100%', height: '100%',
-              imageRendering: 'pixelated',
-              cursor: isPanning ? 'grabbing' : toolConfig[tool].cursor,
-              backgroundImage: 'repeating-conic-gradient(#333 0% 25%, #2a2a2a 0% 50%)',
-              backgroundSize: '16px 16px',
-            }}
-            onMouseDown={handleMouseDown}
-            onMouseUp={handleMouseUp}
-            onMouseLeave={handleMouseLeave}
-            onMouseMove={handleMouseMove}
-            onDoubleClick={handleDoubleClick}
-          />
+            {/* 隣接面のラベル */}
+            <div style={{ ...labelBase, top: '-35px', left: '50%', transform: 'translateX(-50%)' }}
+              onClick={() => setSelectedFace(NEIGHBOR_MAP[selectedFace].up)}>
+              ▲ {NEIGHBOR_MAP[selectedFace].up.toUpperCase()}
+            </div>
 
-          {/* ガイド＆グリッド */}
-          <canvas
-            ref={overlayRef}
-            width={64} height={64}
-            style={{
-              position: 'absolute', top: 0, left: 0,
-              width: '100%', height: '100%',
-              imageRendering: 'pixelated',
-              pointerEvents: 'none',
-            }}
-          />
-        </div>
+            <div style={{ ...labelBase, bottom: '-35px', left: '50%', transform: 'translateX(-50%)' }}
+              onClick={() => setSelectedFace(NEIGHBOR_MAP[selectedFace].down)}>
+              ▼ {NEIGHBOR_MAP[selectedFace].down.toUpperCase()}
+            </div>
+
+            <div style={{ ...labelBase, left: '-65px', top: '50%', transform: 'translateY(-50%)' }}
+              onClick={() => setSelectedFace(NEIGHBOR_MAP[selectedFace].left)}>
+              ◀ {NEIGHBOR_MAP[selectedFace].left.toUpperCase()}
+            </div>
+
+            <div style={{ ...labelBase, right: '-65px', top: '50%', transform: 'translateY(-50%)' }}
+              onClick={() => setSelectedFace(NEIGHBOR_MAP[selectedFace].right)}>
+              {NEIGHBOR_MAP[selectedFace].right.toUpperCase()} ▶
+            </div>
+
+            {/* ズーム＆パン用ラッパー */}
+            <div style={{
+              width: '100%',
+              height: '100%',
+              transform: `scale(${zoom}) translate(${pan.x / zoom}px, ${pan.y / zoom}px)`,
+              transformOrigin: 'center center',
+              position: 'relative',
+            }}>
+
+              {/* 描画用キャンバス */}
+              <canvas
+                ref={workCanvasRef}
+                width={currentFace.w}
+                height={currentFace.h}
+                style={{
+                  position: 'absolute', top: 0, left: 0,
+                  width: '100%', height: '100%',
+                  imageRendering: 'pixelated',
+                  cursor: isPanning ? 'grabbing' : toolConfig[tool].cursor,
+                  backgroundImage: 'repeating-conic-gradient(#333 0% 25%, #2a2a2a 0% 50%)',
+                  backgroundSize: '16px 16px',
+                }}
+                onMouseDown={handleMouseDown}
+                onMouseUp={handleMouseUp}
+                onMouseLeave={handleMouseLeave}
+                onMouseMove={handleMouseMove}
+                onDoubleClick={handleDoubleClick}
+              />
+
+              {/* ガイド＆グリッド */}
+              <canvas
+                ref={overlayRef}
+                width={64} height={64}
+                style={{
+                  position: 'absolute', top: 0, left: 0,
+                  width: '100%', height: '100%',
+                  imageRendering: 'pixelated',
+                  pointerEvents: 'none',
+                }}
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ===== パーツ名 + 座標 ===== */}
