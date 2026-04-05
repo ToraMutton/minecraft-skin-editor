@@ -411,8 +411,9 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     // まだundoStackに履歴があればtrueのまま、なければfalse
     setCanUndo(undoStack.current.length > 0);
     setCanRedo(true);
+    syncToWorkCanvas()
     notifyUpdate();
-  }, [canvasRef, notifyUpdate]);
+  }, [canvasRef, syncToWorkCanvas, notifyUpdate]);
 
   // Redo履歴を使って1つ先に進む
   const handleRedo = useCallback(() => {
@@ -1190,7 +1191,6 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
               onMouseMove={handleMouseMove}
             />
 
-            {/* ガイド */}
             <canvas
               ref={overlayRef}
               width={currentFace.w * currentScale}
