@@ -230,7 +230,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
   const [recentColors, setRecentColors] = useState<string[]>([]) //最近の色
 
   // 編集パーツ系
-  const [selectedLayer] = useState<LayerKey>('base');
+  const [selectedLayer, setSelectedLayer] = useState<LayerKey>('base');
   const [selectedPart, setSelectedPart] = useState<PartKey>('head'); // 今選んでるパーツ
   const [selectedFace, setSelectedFace] = useState<FaceKey>('front'); // 今選んでる面
 
@@ -884,6 +884,62 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     );
   };
 
+  // --- パーツ描画用関数 ---
+  const renderDollPart = (partKey: PartKey, label: string, w: number, h: number, baseColor: string) => {
+    // 外枠(オーバーレイ)用に大きめのサイズを計算
+    const outerW = w + 16;
+    const outerH = h + 16;
+
+    return (
+      <div style={{
+        position: 'relative', width: `${outerW}px`, height: `${outerH}px`,
+        display: 'flex', justifyContent: 'center', alignItems: 'center'
+      }}>
+        {/* オーバーレイ (外枠・点線) */}
+        <div
+          onClick={(e) => {
+            e.stopPropagation(); // 内側をクリックした時に外側も反応しちゃうのを防ぐ
+            setSelectedLayer('overlay');
+            setSelectedPart(partKey);
+            setSelectedFace('front');
+            setIsEditing(true);
+          }}
+          title={`${label} (上着)`}
+          style={{
+            position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
+            border: '3px dashed #aaa', borderRadius: '6px', cursor: 'pointer',
+            boxSizing: 'border-box',
+            transition: 'border-color 0.2s, background-color 0.2s'
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#ff9800'; e.currentTarget.style.backgroundColor = 'rgba(255, 152, 0, 0.1)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#aaa'; e.currentTarget.style.backgroundColor = 'transparent'; }}
+        />
+
+        {/* ベース (内側の塗りつぶし) */}
+        <div
+          onClick={(e) => {
+            e.stopPropagation();
+            setSelectedLayer('base'); setSelectedPart(partKey); setSelectedFace('front'); setIsEditing(true);
+          }}
+          title={`${label} (下地)`}
+          style={{
+            width: `${w}px`, height: `${h}px`, backgroundColor: baseColor,
+            borderRadius: '4px', cursor: 'pointer',
+            zIndex: 1,
+            display: 'flex', justifyContent: 'center', alignItems: 'center',
+            color: '#fff', fontWeight: 'bold',
+            writingMode: partKey.includes('Arm') || partKey.includes('Leg') ? 'vertical-rl' : 'horizontal-tb',
+            transition: 'transform 0.1s, box-shadow 0.1s'
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.05)'; e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.3)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = 'none'; }}
+        >
+          {label}
+        </div>
+      </div>
+    );
+  };
+
   // return部分
 
 
@@ -1017,120 +1073,30 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
-              gap: '4px', // パーツ間の隙間
+              gap: '8px',
               padding: '20px',
               backgroundColor: '#2a2a2a',
               borderRadius: '8px',
               boxShadow: 'inset 0 0 20px rgba(0,0,0,0.5)'
             }}>
             <p style={{ color: '#888', margin: '0 0 16px 0', fontSize: '14px', fontWeight: 'bold' }}>
-              編集するパーツを選択
+              編集するパーツ(内側: 下地 / 外枠: 上着)
             </p>
 
             {/* 1段目: 頭 */}
-            <div
-              onClick={() => { setSelectedPart('head'); setSelectedFace('front'); setIsEditing(true); }}
-              style={{
-                width: '64px', height: '64px', backgroundColor: '#4a90d9',
-                cursor: 'pointer',
-                borderRadius: '4px',
-                display: 'flex',
-                justifyContent: 'center',
-                alignItems: 'center',
-                color: '#fff',
-                fontWeight: 'bold',
-                transition: 'transform 0.1s',
-              }}
-              onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
-              onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
-            >頭</div>
+            {renderDollPart('head', '頭', 64, 64, '#4a90d9')}
 
             {/* 2段目: 右腕・胴体・左腕 */}
-            <div style={{ display: 'flex', gap: '4px' }}>
-              <div
-                onClick={() => { setSelectedPart('rightArm'); setSelectedFace('front'); setIsEditing(true); }}
-                style={{
-                  width: '32px', height: '96px', backgroundColor: '#ff9800',
-                  cursor: 'pointer',
-                  borderRadius: '4px',
-                  display: 'flex',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  color: '#fff',
-                  writingMode: 'vertical-rl',
-                  transition: 'transform 0.1s'
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
-                onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
-              >右腕</div>
-              <div
-                onClick={() => { setSelectedPart('body'); setSelectedFace('front'); setIsEditing(true); }}
-                style={{
-                  width: '64px', height: '96px', backgroundColor: '#4caf50',
-                  cursor: 'pointer',
-                  borderRadius: '4px',
-                  display: 'flex',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  color: '#fff',
-                  fontWeight: 'bold',
-                  transition: 'transform 0.1s'
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
-                onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
-              >胴体</div>
-              <div
-                onClick={() => { setSelectedPart('leftArm'); setSelectedFace('front'); setIsEditing(true); }}
-                style={{
-                  width: '32px', height: '96px', backgroundColor: '#ff9800',
-                  cursor: 'pointer',
-                  borderRadius: '4px',
-                  display: 'flex',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  color: '#fff',
-                  writingMode: 'vertical-rl',
-                  transition: 'transform 0.1s'
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
-                onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
-              >左腕</div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              {renderDollPart('rightArm', '右腕', 32, 96, '#ff9800')}
+              {renderDollPart('body', '胴体', 64, 96, '#4caf50')}
+              {renderDollPart('leftArm', '左腕', 32, 96, '#ff9800')}
             </div>
 
             {/* 3段目: 右足・左足 */}
-            <div style={{ display: 'flex', gap: '4px' }}>
-              <div
-                onClick={() => { setSelectedPart('rightLeg'); setSelectedFace('front'); setIsEditing(true); }}
-                style={{
-                  width: '32px', height: '96px', backgroundColor: '#9c27b0',
-                  cursor: 'pointer',
-                  borderRadius: '4px',
-                  display: 'flex',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  color: '#fff',
-                  writingMode: 'vertical-rl',
-                  transition: 'transform 0.1s'
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
-                onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
-              >右足</div>
-              <div
-                onClick={() => { setSelectedPart('leftLeg'); setSelectedFace('front'); setIsEditing(true); }}
-                style={{
-                  width: '32px', height: '96px', backgroundColor: '#9c27b0',
-                  cursor: 'pointer',
-                  borderRadius: '4px',
-                  display: 'flex',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  color: '#fff',
-                  writingMode: 'vertical-rl',
-                  transition: 'transform 0.1s'
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
-                onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
-              >左足</div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              {renderDollPart('rightLeg', '右足', 32, 96, '#9c27b0')}
+              {renderDollPart('leftLeg', '左足', 32, 96, '#9c27b0')}
             </div>
           </div>
         ) : (
