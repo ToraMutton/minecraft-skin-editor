@@ -238,7 +238,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null) // ファイル入力
 
-  const threeCtx = useRef<{ camera: THREE.PerspectiveCamera; parts: THREE.Mesh } | null>(null);
+  const threeCtx = useRef<{ camera: THREE.PerspectiveCamera; parts: THREE.Mesh[] } | null>(null);
 
   // 裏のメモ帳
   const undoStack = useRef<ImageData[]>([]) // Undo履歴
@@ -290,6 +290,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.target.set(0, 16, 0); // 回転の中心をスキンの中心に設定
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     controls.mouseButtons = { LEFT: null as any, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE };
 
 
@@ -537,7 +538,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
       queue.push([cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1]);
     }
     ctx.putImageData(imageData, 0, 0);
-  }, [canvasRef, currentFace]);
+  }, [canvasRef]);
 
   // --- スポイト ---
 
