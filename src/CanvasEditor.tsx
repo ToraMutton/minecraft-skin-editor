@@ -1,3 +1,5 @@
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { useRef, useState, useEffect, useCallback } from 'react';
 
 // 使えるツール定義
@@ -115,6 +117,122 @@ const FACE_COORDS: Record<LayerKey, Record<PartKey, Record<FaceKey, { x: number;
   }
 };
 
+// Minecraftスキンの各パーツのUV座標定義
+interface UVFace {
+  u: number; v: number; w: number; h: number;
+}
+
+// 1パーツにつき6面の定義
+interface PartUV {
+  front: UVFace;
+  back: UVFace;
+  top: UVFace;
+  bottom: UVFace;
+  right: UVFace;
+  left: UVFace;
+}
+
+// UVマッピング定義
+const SKIN_UV: Record<string, PartUV> = {
+  // 頭
+  head: {
+    right: { u: 0, v: 8, w: 8, h: 8 },
+    front: { u: 8, v: 8, w: 8, h: 8 },
+    left: { u: 16, v: 8, w: 8, h: 8 },
+    back: { u: 24, v: 8, w: 8, h: 8 },
+    top: { u: 8, v: 0, w: 8, h: 8 },
+    bottom: { u: 16, v: 0, w: 8, h: 8 },
+  },
+  // 右足
+  rightLeg: {
+    right: { u: 0, v: 20, w: 4, h: 12 },
+    front: { u: 4, v: 20, w: 4, h: 12 },
+    left: { u: 8, v: 20, w: 4, h: 12 },
+    back: { u: 12, v: 20, w: 4, h: 12 },
+    top: { u: 4, v: 16, w: 4, h: 4 },
+    bottom: { u: 8, v: 16, w: 4, h: 4 },
+  },
+  // 胴体
+  body: {
+    right: { u: 16, v: 20, w: 4, h: 12 },
+    front: { u: 20, v: 20, w: 8, h: 12 },
+    left: { u: 28, v: 20, w: 4, h: 12 },
+    back: { u: 32, v: 20, w: 8, h: 12 },
+    top: { u: 20, v: 16, w: 8, h: 4 },
+    bottom: { u: 28, v: 16, w: 8, h: 4 },
+  },
+  // 右腕
+  rightArm: {
+    right: { u: 40, v: 20, w: 4, h: 12 },
+    front: { u: 44, v: 20, w: 4, h: 12 },
+    left: { u: 48, v: 20, w: 4, h: 12 },
+    back: { u: 52, v: 20, w: 4, h: 12 },
+    top: { u: 44, v: 16, w: 4, h: 4 },
+    bottom: { u: 48, v: 16, w: 4, h: 4 },
+  },
+  // 左足
+  leftLeg: {
+    right: { u: 16, v: 52, w: 4, h: 12 },
+    front: { u: 20, v: 52, w: 4, h: 12 },
+    left: { u: 24, v: 52, w: 4, h: 12 },
+    back: { u: 28, v: 52, w: 4, h: 12 },
+    top: { u: 20, v: 48, w: 4, h: 4 },
+    bottom: { u: 24, v: 48, w: 4, h: 4 },
+  },
+  // 左腕
+  leftArm: {
+    right: { u: 32, v: 52, w: 4, h: 12 },
+    front: { u: 36, v: 52, w: 4, h: 12 },
+    left: { u: 40, v: 52, w: 4, h: 12 },
+    back: { u: 44, v: 52, w: 4, h: 12 },
+    top: { u: 36, v: 48, w: 4, h: 4 },
+    bottom: { u: 40, v: 48, w: 4, h: 4 },
+  },
+};
+
+// UVFaceからThree.jsのUV座標を設定する
+// Three.jsのUV座標系: 左下が(0,0)、右上が(1,1)
+// Minecraftのテクスチャ座標系: 左上が(0,0)、右上が(64,64)
+function setFaceUV(
+  geometry: THREE.BoxGeometry, // どの箱に貼るか
+  faceIndex: number, // 箱の何番目の面か
+  face: UVFace, // どの画像部分を貼るか
+  flipH: boolean = false, // 左右反転するか(デフォルト: false)
+) {
+  const uv = geometry.attributes.uv;
+  const texW = 64, texH = 64; // スキン画像の幅と高さ
+
+  // テクスチャ上のピクセル座標 → 0〜1の比率に変換
+  // 横方向(X/U)の計算
+  let u0 = face.u / texW;
+  let u1 = (face.u + face.w) / texW;
+  // 縦方向(Y/V)の計算
+  const v0 = 1 - face.v / texH; // Y軸反転
+  const v1 = 1 - (face.v + face.h) / texH;
+
+  // 反転処理
+  if (flipH) { [u0, u1] = [u1, u0]; }
+
+  // BoxGeometryの面の順番: +x, -x, +y, -y, +z, -z
+  // 各面に4頂点（左上、右上、左下、右下）
+  const i = faceIndex * 4;
+  uv.setXY(i + 0, u0, v0);
+  uv.setXY(i + 1, u1, v0);
+  uv.setXY(i + 2, u0, v1);
+  uv.setXY(i + 3, u1, v1);
+}
+
+// パーツ用のBoxGeometryにUVを設定する
+function applyPartUV(geometry: THREE.BoxGeometry, partUV: PartUV) {
+  // Three.js BoxGeometryの面順序: right(+x), left(-x), top(+y), bottom(-y), front(+z), back(-z)
+  setFaceUV(geometry, 0, partUV.right);
+  setFaceUV(geometry, 1, partUV.left);
+  setFaceUV(geometry, 2, partUV.top);
+  setFaceUV(geometry, 3, partUV.bottom);
+  setFaceUV(geometry, 4, partUV.front);
+  setFaceUV(geometry, 5, partUV.back, true); // 背面は左右反転
+  geometry.attributes.uv.needsUpdate = true;
+}
 
 // ブラシサイズ型
 type BrushSize = 1 | 2 | 3;
@@ -238,6 +356,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null) // ファイル入力
 
+  const threeCtx = useRef<{ camera: THREE.PerspectiveCamera; head: THREE.Mesh } | null>(null);
 
   // 裏のメモ帳
   const undoStack = useRef<ImageData[]>([]) // Undo履歴
@@ -268,6 +387,76 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
       }
     }, AUTOSAVE_DELAY);
   }, [onTextureUpdate, canvasRef]);
+
+  // --- 3Dキャンバスの初期化と描画ループ ---
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    // レンダラー（描画エンジン）の作成
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setSize(512, 512); // 一旦空き地のサイズ(512x512)に固定
+    renderer.setPixelRatio(window.devicePixelRatio);
+    container.appendChild(renderer.domElement); // 空き地にcanvasをぶち込む
+
+    // シーンとカメラの作成
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(35, 1, 0.1, 100);
+    camera.position.set(0, 16, 60);
+
+    // コントローラーの追加
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.target.set(0, 16, 0); // 回転の中心をスキンの中心に設定
+
+    controls.mouseButtons = { LEFT: null as any, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE };
+
+    // 光の追加
+    scene.add(new THREE.AmbientLight(0xffffff, 0.7)); // 全体を照らす薄い光
+    const dir = new THREE.DirectionalLight(0xffffff, 0.8); // 影を作る強い光
+    dir.position.set(5, 10, 7);
+    scene.add(dir);
+
+    // テクスチャとマテリアルの準備
+    const texture = new THREE.CanvasTexture(canvasRef.current!);
+    texture.magFilter = THREE.NearestFilter; // ドット絵がぼやけないように
+    texture.minFilter = THREE.NearestFilter;
+    texture.colorSpace = THREE.SRGBColorSpace; // 色を正確に
+
+    const baseMaterial = new THREE.MeshLambertMaterial({
+      map: texture,
+      side: THREE.FrontSide,
+    });
+
+    // 頭のジオメトリを作って、UVを適用
+    const headGeo = new THREE.BoxGeometry(8, 8, 8);
+    applyPartUV(headGeo, SKIN_UV.head);
+    headGeo.translate(0, 4, 0); // 回転の中心を首の位置にズラす
+
+    const head = new THREE.Mesh(headGeo, baseMaterial);
+    head.position.set(0, 0, 0);
+    scene.add(head);
+
+    threeCtx.current = { camera, head };
+
+    // アニメーションループ
+    let animId: number;
+    const animate = () => {
+      animId = requestAnimationFrame(animate);
+      controls.update(); // コントローラーの動きを計算
+      texture.needsUpdate = true; // 毎フレーム裏方キャンバスの最新状態を引っ張る
+      renderer.render(scene, camera); // 撮影して画面に出力
+    };
+    animate(); // ループ開始
+
+    // クリーンアップ
+    return () => {
+      cancelAnimationFrame(animId);
+      renderer.dispose();
+      if (container.contains(renderer.domElement)) {
+        container.removeChild(renderer.domElement);
+      }
+    };
+  }, [canvasRef]);
 
 
   // 起動時にlocalStorageからキャンバスを復元
@@ -506,6 +695,70 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     }
   }, [canvasRef, applyToolAt, mirror, brushSize, tool, color]);
 
+  // --- 3D直接ペイント処理 (Raycaster) ---
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    // 左クリック(0)以外は無視してカメラ操作に譲る
+    if (e.button !== 0 || !threeCtx.current) return;
+
+    const { camera, head } = threeCtx.current;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    const y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(new THREE.Vector2(x, y), camera);
+
+    // 頭に当たったかチェック
+    const intersects = raycaster.intersectObject(head);
+    if (intersects.length > 0) {
+      const hit = intersects[0];
+      if (!hit.uv) return;
+
+      const texX = Math.floor(hit.uv.x * 64);
+      const texY = Math.floor((1 - hit.uv.y) * 64);
+
+      pushUndo(); // 塗る前に履歴保存
+      if (tool === 'picker') {
+        pickColor(texX, texY);
+      } else if (tool === 'bucket') {
+        floodFill(texX, texY, color);
+        addRecentColor(color);
+      } else {
+        setIsDrawing(true);
+        applyTool(texX, texY);
+        if (tool === 'pen') addRecentColor(color);
+      }
+      notifyUpdate();
+    }
+  };
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDrawing || !threeCtx.current) return;
+
+    const { camera, head } = threeCtx.current;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    const y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(new THREE.Vector2(x, y), camera);
+
+    const intersects = raycaster.intersectObject(head);
+    if (intersects.length > 0) {
+      const hit = intersects[0];
+      if (!hit.uv) return;
+      const texX = Math.floor(hit.uv.x * 64);
+      const texY = Math.floor((1 - hit.uv.y) * 64);
+
+      applyTool(texX, texY);
+      notifyUpdate();
+    }
+  };
+
+  const handlePointerUp = () => {
+    setIsDrawing(false);
+  };
+
 
   // --- 全消し ---
 
@@ -732,6 +985,10 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
       {/* ===== キャンバスエリア ===== */}
       <div
         ref={containerRef}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerLeave={handlePointerUp}
         style={{
           width: '512px', height: '512px',
           border: '2px solid #555',
@@ -740,7 +997,8 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
           display: 'flex',
           justifyContent: 'center',
           alignItems: 'center',
-          backgroundColor: '#222'
+          backgroundColor: '#222',
+          touchAction: 'none',
         }}
       >
 
