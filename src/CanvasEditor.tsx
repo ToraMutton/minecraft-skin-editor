@@ -662,6 +662,52 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     }
   };
 
+  // --- フォーカス状態の監視とゴースト化処理 ---
+  useEffect(() => {
+    if (!threeCtx.current) return;
+    const { parts } = threeCtx.current;
+
+    parts.forEach(part => {
+      const mat = part.material as THREE.MeshLambertMaterial;
+      if (focusedPart === null) {
+        // 全体ビュー: 全部不透明
+        mat.opacity = 1.0;
+        mat.transparent = false;
+      } else if (part === focusedPart) {
+        // フォーカスされているパーツ: 不透明
+        mat.opacity = 1.0;
+        mat.transparent = false;
+      } else {
+        // それ以外のパーツ: ゴースト化
+        mat.opacity = 0.2;
+        mat.transparent = true;
+      }
+      mat.needsUpdate = true; // マテリアルの更新をThree.jsに通知
+    });
+  }, [focusedPart]);
+
+  // --- ダブルクリック検知 ---
+  const handleDoubleClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!threeCtx.current) return;
+    const { camera, parts } = threeCtx.current;
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    const y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(new THREE.Vector2(x, y), camera);
+
+    const intersects = raycaster.intersectObjects(parts);
+    if (intersects.length > 0) {
+      // パーツをクリックしたら、そのパーツにフォーカス
+      setFocusedPart(intersects[0].object as THREE.Mesh);
+    } else {
+      // 何もない空間をクリックしたら、全体ビューに戻す
+      setFocusedPart(null);
+    }
+  };
+
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!isDrawing || !threeCtx.current) return;
 
@@ -912,6 +958,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerLeave={handlePointerUp}
+        onDoubleClick={handleDoubleClick}
         style={{
           width: '512px', height: '512px',
           border: '2px solid #555',
