@@ -248,14 +248,8 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
 
   // useRef系
   const containerRef = useRef<HTMLDivElement>(null);
-  const overlayRef = useRef<HTMLCanvasElement>(null) // ガイド用canvas
   const fileInputRef = useRef<HTMLInputElement>(null) // ファイル入力
 
-  const workCanvasRef = useRef<HTMLCanvasElement>(null); // 表の作業用
-  const upCanvasRef = useRef<HTMLCanvasElement>(null);   // 上の隣接面
-  const downCanvasRef = useRef<HTMLCanvasElement>(null); // 下の隣接面
-  const leftCanvasRef = useRef<HTMLCanvasElement>(null); // 左の隣接面
-  const rightCanvasRef = useRef<HTMLCanvasElement>(null);// 右の隣接面
 
   // 裏のメモ帳
   const undoStack = useRef<ImageData[]>([]) // Undo履歴
@@ -287,60 +281,6 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     }, AUTOSAVE_DELAY);
   }, [onTextureUpdate, canvasRef]);
 
-
-  // マスターからワーク(メイン＋隣接面)へ映像を送る関数
-  const syncToWorkCanvas = useCallback(() => {
-    const master = canvasRef.current;
-    if (!master) return;
-    const mCtx = master.getContext('2d');
-    if (!mCtx) return;
-
-    // --- メインモニターの更新 ---
-    const work = workCanvasRef.current;
-    if (work) {
-      const wCtx = work.getContext('2d');
-      if (wCtx) {
-        wCtx.clearRect(0, 0, currentFace.w, currentFace.h);
-        wCtx.drawImage(
-          master,
-          currentFace.x, currentFace.y, currentFace.w, currentFace.h,
-          0, 0, currentFace.w, currentFace.h
-        );
-      }
-    }
-
-    // --- サブモニター(隣接面)の更新用ヘルパー関数 ---
-    const drawNeighbor = (targetRef: React.RefObject<HTMLCanvasElement | null>, neighborFaceKey: FaceKey) => {
-      const target = targetRef.current;
-      if (!target) return;
-      const ctx = target.getContext('2d');
-      if (!ctx) return;
-
-      const face = FACE_COORDS[selectedLayer][selectedPart][neighborFaceKey];
-      // サブモニターの解像度を隣接面に合わせる
-      target.width = face.w;
-      target.height = face.h;
-
-      ctx.clearRect(0, 0, face.w, face.h);
-      ctx.drawImage(
-        master,
-        face.x, face.y, face.w, face.h,
-        0, 0, face.w, face.h
-      );
-    };
-
-    // 上下左右の隣接面を描画
-    drawNeighbor(upCanvasRef, NEIGHBOR_MAP[selectedFace].up);
-    drawNeighbor(downCanvasRef, NEIGHBOR_MAP[selectedFace].down);
-    drawNeighbor(leftCanvasRef, NEIGHBOR_MAP[selectedFace].left);
-    drawNeighbor(rightCanvasRef, NEIGHBOR_MAP[selectedFace].right);
-
-  }, [currentFace, canvasRef, selectedLayer, selectedPart, selectedFace]);
-
-  // パーツや面が切り替わったときに、自動で映像を送り直す
-  useEffect(() => {
-    syncToWorkCanvas();
-  }, [syncToWorkCanvas]);
 
   // 起動時にlocalStorageからキャンバスを復元
   useEffect(() => {
@@ -477,28 +417,6 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
       ctx.stroke();
     }
   }, [showGrid, currentFace, displayWidth, displayHeight, currentScale]);
-
-  // --- 座標変換(ズーム＆パン対応) ---
-
-  const toPixelCoords = (e: React.MouseEvent<HTMLCanvasElement>): [number, number] | null => {
-    const canvas = workCanvasRef.current;
-    if (!canvas) return null;
-
-    // canvasの画面上の位置を取得
-    const rect = canvas.getBoundingClientRect();
-
-    // モニター上の相対座標(8 × 8なら 0 ~ 7になる)
-    const localX = Math.floor((e.clientX - rect.left) * (canvas.width / rect.width));
-    const localY = Math.floor((e.clientY - rect.top) * (canvas.height / rect.height));
-    // モニター外は無視
-    if (localX < 0 || localX >= canvas.width || localY < 0 || localY >= canvas.height) return null;
-
-    // モニターの座標をマスターキャンバスの真座標に変換
-    const trueX = currentFace.x + localX;
-    const trueY = currentFace.y + localY;
-
-    return [trueX, trueY];
-  };
 
 
   // --- バケツ ---
@@ -818,127 +736,6 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     fontWeight: brushSize === s ? 'bold' : 'normal',
   });
 
-  // 隣接面をレンダリングする関数
-  const renderNeighbor = (
-    ref: React.RefObject<HTMLCanvasElement | null>,
-    direction: 'up' | 'down' | 'left' | 'right',
-    neighborKey: FaceKey
-  ) => {
-    // 隣接面の本来のサイズを取得
-    const face = FACE_COORDS[selectedLayer][selectedPart][neighborKey];
-    // メインモニターと同じスケールで拡大
-    const w = face.w * currentScale;
-    const h = face.h * currentScale;
-
-    // 配置スタイル 方向によってメインからの絶対位置を変える
-    let posStyle: React.CSSProperties = {};
-    const gap = 12; // メインとの隙間(ピクセル)
-
-    if (direction === 'up') {
-      posStyle = { bottom: '100%', left: '50%', transform: 'translateX(-50%)', marginBottom: `${gap}px` };
-    } else if (direction === 'down') {
-      posStyle = { top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: `${gap}px` };
-    } else if (direction === 'left') {
-      posStyle = { right: '100%', top: '50%', transform: 'translateY(-50%)', marginRight: `${gap}px` };
-    } else if (direction === 'right') {
-      posStyle = { left: '100%', top: '50%', transform: 'translateY(-50%)', marginLeft: `${gap}px` };
-    }
-
-    return (
-      <div
-        key={direction}
-        style={{
-          position: 'absolute',
-          ...posStyle,
-          width: `${w}px`,
-          height: `${h}px`,
-          cursor: 'pointer',
-          opacity: 0.5, // メインを目立たせる
-          transition: 'opacity 0.2s, transform 0.1s', // ホバー時アニメ
-        }}
-        onClick={() => setSelectedFace(neighborKey)}
-        onMouseEnter={(e) => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.transform = `${posStyle.transform} scale(1.05)`; }}
-        onMouseLeave={(e) => { e.currentTarget.style.opacity = '0.5'; e.currentTarget.style.transform = posStyle.transform as string; }}
-      >
-        {/* 隣の面の映像を映すための小さなモニター */}
-        <canvas
-          ref={ref}
-          width={face.w}
-          height={face.h}
-          style={{
-            width: '100%', height: '100%', imageRendering: 'pixelated',
-            boxShadow: '0 0 10px rgba(0,0,0,0.5)', borderRadius: '2px',
-            backgroundColor: '#111'
-          }}
-        />
-
-        {/* 面の名前(TOPなど)をモニターの上に透かして表示 */}
-        <div style={{
-          position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
-          color: '#00b4ff', fontWeight: 'bold', fontSize: '14px', textShadow: '0px 0px 4px #000',
-          pointerEvents: 'none' // 文字の上からでも下のcanvasをクリック可能にする魔法
-        }}>
-          {neighborKey.toUpperCase()}
-        </div>
-      </div>
-    );
-  };
-
-  // --- パーツ描画用関数 ---
-  const renderDollPart = (partKey: PartKey, label: string, w: number, h: number, baseColor: string) => {
-    // 外枠(オーバーレイ)用に大きめのサイズを計算
-    const outerW = w + 16;
-    const outerH = h + 16;
-
-    return (
-      <div style={{
-        position: 'relative', width: `${outerW}px`, height: `${outerH}px`,
-        display: 'flex', justifyContent: 'center', alignItems: 'center'
-      }}>
-        {/* オーバーレイ (外枠・点線) */}
-        <div
-          onClick={(e) => {
-            e.stopPropagation(); // 内側をクリックした時に外側も反応しちゃうのを防ぐ
-            setSelectedLayer('overlay');
-            setSelectedPart(partKey);
-            setSelectedFace('front');
-            setIsEditing(true);
-          }}
-          title={`${label} (上着)`}
-          style={{
-            position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
-            border: '3px dashed #aaa', borderRadius: '6px', cursor: 'pointer',
-            boxSizing: 'border-box',
-            transition: 'border-color 0.2s, background-color 0.2s'
-          }}
-          onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#ff9800'; e.currentTarget.style.backgroundColor = 'rgba(255, 152, 0, 0.1)'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#aaa'; e.currentTarget.style.backgroundColor = 'transparent'; }}
-        />
-
-        {/* ベース (内側の塗りつぶし) */}
-        <div
-          onClick={(e) => {
-            e.stopPropagation();
-            setSelectedLayer('base'); setSelectedPart(partKey); setSelectedFace('front'); setIsEditing(true);
-          }}
-          title={`${label} (下地)`}
-          style={{
-            width: `${w}px`, height: `${h}px`, backgroundColor: baseColor,
-            borderRadius: '4px', cursor: 'pointer',
-            zIndex: 1,
-            display: 'flex', justifyContent: 'center', alignItems: 'center',
-            color: '#fff', fontWeight: 'bold',
-            writingMode: partKey.includes('Arm') || partKey.includes('Leg') ? 'vertical-rl' : 'horizontal-tb',
-            transition: 'transform 0.1s, box-shadow 0.1s'
-          }}
-          onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.05)'; e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.3)'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = 'none'; }}
-        >
-          {label}
-        </div>
-      </div>
-    );
-  };
 
   // return部分
 
