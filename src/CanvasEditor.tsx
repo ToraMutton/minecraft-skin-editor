@@ -1193,6 +1193,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
               transform: `scale(${zoom}) translate(${pan.x / zoom}px, ${pan.y / zoom}px)`,
               transformOrigin: 'center center',
               position: 'relative',
+              transition: isPanning ? 'none' : 'transform 0.15s cubic-bezier(0.2, 0.8, 0.2, 1)',
             }}>
 
               {/* 描画用キャンバス */}
@@ -1213,6 +1214,8 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
                 onMouseLeave={handleMouseLeave}
                 onMouseMove={handleMouseMove}
                 onDoubleClick={handleDoubleClick}
+                onWheel={handleWheel}
+                onContextMenu={handleContextMenu}
               />
 
               {/* ガイド＆グリッド */}
