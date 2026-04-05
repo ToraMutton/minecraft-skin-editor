@@ -1033,16 +1033,18 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
 
         {!isEditing ? (
           // 全体画面：2DドールUI
-          <div style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: '4px', // パーツ間の隙間
-            padding: '20px',
-            backgroundColor: '#2a2a2a',
-            borderRadius: '8px',
-            boxShadow: 'inset 0 0 20px rgba(0,0,0,0.5)'
-          }}>
+          <div
+            key="doll-ui"
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '4px', // パーツ間の隙間
+              padding: '20px',
+              backgroundColor: '#2a2a2a',
+              borderRadius: '8px',
+              boxShadow: 'inset 0 0 20px rgba(0,0,0,0.5)'
+            }}>
             <p style={{ color: '#888', margin: '0 0 16px 0', fontSize: '14px', fontWeight: 'bold' }}>
               編集するパーツを選択
             </p>
@@ -1154,12 +1156,14 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
             </div>
           </div>
         ) : (
-          // 編集画面（カルーセルUI）
-          <div style={{
-            position: 'relative',
-            width: `${displayWidth}px`,
-            height: `${displayHeight}px`
-          }}>
+          // 編集画面(カルーセルUI)
+          <div
+            key="edit-ui"
+            style={{
+              position: 'relative',
+              width: `${displayWidth}px`,
+              height: `${displayHeight}px`
+            }}>
 
             {/* 隣接面のラベル */}
             <div style={{ ...labelBase, top: '-35px', left: '50%', transform: 'translateX(-50%)' }}
