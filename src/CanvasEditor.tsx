@@ -693,10 +693,23 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
       }
     });
 
+    const currentDir = new THREE.Vector3().subVectors(camera.position, controls.target).normalize();
+
     // カメラ移動ロジック
-    // 全部ON、または全部OFFの場合は全体ビュー(初期位置)に戻す
+    // 全部ON、または全部OFFの場合は全体ビューに戻す
     if (activeCount === 6 || activeCount === 0) {
-      gsap.to(camera.position, { x: 0, y: 16, z: 60, duration: 0.6, ease: "power2.out" });
+      const targetCenter = new THREE.Vector3(0, 16, 0);
+
+      // 中心点をコピーして、そこに今の方向を60倍に伸ばした矢印を足す
+      const targetCamPos = new THREE.Vector3().copy(targetCenter).add(currentDir.clone().multiplyScalar(60));
+
+      gsap.to(camera.position, {
+        x: targetCamPos.x,
+        y: targetCamPos.y,
+        z: targetCamPos.z,
+        duration: 0.6,
+        ease: "power2.out"
+      });
       gsap.to(controls.target, { x: 0, y: 16, z: 0, duration: 0.6, ease: "power2.out", onUpdate: () => { controls.update() } });
       return;
     }
@@ -712,11 +725,12 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
 
     // 枠に収まらない対策: 距離の余裕を少し大きめ(1.8倍 + 15)にする
     const maxDim = Math.max(size.x, size.y, size.z);
-    const distance = maxDim * 1.8 + 15;
 
-    // 正面強制リセット対策: 今のカメラの角度を維持したまま、新しい中心点から離す
-    const currentDir = new THREE.Vector3().subVectors(camera.position, controls.target).normalize();
-    const targetCamPos = new THREE.Vector3().copy(center).add(currentDir.multiplyScalar(distance));
+    let distance = maxDim * 1.8 + 15;
+    distance = Math.min(distance, 60); // distanceと60を比べて、小さい方をdistanceに入れ直す
+
+    // 今の角度のまま、新しい中心点から計算した距離をとる
+    const targetCamPos = new THREE.Vector3().copy(center).add(currentDir.clone().multiplyScalar(distance));
 
     // カメラ本体と注視点を同時にアニメーション
     gsap.to(camera.position, {
