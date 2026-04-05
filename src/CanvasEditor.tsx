@@ -232,7 +232,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
   const [canRedo, setCanRedo] = useState(false) // Redo可能か
   const [recentColors, setRecentColors] = useState<string[]>([]) //最近の色
 
-
+  const [focusedPart, setFocusedPart] = useState<THREE.Mesh | null>(null);
 
   // useRef系
   const containerRef = useRef<HTMLDivElement>(null);
@@ -315,14 +315,16 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     const headGeo = new THREE.BoxGeometry(8, 8, 8);
     applyPartUV(headGeo, SKIN_UV.head);
     headGeo.translate(0, 4, 0);
-    const head = new THREE.Mesh(headGeo, baseMaterial);
+    const head = new THREE.Mesh(headGeo, baseMaterial.clone());
+    head.name = 'head';
     head.position.set(0, 24, 0);
     scene.add(head);
 
     // 胴体: 8x12x4
     const bodyGeo = new THREE.BoxGeometry(8, 12, 4);
     applyPartUV(bodyGeo, SKIN_UV.body);
-    const body = new THREE.Mesh(bodyGeo, baseMaterial);
+    const body = new THREE.Mesh(bodyGeo, baseMaterial.clone());
+    body.name = 'body';
     body.position.set(0, 18, 0);
     scene.add(body);
 
@@ -330,7 +332,8 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     const rArmGeo = new THREE.BoxGeometry(4, 12, 4);
     applyPartUV(rArmGeo, SKIN_UV.rightArm);
     rArmGeo.translate(0, -6, 0);
-    const rArm = new THREE.Mesh(rArmGeo, baseMaterial);
+    const rArm = new THREE.Mesh(rArmGeo, baseMaterial.clone());
+    rArm.name = 'rightArm';
     rArm.position.set(-6, 24, 0);
     scene.add(rArm);
 
@@ -338,7 +341,8 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     const lArmGeo = new THREE.BoxGeometry(4, 12, 4);
     applyPartUV(lArmGeo, SKIN_UV.leftArm);
     lArmGeo.translate(0, -6, 0);
-    const lArm = new THREE.Mesh(lArmGeo, baseMaterial);
+    const lArm = new THREE.Mesh(lArmGeo, baseMaterial.clone());
+    lArm.name = 'leftArm';
     lArm.position.set(6, 24, 0);
     scene.add(lArm);
 
@@ -346,7 +350,8 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     const rLegGeo = new THREE.BoxGeometry(4, 12, 4);
     applyPartUV(rLegGeo, SKIN_UV.rightLeg);
     rLegGeo.translate(0, -6, 0);
-    const rLeg = new THREE.Mesh(rLegGeo, baseMaterial);
+    const rLeg = new THREE.Mesh(rLegGeo, baseMaterial.clone());
+    rLeg.name = 'rightLeg';
     rLeg.position.set(-2, 12, 0);
     scene.add(rLeg);
 
@@ -354,11 +359,12 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     const lLegGeo = new THREE.BoxGeometry(4, 12, 4);
     applyPartUV(lLegGeo, SKIN_UV.leftLeg);
     lLegGeo.translate(0, -6, 0);
-    const lLeg = new THREE.Mesh(lLegGeo, baseMaterial);
+    const lLeg = new THREE.Mesh(lLegGeo, baseMaterial.clone());
+    lLeg.name = 'leftLeg';
     lLeg.position.set(2, 12, 0);
-    scene.add(lLeg);
 
-    threeCtx.current = { camera, parts: [head, body, rArm, lArm, rLeg, lLeg] };
+    scene.add(lLeg); const parts = [head, body, rArm, lArm, rLeg, lLeg];
+    threeCtx.current = { camera, parts };
 
     // アニメーションループ
     let animId: number;
@@ -374,6 +380,9 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     return () => {
       cancelAnimationFrame(animId);
       renderer.dispose();
+      // クローンしたマテリアルの掃除
+      parts.forEach(part => (part.material as THREE.Material).dispose());
+
       if (container.contains(renderer.domElement)) {
         container.removeChild(renderer.domElement);
       }
