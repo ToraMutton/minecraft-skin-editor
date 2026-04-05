@@ -245,11 +245,6 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
   const [recentColors, setRecentColors] = useState<string[]>([]) //最近の色
   const [hoverPart, setHoverPart] = useState('') // ホバー中のパーツ名
 
-  // ズーム&パン系
-  const [zoom, setZoom] = useState(1) // ズーム倍率
-  const [pan, setPan] = useState({ x: 0, y: 0 }) // パン位置
-  const [isPanning, setIsPanning] = useState(false) // パン中かどうか
-
   // 編集パーツ系
   const [selectedLayer, setSelectedLayer] = useState<LayerKey>('base');
   const [selectedPart, setSelectedPart] = useState<PartKey>('head'); // 今選んでるパーツ
@@ -283,7 +278,6 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
   const undoStack = useRef<ImageData[]>([]) // Undo履歴
   const redoStack = useRef<ImageData[]>([]) // Redo履歴
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null) // 自動保存タイマー
-  const panStart = useRef({ x: 0, y: 0, panX: 0, panY: 0 }) // パン開始位置
 
 
   // 3Dプレビューにテクスチャ変更を通知 + 自動保存
