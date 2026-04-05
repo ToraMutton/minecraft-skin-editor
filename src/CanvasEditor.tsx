@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { useRef, useState, useEffect, useCallback } from 'react';
+import gsap from 'gsap';
 
 // 使えるツール定義
 type Tool = 'pen' | 'eraser' | 'bucket' | 'picker';
@@ -232,7 +233,14 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
   const [canRedo, setCanRedo] = useState(false) // Redo可能か
   const [recentColors, setRecentColors] = useState<string[]>([]) //最近の色
 
-  const [focusedPart, setFocusedPart] = useState<THREE.Mesh | null>(null);
+  const [visibleParts, setVisibleParts] = useState({
+    head: true,
+    body: true,
+    rightArm: true,
+    leftArm: true,
+    rightLeg: true,
+    leftLeg: true,
+  });
 
   // useRef系
   const containerRef = useRef<HTMLDivElement>(null);
@@ -662,51 +670,63 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     }
   };
 
-  // --- フォーカス状態の監視とゴースト化処理 ---
+  // --- ゴースト化と自動カメラズーム処理 ---
   useEffect(() => {
-    if (!threeCtx.current) return;
-    const { parts } = threeCtx.current;
-
-    parts.forEach(part => {
-      const mat = part.material as THREE.MeshLambertMaterial;
-      if (focusedPart === null) {
-        // 全体ビュー: 全部不透明
-        mat.opacity = 1.0;
-        mat.transparent = false;
-      } else if (part === focusedPart) {
-        // フォーカスされているパーツ: 不透明
-        mat.opacity = 1.0;
-        mat.transparent = false;
-      } else {
-        // それ以外のパーツ: ゴースト化
-        mat.opacity = 0.2;
-        mat.transparent = true;
-      }
-      mat.needsUpdate = true; // マテリアルの更新をThree.jsに通知
-    });
-  }, [focusedPart]);
-
-  // --- ダブルクリック検知 ---
-  const handleDoubleClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!threeCtx.current) return;
     const { camera, parts } = threeCtx.current;
 
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-    const y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    const activeMeshes: THREE.Mesh[] = [];
+    let activeCount = 0;
 
-    const raycaster = new THREE.Raycaster();
-    raycaster.setFromCamera(new THREE.Vector2(x, y), camera);
+    // 各パーツの表示/ゴースト化の切り替え
+    parts.forEach(part => {
+      const mat = part.material as THREE.MeshLambertMaterial;
+      const isActive = visibleParts[part.name as keyof typeof visibleParts];
 
-    const intersects = raycaster.intersectObjects(parts);
-    if (intersects.length > 0) {
-      // パーツをクリックしたら、そのパーツにフォーカス
-      setFocusedPart(intersects[0].object as THREE.Mesh);
-    } else {
-      // 何もない空間をクリックしたら、全体ビューに戻す
-      setFocusedPart(null);
+      if (isActive) {
+        mat.opacity = 1.0;
+        mat.transparent = false;
+        activeMeshes.push(part);
+        activeCount++;
+      } else {
+        mat.opacity = 0.2;
+        mat.transparent = true;
+      }
+      mat.needsUpdate = true;
+    });
+
+    // カメラ移動ロジック
+    // 全部ON、または全部OFFの場合は全体ビュー(初期位置)に戻す
+    if (activeCount === 6 || activeCount === 0) {
+      gsap.to(camera.position, { x: 0, y: 16, z: 60, duration: 0.6, ease: "power2.out" });
+      return;
     }
-  };
+
+    // ONになっているパーツをすべて包み込む箱を計算
+    const box = new THREE.Box3();
+    activeMeshes.forEach(mesh => box.expandByObject(mesh));
+
+    // 箱の中心点
+    const center = new THREE.Vector3();
+    box.getCenter(center);
+
+    // 箱のサイズ
+    const size = new THREE.Vector3();
+    box.getSize(size);
+
+    // 一番長い辺に合わせてカメラの距離を計算
+    const maxDim = Math.max(size.x, size.y, size.z);
+    const distance = maxDim * 1.5 + 10;
+
+    // GSAPで滑らかにズーム
+    gsap.to(camera.position, {
+      x: center.x,
+      y: center.y,
+      z: center.z + distance,
+      duration: 0.6,
+      ease: "power2.out",
+    });
+  }, [visibleParts]);
 
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!isDrawing || !threeCtx.current) return;
@@ -958,7 +978,6 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerLeave={handlePointerUp}
-        onDoubleClick={handleDoubleClick}
         style={{
           width: '512px', height: '512px',
           border: '2px solid #555',
@@ -971,7 +990,45 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
           touchAction: 'none',
         }}
       >
-
+        {/* パーツ表示切替メニュー */}
+        <div style={{
+          position: 'absolute',
+          top: '10px',
+          right: '10px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '4px',
+          background: 'rgba(0, 0, 0, 0.6)',
+          padding: '8px',
+          borderRadius: '8px',
+          pointerEvents: 'auto',
+        }}>
+          <span style={{ fontSize: '11px', color: '#fff', marginBottom: '4px', textAlign: 'center' }}>👁️ 表示切替</span>
+          {(Object.keys(visibleParts) as (keyof typeof visibleParts)[]).map(key => {
+            const labels: Record<string, string> = { head: '頭', body: '胴体', rightArm: '右腕', leftArm: '左腕', rightLeg: '右足', leftLeg: '左足' };
+            const isActive = visibleParts[key];
+            return (
+              <button
+                key={key}
+                onPointerDown={(e) => e.stopPropagation()} // キャンバスへのペイント誤爆を防ぐ
+                onClick={() => setVisibleParts(prev => ({ ...prev, [key]: !prev[key] }))}
+                style={{
+                  ...btn,
+                  backgroundColor: isActive ? '#4caf50' : '#555',
+                  color: '#fff',
+                  fontSize: '10px',
+                  border: 'none',
+                  width: '70px',
+                  display: 'flex',
+                  justifyContent: 'space-between'
+                }}
+              >
+                <span>{labels[key]}</span>
+                <span>{isActive ? 'ON' : 'OFF'}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* --- 見えない裏方キャンバス --- */}
