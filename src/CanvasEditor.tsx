@@ -172,21 +172,6 @@ const MIRROR_PAIRS: MirrorMapping[] = [
 ];
 
 
-// クリックしたピクセルがどのパーツかを返す
-function getPartName(px: number, py: number): string {
-  for (const part of SKIN_PARTS) {
-    if (
-      px >= part.x &&
-      px < part.x + part.w &&
-      py >= part.y &&
-      py < part.y + part.h
-    ) {
-      return part.name;
-    }
-  }
-  return '未使用領域';
-}
-
 // 色コードを数値に変換する関数
 function hexToRgba(hex: string) {
   const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
@@ -243,7 +228,6 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
   const [canUndo, setCanUndo] = useState(false) // Undo可能か
   const [canRedo, setCanRedo] = useState(false) // Redo可能か
   const [recentColors, setRecentColors] = useState<string[]>([]) //最近の色
-  const [hoverPart, setHoverPart] = useState('') // ホバー中のパーツ名
 
   // 編集パーツ系
   const [selectedLayer, setSelectedLayer] = useState<LayerKey>('base');
@@ -707,7 +691,6 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     // 常時ホバー中のパーツ名を更新
     const coords = toPixelCoords(e);
     if (!coords) return;
-    setHoverPart(getPartName(coords[0], coords[1]));
 
     // 描画中なら描く
     if (isDrawing) {
@@ -1337,11 +1320,6 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
             </div>
           </div>
         )}
-      </div>
-      {/* ===== パーツ名 + 座標 ===== */}
-      <div style={{ height: '18px', fontSize: '13px', color: '#888', fontFamily: 'monospace' }}>
-        {hoverPart && `📍 ${hoverPart}`}
-        {zoom > 1 && ' | ホイール: ズーム | 右ドラッグ: パン | ダブルクリック: リセット'}
       </div>
 
       {/* --- 見えない裏方キャンバス --- */}
