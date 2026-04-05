@@ -680,7 +680,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
   };
 
   // マウスを離したときの挙動管理関数
-  const handleMouseUp = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  const handleMouseUp = () => {
     // 左クリックを離す → 描画終了
     setIsDrawing(false);
   };
@@ -1180,13 +1180,12 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
                 position: 'absolute', top: 0, left: 0,
                 width: '100%', height: '100%',
                 imageRendering: 'pixelated',
-                cursor: isPanning ? 'grabbing' : toolConfig[tool].cursor,
                 backgroundImage: 'repeating-conic-gradient(#333 0% 25%, #2a2a2a 0% 50%)',
                 backgroundSize: '16px 16px',
                 boxShadow: '0 0 20px rgba(0,0,0,0.8)', // メインを目立たせる影
               }}
               onMouseDown={handleMouseDown}
-              onMouseUp={handleMouseUp}
+              onMouseUp={() => handleMouseUp()}
               onMouseLeave={handleMouseLeave}
               onMouseMove={handleMouseMove}
             />
