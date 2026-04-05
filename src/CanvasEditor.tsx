@@ -233,8 +233,6 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
   // 描画面積の動的計算(最大512pxの枠にぴったり収まるようにスケールを計算)
   const maxDisplaySize = 400;
   const currentScale = maxDisplaySize / Math.max(currentFace.w, currentFace.h);
-  const displayWidth = currentFace.w * currentScale;
-  const displayHeight = currentFace.h * currentScale;
 
   // useRef系
   const containerRef = useRef<HTMLDivElement>(null);
