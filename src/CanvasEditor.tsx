@@ -230,7 +230,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
   const [recentColors, setRecentColors] = useState<string[]>([]) //最近の色
 
   // 編集パーツ系
-  const [selectedLayer, setSelectedLayer] = useState<LayerKey>('base');
+  const [selectedLayer] = useState<LayerKey>('base');
   const [selectedPart, setSelectedPart] = useState<PartKey>('head'); // 今選んでるパーツ
   const [selectedFace, setSelectedFace] = useState<FaceKey>('front'); // 今選んでる面
 
@@ -247,10 +247,9 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
   const displayHeight = currentFace.h * currentScale;
 
   // useRef系
-  // 直接掴む
+  const containerRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLCanvasElement>(null) // ガイド用canvas
   const fileInputRef = useRef<HTMLInputElement>(null) // ファイル入力
-  const containerRef = useRef<HTMLDivElement>(null) // div要素
 
   const workCanvasRef = useRef<HTMLCanvasElement>(null); // 表の作業用
   const upCanvasRef = useRef<HTMLCanvasElement>(null);   // 上の隣接面
@@ -538,8 +537,8 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
       const [cx, cy] = queue.pop()!;
 
       // キャンバス範囲外チェック
-      if (cx < 0 || cx >= width || cy < 0 || cy >= height) continue;
-
+      const { x: fx, y: fy, w: fw, h: fh } = currentFace;
+      if (cx < fx || cx >= fx + fw || cy < fy || cy >= fy + fh) continue;
       // 訪問済みチェック
       const pos = cy * width + cx; // visited配列用に2次元座標を1次元インデックスに変換
       if (visited[pos]) continue; // 0 → Falsy, 1 → Truthy
@@ -560,7 +559,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
       queue.push([cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1]);
     }
     ctx.putImageData(imageData, 0, 0);
-  }, [canvasRef]);
+  }, [canvasRef, currentFace]);
 
   // --- スポイト ---
 
@@ -1030,7 +1029,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
 
             {/* 1段目: 頭 */}
             <div
-              onClick={() => { setSelectedPart('head'); setIsEditing(true); }}
+              onClick={() => { setSelectedPart('head'); setSelectedFace('front'); setIsEditing(true); }}
               style={{
                 width: '64px', height: '64px', backgroundColor: '#4a90d9',
                 cursor: 'pointer',
@@ -1049,7 +1048,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
             {/* 2段目: 右腕・胴体・左腕 */}
             <div style={{ display: 'flex', gap: '4px' }}>
               <div
-                onClick={() => { setSelectedPart('rightArm'); setIsEditing(true); }}
+                onClick={() => { setSelectedPart('rightArm'); setSelectedFace('front'); setIsEditing(true); }}
                 style={{
                   width: '32px', height: '96px', backgroundColor: '#ff9800',
                   cursor: 'pointer',
@@ -1065,7 +1064,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
                 onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
               >右腕</div>
               <div
-                onClick={() => { setSelectedPart('body'); setIsEditing(true); }}
+                onClick={() => { setSelectedPart('body'); setSelectedFace('front'); setIsEditing(true); }}
                 style={{
                   width: '64px', height: '96px', backgroundColor: '#4caf50',
                   cursor: 'pointer',
@@ -1081,7 +1080,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
                 onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
               >胴体</div>
               <div
-                onClick={() => { setSelectedPart('leftArm'); setIsEditing(true); }}
+                onClick={() => { setSelectedPart('leftArm'); setSelectedFace('front'); setIsEditing(true); }}
                 style={{
                   width: '32px', height: '96px', backgroundColor: '#ff9800',
                   cursor: 'pointer',
@@ -1101,7 +1100,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
             {/* 3段目: 右足・左足 */}
             <div style={{ display: 'flex', gap: '4px' }}>
               <div
-                onClick={() => { setSelectedPart('rightLeg'); setIsEditing(true); }}
+                onClick={() => { setSelectedPart('rightLeg'); setSelectedFace('front'); setIsEditing(true); }}
                 style={{
                   width: '32px', height: '96px', backgroundColor: '#9c27b0',
                   cursor: 'pointer',
@@ -1117,7 +1116,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
                 onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
               >右足</div>
               <div
-                onClick={() => { setSelectedPart('leftLeg'); setIsEditing(true); }}
+                onClick={() => { setSelectedPart('leftLeg'); setSelectedFace('front'); setIsEditing(true); }}
                 style={{
                   width: '32px', height: '96px', backgroundColor: '#9c27b0',
                   cursor: 'pointer',
