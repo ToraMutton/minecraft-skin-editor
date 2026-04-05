@@ -273,7 +273,11 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null) // ファイル入力
   const containerRef = useRef<HTMLDivElement>(null) // div要素
 
-  const workCanvasRef = useRef<HTMLCanvasElement>(null); // 表の作業用モニター
+  const workCanvasRef = useRef<HTMLCanvasElement>(null); // 表の作業用
+  const upCanvasRef = useRef<HTMLCanvasElement>(null);   // 上の隣接面
+  const downCanvasRef = useRef<HTMLCanvasElement>(null); // 下の隣接面
+  const leftCanvasRef = useRef<HTMLCanvasElement>(null); // 左の隣接面
+  const rightCanvasRef = useRef<HTMLCanvasElement>(null);// 右の隣接面
 
   // 裏のメモ帳
   const undoStack = useRef<ImageData[]>([]) // Undo履歴
@@ -307,23 +311,54 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
   }, [onTextureUpdate, canvasRef]);
 
 
-  // マスターからワークへ映像を送る関数
+  // マスターからワーク(メイン＋隣接面)へ映像を送る関数
   const syncToWorkCanvas = useCallback(() => {
     const master = canvasRef.current;
-    const work = workCanvasRef.current;
-    if (!master || !work) return;
-
+    if (!master) return;
     const mCtx = master.getContext('2d');
-    const wCtx = work.getContext('2d');
-    if (!mCtx || !wCtx) return;
+    if (!mCtx) return;
 
-    wCtx.clearRect(0, 0, currentFace.w, currentFace.h);
-    wCtx.drawImage(
-      master,
-      currentFace.x, currentFace.y, currentFace.w, currentFace.h,
-      0, 0, currentFace.w, currentFace.h
-    );
-  }, [currentFace, canvasRef]);
+    // --- メインモニターの更新 ---
+    const work = workCanvasRef.current;
+    if (work) {
+      const wCtx = work.getContext('2d');
+      if (wCtx) {
+        wCtx.clearRect(0, 0, currentFace.w, currentFace.h);
+        wCtx.drawImage(
+          master,
+          currentFace.x, currentFace.y, currentFace.w, currentFace.h,
+          0, 0, currentFace.w, currentFace.h
+        );
+      }
+    }
+
+    // --- サブモニター(隣接面)の更新用ヘルパー関数 ---
+    const drawNeighbor = (targetRef: React.RefObject<HTMLCanvasElement | null>, neighborFaceKey: FaceKey) => {
+      const target = targetRef.current;
+      if (!target) return;
+      const ctx = target.getContext('2d');
+      if (!ctx) return;
+
+      const face = FACE_COORDS[selectedLayer][selectedPart][neighborFaceKey];
+      // サブモニターの解像度を隣接面に合わせる
+      target.width = face.w;
+      target.height = face.h;
+
+      ctx.clearRect(0, 0, face.w, face.h);
+      ctx.drawImage(
+        master,
+        face.x, face.y, face.w, face.h,
+        0, 0, face.w, face.h
+      );
+    };
+
+    // 上下左右の隣接面を描画
+    drawNeighbor(upCanvasRef, NEIGHBOR_MAP[selectedFace].up);
+    drawNeighbor(downCanvasRef, NEIGHBOR_MAP[selectedFace].down);
+    drawNeighbor(leftCanvasRef, NEIGHBOR_MAP[selectedFace].left);
+    drawNeighbor(rightCanvasRef, NEIGHBOR_MAP[selectedFace].right);
+
+  }, [currentFace, canvasRef, selectedLayer, selectedPart, selectedFace]);
 
   // パーツや面が切り替わったときに、自動で映像を送り直す
   useEffect(() => {
