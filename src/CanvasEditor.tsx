@@ -888,6 +888,73 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     fontWeight: brushSize === s ? 'bold' : 'normal',
   });
 
+  // 隣接面をレンダリングする関数
+  const renderNeighbor = (
+    ref: React.RefObject<HTMLCanvasElement | null>,
+    direction: 'up' | 'down' | 'left' | 'right',
+    neighborKey: FaceKey
+  ) => {
+    // 隣接面の本来のサイズを取得
+    const face = FACE_COORDS[selectedLayer][selectedPart][neighborKey];
+    // メインモニターと同じスケールで拡大
+    const w = face.w * currentScale;
+    const h = face.h * currentScale;
+
+    // 配置スタイル 方向によってメインからの絶対位置を変える
+    let posStyle: React.CSSProperties = {};
+    const gap = 12; // メインとの隙間(ピクセル)
+
+    if (direction === 'up') {
+      posStyle = { bottom: '100%', left: '50%', transform: 'translateX(-50%)', marginBottom: `${gap}px` };
+    } else if (direction === 'down') {
+      posStyle = { top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: `${gap}px` };
+    } else if (direction === 'left') {
+      posStyle = { right: '100%', top: '50%', transform: 'translateY(-50%)', marginRight: `${gap}px` };
+    } else if (direction === 'right') {
+      posStyle = { left: '100%', top: '50%', transform: 'translateY(-50%)', marginLeft: `${gap}px` };
+    }
+
+    return (
+      <div
+        key={direction}
+        style={{
+          position: 'absolute',
+          ...posStyle,
+          width: `${w}px`,
+          height: `${h}px`,
+          cursor: 'pointer',
+          opacity: 0.5, // メインを目立たせる
+          transition: 'opacity 0.2s, transform 0.1s', // ホバー時アニメ
+        }}
+        onClick={() => setSelectedFace(neighborKey)}
+        onMouseEnter={(e) => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.transform = `${posStyle.transform} scale(1.05)`; }}
+        onMouseLeave={(e) => { e.currentTarget.style.opacity = '0.5'; e.currentTarget.style.transform = posStyle.transform as string; }}
+      >
+        {/* 隣の面の映像を映すための小さなモニター */}
+        <canvas
+          ref={ref}
+          width={face.w}
+          height={face.h}
+          style={{
+            width: '100%', height: '100%', imageRendering: 'pixelated',
+            boxShadow: '0 0 10px rgba(0,0,0,0.5)', borderRadius: '2px',
+            backgroundColor: '#111'
+          }}
+        />
+
+        {/* 面の名前(TOPなど)をモニターの上に透かして表示 */}
+        <div style={{
+          position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+          color: '#00b4ff', fontWeight: 'bold', fontSize: '14px', textShadow: '0px 0px 4px #000',
+          pointerEvents: 'none' // 文字の上からでも下のcanvasをクリック可能にする魔法
+        }}>
+          {neighborKey.toUpperCase()}
+        </div>
+      </div>
+    );
+  };
+
+  // return部分
 
 
   return (
@@ -1231,7 +1298,14 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
               transition: isPanning ? 'none' : 'transform 0.15s cubic-bezier(0.2, 0.8, 0.2, 1)',
             }}>
 
-              {/* 描画用キャンバス */}
+              {/* 隣接面のサブモニターたちを配置 */}
+              {renderNeighbor(upCanvasRef, 'up', NEIGHBOR_MAP[selectedFace].up)}
+              {renderNeighbor(downCanvasRef, 'down', NEIGHBOR_MAP[selectedFace].down)}
+              {renderNeighbor(leftCanvasRef, 'left', NEIGHBOR_MAP[selectedFace].left)}
+              {renderNeighbor(rightCanvasRef, 'right', NEIGHBOR_MAP[selectedFace].right)}
+
+
+              {/* メインの描画用キャンバス(中央) */}
               <canvas
                 ref={workCanvasRef}
                 width={currentFace.w}
@@ -1243,6 +1317,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
                   cursor: isPanning ? 'grabbing' : toolConfig[tool].cursor,
                   backgroundImage: 'repeating-conic-gradient(#333 0% 25%, #2a2a2a 0% 50%)',
                   backgroundSize: '16px 16px',
+                  boxShadow: '0 0 20px rgba(0,0,0,0.8)', // メインを目立たせる影
                 }}
                 onMouseDown={handleMouseDown}
                 onMouseUp={handleMouseUp}
@@ -1253,10 +1328,11 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
                 onContextMenu={handleContextMenu}
               />
 
-              {/* ガイド＆グリッド */}
+              {/* ガイド */}
               <canvas
                 ref={overlayRef}
-                width={64} height={64}
+                width={currentFace.w * currentScale}
+                height={currentFace.h * currentScale}
                 style={{
                   position: 'absolute', top: 0, left: 0,
                   width: '100%', height: '100%',
@@ -1268,7 +1344,6 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
           </div>
         )}
       </div>
-
       {/* ===== パーツ名 + 座標 ===== */}
       <div style={{ height: '18px', fontSize: '13px', color: '#888', fontFamily: 'monospace' }}>
         {hoverPart && `📍 ${hoverPart}`}
