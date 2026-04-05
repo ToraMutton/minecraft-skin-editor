@@ -115,15 +115,6 @@ const FACE_COORDS: Record<LayerKey, Record<PartKey, Record<FaceKey, { x: number;
   }
 };
 
-// 各面の隣接関係を定義(カルーセルUIのための辞書)
-const NEIGHBOR_MAP: Record<FaceKey, { up: FaceKey; down: FaceKey; left: FaceKey; right: FaceKey }> = {
-  front: { up: 'top', down: 'bottom', left: 'right', right: 'left' },
-  back: { up: 'top', down: 'bottom', left: 'left', right: 'right' },
-  right: { up: 'top', down: 'bottom', left: 'back', right: 'front' },
-  left: { up: 'top', down: 'bottom', left: 'front', right: 'back' },
-  top: { up: 'back', down: 'front', left: 'right', right: 'left' },
-  bottom: { up: 'front', down: 'back', left: 'right', right: 'left' },
-};
 
 // ブラシサイズ型
 type BrushSize = 1 | 2 | 3;
@@ -220,7 +211,6 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
   const [brushSize, setBrushSize] = useState<BrushSize>(1) // ブラシサイズ
 
   // 表示設定系
-  const [showGrid, setShowGrid] = useState(false) // グリッド表示
   const [mirror, setMirror] = useState(false) // ミラー
 
   // UI状態系
@@ -299,11 +289,10 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     img.onload = () => {
       ctx.clearRect(0, 0, 64, 64);
       ctx.drawImage(img, 0, 0, 64, 64);
-      syncToWorkCanvas();
       onTextureUpdate?.();
     };
     img.src = saved;
-  }, [onTextureUpdate, canvasRef, syncToWorkCanvas]);
+  }, [onTextureUpdate, canvasRef]);
 
 
   // --- 履歴操作 ---
@@ -350,9 +339,8 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     // まだundoStackに履歴があればtrueのまま、なければfalse
     setCanUndo(undoStack.current.length > 0);
     setCanRedo(true);
-    syncToWorkCanvas()
     notifyUpdate();
-  }, [canvasRef, syncToWorkCanvas, notifyUpdate]);
+  }, [canvasRef, notifyUpdate]);
 
   // Redo履歴を使って1つ先に進む
   const handleRedo = useCallback(() => {
@@ -368,9 +356,8 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
 
     setCanUndo(true);
     setCanRedo(redoStack.current.length > 0);
-    syncToWorkCanvas();
     notifyUpdate();
-  }, [canvasRef, syncToWorkCanvas, notifyUpdate]);
+  }, [canvasRef, notifyUpdate]);
 
 
   // --- 最近使った色 ---
@@ -383,40 +370,6 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
       return [c, ...filtered].slice(0, MAX_RECENT_COLORS);
     });
   }, []);
-
-  // --- グリッド描画 ---
-
-  useEffect(() => {
-    const canvas = overlayRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    // キャンバス解像度を画面表示サイズに合わせる
-    canvas.width = displayWidth;
-    canvas.height = displayHeight;
-
-    // 全範囲掃除
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // グリッド描画(現在の面の縦横ピクセル数に合わせて線を引く)
-    if (showGrid) {
-      ctx.strokeStyle = 'rgba(128, 128, 128, 0.4)';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      // 縦線
-      for (let x = 0; x <= currentFace.w; x++) {
-        ctx.moveTo(x * currentScale, 0);
-        ctx.lineTo(x * currentScale, canvas.height);
-      }
-      // 横線
-      for (let y = 0; y <= currentFace.h; y++) {
-        ctx.moveTo(0, y * currentScale);
-        ctx.lineTo(canvas.width, y * currentScale);
-      }
-      ctx.stroke();
-    }
-  }, [showGrid, currentFace, displayWidth, displayHeight, currentScale]);
 
 
   // --- バケツ ---
@@ -555,60 +508,6 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     }
   }, [canvasRef, applyToolAt, mirror, brushSize, tool, color]);
 
-  // --- マウスイベント ---
-
-  // クリックしたとき
-  const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    const coords = toPixelCoords(e);
-    if (!coords) return; // キャンバス外は無視
-    const [x, y] = coords;
-
-    if (tool === 'picker') {
-      pickColor(x, y);
-      return; // キャンバスを変更しないためpushUndoは不要
-    }
-
-    pushUndo(); // 描く前に現在の状態を保存
-
-    if (tool === 'bucket') { // バケツの場合
-      floodFill(x, y, color);
-      addRecentColor(color);
-      syncToWorkCanvas();
-      notifyUpdate();
-    } else {
-      // ペンか消しゴムの場合
-      setIsDrawing(true); // 描画中フラグをtrueに → MouseMoveで使用
-      applyTool(x, y);
-      if (tool === 'pen') addRecentColor(color); // ペンなら色追加(消しゴムは色追加なし)
-      syncToWorkCanvas();
-      notifyUpdate();
-    }
-  };
-
-  const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    // 常時ホバー中のパーツ名を更新
-    const coords = toPixelCoords(e);
-    if (!coords) return;
-
-    // 描画中なら描く
-    if (isDrawing) {
-      applyTool(coords[0], coords[1]);
-      syncToWorkCanvas();
-      notifyUpdate();
-    }
-  };
-
-  // マウスを離したときの挙動管理関数
-  const handleMouseUp = () => {
-    // 左クリックを離す → 描画終了
-    setIsDrawing(false);
-  };
-
-  // キャンバス外に出たとき全フラグをリセット
-  const handleMouseLeave = () => {
-    setIsDrawing(false);
-  };
-
 
   // --- 全消し ---
 
@@ -715,16 +614,6 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     fontWeight: active ? 'bold' : 'normal',
   });
 
-  // ラベルの共通ベーススタイル
-  const labelBase: React.CSSProperties = {
-    position: 'absolute',
-    color: '#00b4ff',
-    fontSize: '12px',
-    fontWeight: 'bold',
-    whiteSpace: 'nowrap',
-    cursor: 'pointer',
-    userSelect: 'none', // 文字選択されないように
-  };
 
   // ブラシの太さ
   const sizeBtn = (s: BrushSize): React.CSSProperties => ({
@@ -812,11 +701,6 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
         {/* 縦線 */}
         <div style={{ width: '1px', height: '22px', backgroundColor: '#ccc' }} />
 
-        {/* グリッド切り替え */}
-        <button onClick={() => setShowGrid(!showGrid)} style={toggleBtn(showGrid)}>
-          グリッド {showGrid ? 'ON' : 'OFF'}
-        </button>
-
         {/* 編集モードから全体に戻るボタン */}
         {isEditing && (
           <button onClick={() => setIsEditing(false)} style={{ ...btn, backgroundColor: '#ffebee' }}>
@@ -862,111 +746,6 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
         }}
       >
 
-        {!isEditing ? (
-          // 全体画面：2DドールUI
-          <div
-            key="doll-ui"
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: '8px',
-              padding: '20px',
-              backgroundColor: '#2a2a2a',
-              borderRadius: '8px',
-              boxShadow: 'inset 0 0 20px rgba(0,0,0,0.5)'
-            }}>
-            <p style={{ color: '#888', margin: '0 0 16px 0', fontSize: '14px', fontWeight: 'bold' }}>
-              編集するパーツ(内側: 下地 / 外枠: 上着)
-            </p>
-
-            {/* 1段目: 頭 */}
-            {renderDollPart('head', '頭', 64, 64, '#4a90d9')}
-
-            {/* 2段目: 右腕・胴体・左腕 */}
-            <div style={{ display: 'flex', gap: '8px' }}>
-              {renderDollPart('rightArm', '右腕', 32, 96, '#ff9800')}
-              {renderDollPart('body', '胴体', 64, 96, '#4caf50')}
-              {renderDollPart('leftArm', '左腕', 32, 96, '#ff9800')}
-            </div>
-
-            {/* 3段目: 右足・左足 */}
-            <div style={{ display: 'flex', gap: '8px' }}>
-              {renderDollPart('rightLeg', '右足', 32, 96, '#9c27b0')}
-              {renderDollPart('leftLeg', '左足', 32, 96, '#9c27b0')}
-            </div>
-          </div>
-        ) : (
-          // 編集画面(カルーセルUI)
-          <div
-            key="edit-ui"
-            style={{
-              position: 'relative',
-              width: `${displayWidth}px`,
-              height: `${displayHeight}px`
-            }}>
-
-            {/* 隣接面のラベル */}
-            <div style={{ ...labelBase, top: '-35px', left: '50%', transform: 'translateX(-50%)' }}
-              onClick={() => setSelectedFace(NEIGHBOR_MAP[selectedFace].up)}>
-              ▲ {NEIGHBOR_MAP[selectedFace].up.toUpperCase()}
-            </div>
-
-            <div style={{ ...labelBase, bottom: '-35px', left: '50%', transform: 'translateX(-50%)' }}
-              onClick={() => setSelectedFace(NEIGHBOR_MAP[selectedFace].down)}>
-              ▼ {NEIGHBOR_MAP[selectedFace].down.toUpperCase()}
-            </div>
-
-            <div style={{ ...labelBase, left: '-65px', top: '50%', transform: 'translateY(-50%)' }}
-              onClick={() => setSelectedFace(NEIGHBOR_MAP[selectedFace].left)}>
-              ◀ {NEIGHBOR_MAP[selectedFace].left.toUpperCase()}
-            </div>
-
-            <div style={{ ...labelBase, right: '-65px', top: '50%', transform: 'translateY(-50%)' }}
-              onClick={() => setSelectedFace(NEIGHBOR_MAP[selectedFace].right)}>
-              {NEIGHBOR_MAP[selectedFace].right.toUpperCase()} ▶
-            </div>
-
-
-            {/* 隣接面のサブモニターたちを配置 */}
-            {renderNeighbor(upCanvasRef, 'up', NEIGHBOR_MAP[selectedFace].up)}
-            {renderNeighbor(downCanvasRef, 'down', NEIGHBOR_MAP[selectedFace].down)}
-            {renderNeighbor(leftCanvasRef, 'left', NEIGHBOR_MAP[selectedFace].left)}
-            {renderNeighbor(rightCanvasRef, 'right', NEIGHBOR_MAP[selectedFace].right)}
-
-
-            {/* メインの描画用キャンバス(中央) */}
-            <canvas
-              ref={workCanvasRef}
-              width={currentFace.w}
-              height={currentFace.h}
-              style={{
-                position: 'absolute', top: 0, left: 0,
-                width: '100%', height: '100%',
-                imageRendering: 'pixelated',
-                backgroundImage: 'repeating-conic-gradient(#333 0% 25%, #2a2a2a 0% 50%)',
-                backgroundSize: '16px 16px',
-                boxShadow: '0 0 20px rgba(0,0,0,0.8)', // メインを目立たせる影
-              }}
-              onMouseDown={handleMouseDown}
-              onMouseUp={() => handleMouseUp()}
-              onMouseLeave={handleMouseLeave}
-              onMouseMove={handleMouseMove}
-            />
-
-            <canvas
-              ref={overlayRef}
-              width={currentFace.w * currentScale}
-              height={currentFace.h * currentScale}
-              style={{
-                position: 'absolute', top: 0, left: 0,
-                width: '100%', height: '100%',
-                imageRendering: 'pixelated',
-                pointerEvents: 'none',
-              }}
-            />
-          </div>
-        )}
       </div>
 
       {/* --- 見えない裏方キャンバス --- */}
