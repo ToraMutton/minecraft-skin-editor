@@ -1032,10 +1032,129 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
       >
 
         {!isEditing ? (
-          // 全体画面
-          <div style={{ color: '#aaa' }}>全体画面(準備中)</div>
+          // 全体画面：2DドールUI
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '4px', // パーツ間の隙間
+            padding: '20px',
+            backgroundColor: '#2a2a2a',
+            borderRadius: '8px',
+            boxShadow: 'inset 0 0 20px rgba(0,0,0,0.5)'
+          }}>
+            <p style={{ color: '#888', margin: '0 0 16px 0', fontSize: '14px', fontWeight: 'bold' }}>
+              編集するパーツを選択
+            </p>
+
+            {/* 1段目: 頭 */}
+            <div
+              onClick={() => { setSelectedPart('head'); setIsEditing(true); }}
+              style={{
+                width: '64px', height: '64px', backgroundColor: '#4a90d9',
+                cursor: 'pointer',
+                borderRadius: '4px',
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                color: '#fff',
+                fontWeight: 'bold',
+                transition: 'transform 0.1s',
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
+              onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+            >頭</div>
+
+            {/* 2段目: 右腕・胴体・左腕 */}
+            <div style={{ display: 'flex', gap: '4px' }}>
+              <div
+                onClick={() => { setSelectedPart('rightArm'); setIsEditing(true); }}
+                style={{
+                  width: '32px', height: '96px', backgroundColor: '#ff9800',
+                  cursor: 'pointer',
+                  borderRadius: '4px',
+                  display: 'flex',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  color: '#fff',
+                  writingMode: 'vertical-rl',
+                  transition: 'transform 0.1s'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
+                onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+              >右腕</div>
+              <div
+                onClick={() => { setSelectedPart('body'); setIsEditing(true); }}
+                style={{
+                  width: '64px', height: '96px', backgroundColor: '#4caf50',
+                  cursor: 'pointer',
+                  borderRadius: '4px',
+                  display: 'flex',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  color: '#fff',
+                  fontWeight: 'bold',
+                  transition: 'transform 0.1s'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
+                onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+              >胴体</div>
+              <div
+                onClick={() => { setSelectedPart('leftArm'); setIsEditing(true); }}
+                style={{
+                  width: '32px', height: '96px', backgroundColor: '#ff9800',
+                  cursor: 'pointer',
+                  borderRadius: '4px',
+                  display: 'flex',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  color: '#fff',
+                  writingMode: 'vertical-rl',
+                  transition: 'transform 0.1s'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
+                onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+              >左腕</div>
+            </div>
+
+            {/* 3段目: 右足・左足 */}
+            <div style={{ display: 'flex', gap: '4px' }}>
+              <div
+                onClick={() => { setSelectedPart('rightLeg'); setIsEditing(true); }}
+                style={{
+                  width: '32px', height: '96px', backgroundColor: '#9c27b0',
+                  cursor: 'pointer',
+                  borderRadius: '4px',
+                  display: 'flex',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  color: '#fff',
+                  writingMode: 'vertical-rl',
+                  transition: 'transform 0.1s'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
+                onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+              >右足</div>
+              <div
+                onClick={() => { setSelectedPart('leftLeg'); setIsEditing(true); }}
+                style={{
+                  width: '32px', height: '96px', backgroundColor: '#9c27b0',
+                  cursor: 'pointer',
+                  borderRadius: '4px',
+                  display: 'flex',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  color: '#fff',
+                  writingMode: 'vertical-rl',
+                  transition: 'transform 0.1s'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
+                onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+              >左足</div>
+            </div>
+          </div>
         ) : (
-          // 編集画面
+          // 編集画面（カルーセルUI）
           <div style={{
             position: 'relative',
             width: `${displayWidth}px`,
