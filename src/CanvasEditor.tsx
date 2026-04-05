@@ -246,7 +246,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null) // ファイル入力
 
-  const threeCtx = useRef<{ camera: THREE.PerspectiveCamera; parts: THREE.Mesh[] } | null>(null);
+  const threeCtx = useRef<{ camera: THREE.PerspectiveCamera; parts: THREE.Mesh[], controls: OrbitControls } | null>(null);
 
   // 裏のメモ帳
   const undoStack = useRef<ImageData[]>([]) // Undo履歴
@@ -371,8 +371,10 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     lLeg.name = 'leftLeg';
     lLeg.position.set(2, 12, 0);
 
-    scene.add(lLeg); const parts = [head, body, rArm, lArm, rLeg, lLeg];
-    threeCtx.current = { camera, parts };
+    scene.add(lLeg);
+
+    const parts = [head, body, rArm, lArm, rLeg, lLeg];
+    threeCtx.current = { camera, parts, controls };
 
     // アニメーションループ
     let animId: number;
@@ -670,35 +672,32 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     }
   };
 
-  // --- ゴースト化と自動カメラズーム処理 ---
+  // --- 表示切替と自動カメラズーム処理 ---
   useEffect(() => {
     if (!threeCtx.current) return;
-    const { camera, parts } = threeCtx.current;
+    const { camera, parts, controls } = threeCtx.current;
 
     const activeMeshes: THREE.Mesh[] = [];
     let activeCount = 0;
 
-    // 各パーツの表示/ゴースト化の切り替え
+    // 完全に非表示
     parts.forEach(part => {
-      const mat = part.material as THREE.MeshLambertMaterial;
       const isActive = visibleParts[part.name as keyof typeof visibleParts];
 
+      // 物理的に消す
+      part.visible = isActive;
+
       if (isActive) {
-        mat.opacity = 1.0;
-        mat.transparent = false;
         activeMeshes.push(part);
         activeCount++;
-      } else {
-        mat.opacity = 0.2;
-        mat.transparent = true;
       }
-      mat.needsUpdate = true;
     });
 
     // カメラ移動ロジック
     // 全部ON、または全部OFFの場合は全体ビュー(初期位置)に戻す
     if (activeCount === 6 || activeCount === 0) {
       gsap.to(camera.position, { x: 0, y: 16, z: 60, duration: 0.6, ease: "power2.out" });
+      gsap.to(controls.target, { x: 0, y: 16, z: 0, duration: 0.6, ease: "power2.out", onUpdate: () => { controls.update() } });
       return;
     }
 
@@ -706,25 +705,35 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     const box = new THREE.Box3();
     activeMeshes.forEach(mesh => box.expandByObject(mesh));
 
-    // 箱の中心点
     const center = new THREE.Vector3();
     box.getCenter(center);
-
-    // 箱のサイズ
     const size = new THREE.Vector3();
     box.getSize(size);
 
-    // 一番長い辺に合わせてカメラの距離を計算
+    // 枠に収まらない対策: 距離の余裕を少し大きめ(1.8倍 + 15)にする
     const maxDim = Math.max(size.x, size.y, size.z);
-    const distance = maxDim * 1.5 + 10;
+    const distance = maxDim * 1.8 + 15;
 
-    // GSAPで滑らかにズーム
+    // 正面強制リセット対策: 今のカメラの角度を維持したまま、新しい中心点から離す
+    const currentDir = new THREE.Vector3().subVectors(camera.position, controls.target).normalize();
+    const targetCamPos = new THREE.Vector3().copy(center).add(currentDir.multiplyScalar(distance));
+
+    // カメラ本体と注視点を同時にアニメーション
     gsap.to(camera.position, {
-      x: center.x,
-      y: center.y,
-      z: center.z + distance,
+      x: targetCamPos.x,
+      y: targetCamPos.y,
+      z: targetCamPos.z,
       duration: 0.6,
       ease: "power2.out",
+    });
+
+    gsap.to(controls.target, {
+      x: center.x,
+      y: center.y,
+      z: center.z,
+      duration: 0.6,
+      ease: "power2.out",
+      onUpdate: () => { controls.update() }
     });
   }, [visibleParts]);
 
