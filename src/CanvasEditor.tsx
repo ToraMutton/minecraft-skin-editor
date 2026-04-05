@@ -969,14 +969,6 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
             ◀ 全体に戻る
           </button>
         )}
-
-
-        {/* ズーム倍率(拡大時のみ) */}
-        {zoom > 1 && (
-          <span style={{ fontSize: '11px', color: '#666', fontFamily: 'monospace' }}>
-            🔍 {zoom.toFixed(1)}x
-          </span>
-        )}
       </div>
 
       {/* ===== 最近使った色パレット ===== */}
@@ -1000,52 +992,6 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
           ))}
         </div>
       )}
-
-      {/* ===== 編集対象の選択パネル ===== */}
-      <div style={{
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '6px',
-        backgroundColor: '#f8f9fa',
-        padding: '12px',
-        borderRadius: '8px',
-        width: '100%',
-        maxWidth: '512px',
-        border: '1px solid #ddd'
-      }}>
-
-        {/* レイヤー選択 */}
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          <span style={{ fontSize: '13px', fontWeight: 'bold', width: '60px', color: '#555' }}>レイヤー</span>
-          <button onClick={() => setSelectedLayer('base')} style={toggleBtn(selectedLayer === 'base', '#c8e6c9')}>
-            ベース (体)
-          </button>
-          <button onClick={() => setSelectedLayer('overlay')} style={toggleBtn(selectedLayer === 'overlay', '#ffcc80')}>
-            オーバーレイ (服/装飾)
-          </button>
-        </div>
-
-        {/* パーツ選択 */}
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          <span style={{ fontSize: '13px', fontWeight: 'bold', width: '60px', color: '#555' }}>パーツ</span>
-          {(['head', 'body', 'rightArm', 'leftArm', 'rightLeg', 'leftLeg'] as PartKey[]).map(p => (
-            <button key={p} onClick={() => {
-              setSelectedPart(p);
-              setIsEditing(true); // パーツを選んだ瞬間に編集モードへ
-            }}
-              style={toggleBtn(selectedPart === p, '#bbdefb')
-              }>
-              {
-                p === 'head' ? '頭' :
-                  p === 'body' ? '胴体' :
-                    p === 'rightArm' ? '右腕' :
-                      p === 'leftArm' ? '左腕' :
-                        p === 'rightLeg' ? '右足' : '左足'
-              }
-            </button>
-          ))}
-        </div>
-      </div>
 
       {/* ===== キャンバスエリア ===== */}
       <div
@@ -1217,59 +1163,46 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
               {NEIGHBOR_MAP[selectedFace].right.toUpperCase()} ▶
             </div>
 
-            {/* ズーム＆パン用ラッパー */}
-            <div style={{
-              width: '100%',
-              height: '100%',
-              transform: `scale(${zoom}) translate(${pan.x / zoom}px, ${pan.y / zoom}px)`,
-              transformOrigin: 'center center',
-              position: 'relative',
-              transition: isPanning ? 'none' : 'transform 0.15s cubic-bezier(0.2, 0.8, 0.2, 1)',
-            }}>
 
-              {/* 隣接面のサブモニターたちを配置 */}
-              {renderNeighbor(upCanvasRef, 'up', NEIGHBOR_MAP[selectedFace].up)}
-              {renderNeighbor(downCanvasRef, 'down', NEIGHBOR_MAP[selectedFace].down)}
-              {renderNeighbor(leftCanvasRef, 'left', NEIGHBOR_MAP[selectedFace].left)}
-              {renderNeighbor(rightCanvasRef, 'right', NEIGHBOR_MAP[selectedFace].right)}
+            {/* 隣接面のサブモニターたちを配置 */}
+            {renderNeighbor(upCanvasRef, 'up', NEIGHBOR_MAP[selectedFace].up)}
+            {renderNeighbor(downCanvasRef, 'down', NEIGHBOR_MAP[selectedFace].down)}
+            {renderNeighbor(leftCanvasRef, 'left', NEIGHBOR_MAP[selectedFace].left)}
+            {renderNeighbor(rightCanvasRef, 'right', NEIGHBOR_MAP[selectedFace].right)}
 
 
-              {/* メインの描画用キャンバス(中央) */}
-              <canvas
-                ref={workCanvasRef}
-                width={currentFace.w}
-                height={currentFace.h}
-                style={{
-                  position: 'absolute', top: 0, left: 0,
-                  width: '100%', height: '100%',
-                  imageRendering: 'pixelated',
-                  cursor: isPanning ? 'grabbing' : toolConfig[tool].cursor,
-                  backgroundImage: 'repeating-conic-gradient(#333 0% 25%, #2a2a2a 0% 50%)',
-                  backgroundSize: '16px 16px',
-                  boxShadow: '0 0 20px rgba(0,0,0,0.8)', // メインを目立たせる影
-                }}
-                onMouseDown={handleMouseDown}
-                onMouseUp={handleMouseUp}
-                onMouseLeave={handleMouseLeave}
-                onMouseMove={handleMouseMove}
-                onDoubleClick={handleDoubleClick}
-                onWheel={handleWheel}
-                onContextMenu={handleContextMenu}
-              />
+            {/* メインの描画用キャンバス(中央) */}
+            <canvas
+              ref={workCanvasRef}
+              width={currentFace.w}
+              height={currentFace.h}
+              style={{
+                position: 'absolute', top: 0, left: 0,
+                width: '100%', height: '100%',
+                imageRendering: 'pixelated',
+                cursor: isPanning ? 'grabbing' : toolConfig[tool].cursor,
+                backgroundImage: 'repeating-conic-gradient(#333 0% 25%, #2a2a2a 0% 50%)',
+                backgroundSize: '16px 16px',
+                boxShadow: '0 0 20px rgba(0,0,0,0.8)', // メインを目立たせる影
+              }}
+              onMouseDown={handleMouseDown}
+              onMouseUp={handleMouseUp}
+              onMouseLeave={handleMouseLeave}
+              onMouseMove={handleMouseMove}
+            />
 
-              {/* ガイド */}
-              <canvas
-                ref={overlayRef}
-                width={currentFace.w * currentScale}
-                height={currentFace.h * currentScale}
-                style={{
-                  position: 'absolute', top: 0, left: 0,
-                  width: '100%', height: '100%',
-                  imageRendering: 'pixelated',
-                  pointerEvents: 'none',
-                }}
-              />
-            </div>
+            {/* ガイド */}
+            <canvas
+              ref={overlayRef}
+              width={currentFace.w * currentScale}
+              height={currentFace.h * currentScale}
+              style={{
+                position: 'absolute', top: 0, left: 0,
+                width: '100%', height: '100%',
+                imageRendering: 'pixelated',
+                pointerEvents: 'none',
+              }}
+            />
           </div>
         )}
       </div>
