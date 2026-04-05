@@ -11,111 +11,6 @@ const MAX_RECENT_COLORS = 16;
 const AUTOSAVE_KEY = 'vextora-mc-skin-editor-canvas';
 const AUTOSAVE_DELAY = 1000;
 
-type LayerKey = 'base' | 'overlay';
-type PartKey = 'head' | 'body' | 'rightArm' | 'leftArm' | 'rightLeg' | 'leftLeg';
-type FaceKey = 'front' | 'back' | 'top' | 'bottom' | 'right' | 'left';
-
-const FACE_COORDS: Record<LayerKey, Record<PartKey, Record<FaceKey, { x: number; y: number; w: number; h: number }>>> = {
-  base: {
-    head: {
-      top: { x: 8, y: 0, w: 8, h: 8 },
-      bottom: { x: 16, y: 0, w: 8, h: 8 },
-      right: { x: 0, y: 8, w: 8, h: 8 },
-      front: { x: 8, y: 8, w: 8, h: 8 },
-      left: { x: 16, y: 8, w: 8, h: 8 },
-      back: { x: 24, y: 8, w: 8, h: 8 },
-    },
-    body: {
-      top: { x: 20, y: 16, w: 8, h: 4 },
-      bottom: { x: 28, y: 16, w: 8, h: 4 },
-      right: { x: 16, y: 20, w: 4, h: 12 },
-      front: { x: 20, y: 20, w: 8, h: 12 },
-      left: { x: 28, y: 20, w: 4, h: 12 },
-      back: { x: 32, y: 20, w: 8, h: 12 },
-    },
-    rightArm: {
-      top: { x: 44, y: 16, w: 4, h: 4 },
-      bottom: { x: 48, y: 16, w: 4, h: 4 },
-      right: { x: 40, y: 20, w: 4, h: 12 },
-      front: { x: 44, y: 20, w: 4, h: 12 },
-      left: { x: 48, y: 20, w: 4, h: 12 },
-      back: { x: 52, y: 20, w: 4, h: 12 },
-    },
-    rightLeg: {
-      top: { x: 4, y: 16, w: 4, h: 4 },
-      bottom: { x: 8, y: 16, w: 4, h: 4 },
-      right: { x: 0, y: 20, w: 4, h: 12 },
-      front: { x: 4, y: 20, w: 4, h: 12 },
-      left: { x: 8, y: 20, w: 4, h: 12 }, back: { x: 12, y: 20, w: 4, h: 12 },
-    },
-    leftArm: {
-      top: { x: 36, y: 48, w: 4, h: 4 },
-      bottom: { x: 40, y: 48, w: 4, h: 4 },
-      right: { x: 32, y: 52, w: 4, h: 12 },
-      front: { x: 36, y: 52, w: 4, h: 12 },
-      left: { x: 40, y: 52, w: 4, h: 12 },
-      back: { x: 44, y: 52, w: 4, h: 12 },
-    },
-    leftLeg: {
-      top: { x: 20, y: 48, w: 4, h: 4 },
-      bottom: { x: 24, y: 48, w: 4, h: 4 },
-      right: { x: 16, y: 52, w: 4, h: 12 },
-      front: { x: 20, y: 52, w: 4, h: 12 },
-      left: { x: 24, y: 52, w: 4, h: 12 },
-      back: { x: 28, y: 52, w: 4, h: 12 },
-    },
-  },
-  overlay: {
-    head: {
-      top: { x: 40, y: 0, w: 8, h: 8 },
-      bottom: { x: 48, y: 0, w: 8, h: 8 },
-      right: { x: 32, y: 8, w: 8, h: 8 },
-      front: { x: 40, y: 8, w: 8, h: 8 },
-      left: { x: 48, y: 8, w: 8, h: 8 },
-      back: { x: 56, y: 8, w: 8, h: 8 },
-    },
-    body: {
-      top: { x: 20, y: 32, w: 8, h: 4 },
-      bottom: { x: 28, y: 32, w: 8, h: 4 },
-      right: { x: 16, y: 36, w: 4, h: 12 },
-      front: { x: 20, y: 36, w: 8, h: 12 },
-      left: { x: 28, y: 36, w: 4, h: 12 },
-      back: { x: 32, y: 36, w: 8, h: 12 },
-    },
-    rightArm: {
-      top: { x: 44, y: 32, w: 4, h: 4 },
-      bottom: { x: 48, y: 32, w: 4, h: 4 },
-      right: { x: 40, y: 36, w: 4, h: 12 },
-      front: { x: 44, y: 36, w: 4, h: 12 },
-      left: { x: 48, y: 36, w: 4, h: 12 },
-      back: { x: 52, y: 36, w: 4, h: 12 },
-    },
-    rightLeg: {
-      top: { x: 4, y: 32, w: 4, h: 4 },
-      bottom: { x: 8, y: 32, w: 4, h: 4 },
-      right: { x: 0, y: 36, w: 4, h: 12 },
-      front: { x: 4, y: 36, w: 4, h: 12 },
-      left: { x: 8, y: 36, w: 4, h: 12 },
-      back: { x: 12, y: 36, w: 4, h: 12 },
-    },
-    leftArm: {
-      top: { x: 52, y: 48, w: 4, h: 4 },
-      bottom: { x: 56, y: 48, w: 4, h: 4 },
-      right: { x: 48, y: 52, w: 4, h: 12 },
-      front: { x: 52, y: 52, w: 4, h: 12 },
-      left: { x: 56, y: 52, w: 4, h: 12 },
-      back: { x: 60, y: 52, w: 4, h: 12 },
-    },
-    leftLeg: {
-      top: { x: 4, y: 48, w: 4, h: 4 },
-      bottom: { x: 8, y: 48, w: 4, h: 4 },
-      right: { x: 0, y: 52, w: 4, h: 12 },
-      front: { x: 4, y: 52, w: 4, h: 12 },
-      left: { x: 8, y: 52, w: 4, h: 12 },
-      back: { x: 12, y: 52, w: 4, h: 12 },
-    },
-  }
-};
 
 // Minecraftスキンの各パーツのUV座標定義
 interface UVFace {
@@ -337,26 +232,13 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
   const [canRedo, setCanRedo] = useState(false) // Redo可能か
   const [recentColors, setRecentColors] = useState<string[]>([]) //最近の色
 
-  // 編集パーツ系
-  const [selectedLayer, setSelectedLayer] = useState<LayerKey>('base');
-  const [selectedPart, setSelectedPart] = useState<PartKey>('head'); // 今選んでるパーツ
-  const [selectedFace, setSelectedFace] = useState<FaceKey>('front'); // 今選んでる面
 
-  // --- 編集モードの切り替えスイッチ ---
-  // false: パーツを選んでいる全体画面 / true: 1つの面をガッツリ塗る画面
-  const [isEditing, setIsEditing] = useState(false);
-
-  const currentFace = FACE_COORDS[selectedLayer][selectedPart][selectedFace];
-
-  // 描画面積の動的計算(最大512pxの枠にぴったり収まるようにスケールを計算)
-  const maxDisplaySize = 400;
-  const currentScale = maxDisplaySize / Math.max(currentFace.w, currentFace.h);
 
   // useRef系
   const containerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null) // ファイル入力
 
-  const threeCtx = useRef<{ camera: THREE.PerspectiveCamera; head: THREE.Mesh } | null>(null);
+  const threeCtx = useRef<{ camera: THREE.PerspectiveCamera; parts: THREE.Mesh } | null>(null);
 
   // 裏のメモ帳
   const undoStack = useRef<ImageData[]>([]) // Undo履歴
@@ -410,6 +292,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
 
     controls.mouseButtons = { LEFT: null as any, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE };
 
+
     // 光の追加
     scene.add(new THREE.AmbientLight(0xffffff, 0.7)); // 全体を照らす薄い光
     const dir = new THREE.DirectionalLight(0xffffff, 0.8); // 影を作る強い光
@@ -427,16 +310,54 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
       side: THREE.FrontSide,
     });
 
-    // 頭のジオメトリを作って、UVを適用
+    // 頭: 8x8x8
     const headGeo = new THREE.BoxGeometry(8, 8, 8);
     applyPartUV(headGeo, SKIN_UV.head);
-    headGeo.translate(0, 4, 0); // 回転の中心を首の位置にズラす
-
+    headGeo.translate(0, 4, 0);
     const head = new THREE.Mesh(headGeo, baseMaterial);
-    head.position.set(0, 0, 0);
+    head.position.set(0, 24, 0);
     scene.add(head);
 
-    threeCtx.current = { camera, head };
+    // 胴体: 8x12x4
+    const bodyGeo = new THREE.BoxGeometry(8, 12, 4);
+    applyPartUV(bodyGeo, SKIN_UV.body);
+    const body = new THREE.Mesh(bodyGeo, baseMaterial);
+    body.position.set(0, 18, 0);
+    scene.add(body);
+
+    // 右腕: 4x12x4
+    const rArmGeo = new THREE.BoxGeometry(4, 12, 4);
+    applyPartUV(rArmGeo, SKIN_UV.rightArm);
+    rArmGeo.translate(0, -6, 0);
+    const rArm = new THREE.Mesh(rArmGeo, baseMaterial);
+    rArm.position.set(-6, 24, 0);
+    scene.add(rArm);
+
+    // 左腕: 4x12x4
+    const lArmGeo = new THREE.BoxGeometry(4, 12, 4);
+    applyPartUV(lArmGeo, SKIN_UV.leftArm);
+    lArmGeo.translate(0, -6, 0);
+    const lArm = new THREE.Mesh(lArmGeo, baseMaterial);
+    lArm.position.set(6, 24, 0);
+    scene.add(lArm);
+
+    // 右足: 4x12x4
+    const rLegGeo = new THREE.BoxGeometry(4, 12, 4);
+    applyPartUV(rLegGeo, SKIN_UV.rightLeg);
+    rLegGeo.translate(0, -6, 0);
+    const rLeg = new THREE.Mesh(rLegGeo, baseMaterial);
+    rLeg.position.set(-2, 12, 0);
+    scene.add(rLeg);
+
+    // 左足: 4x12x4
+    const lLegGeo = new THREE.BoxGeometry(4, 12, 4);
+    applyPartUV(lLegGeo, SKIN_UV.leftLeg);
+    lLegGeo.translate(0, -6, 0);
+    const lLeg = new THREE.Mesh(lLegGeo, baseMaterial);
+    lLeg.position.set(2, 12, 0);
+    scene.add(lLeg);
+
+    threeCtx.current = { camera, parts: [head, body, rArm, lArm, rLeg, lLeg] };
 
     // アニメーションループ
     let animId: number;
@@ -595,8 +516,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
       const [cx, cy] = queue.pop()!;
 
       // キャンバス範囲外チェック
-      const { x: fx, y: fy, w: fw, h: fh } = currentFace;
-      if (cx < fx || cx >= fx + fw || cy < fy || cy >= fy + fh) continue;
+      if (cx < 0 || cx >= 64 || cy < 0 || cy >= 64) continue;
       // 訪問済みチェック
       const pos = cy * width + cx; // visited配列用に2次元座標を1次元インデックスに変換
       if (visited[pos]) continue; // 0 → Falsy, 1 → Truthy
@@ -700,7 +620,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     // 左クリック(0)以外は無視してカメラ操作に譲る
     if (e.button !== 0 || !threeCtx.current) return;
 
-    const { camera, head } = threeCtx.current;
+    const { camera, parts } = threeCtx.current;
     const rect = e.currentTarget.getBoundingClientRect();
     const x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
     const y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
@@ -709,7 +629,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     raycaster.setFromCamera(new THREE.Vector2(x, y), camera);
 
     // 頭に当たったかチェック
-    const intersects = raycaster.intersectObject(head);
+    const intersects = raycaster.intersectObjects(parts);
     if (intersects.length > 0) {
       const hit = intersects[0];
       if (!hit.uv) return;
@@ -735,7 +655,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!isDrawing || !threeCtx.current) return;
 
-    const { camera, head } = threeCtx.current;
+    const { camera, parts } = threeCtx.current;
     const rect = e.currentTarget.getBoundingClientRect();
     const x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
     const y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
@@ -743,7 +663,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     const raycaster = new THREE.Raycaster();
     raycaster.setFromCamera(new THREE.Vector2(x, y), camera);
 
-    const intersects = raycaster.intersectObject(head);
+    const intersects = raycaster.intersectObjects(parts);
     if (intersects.length > 0) {
       const hit = intersects[0];
       if (!hit.uv) return;
@@ -951,13 +871,6 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
 
         {/* 縦線 */}
         <div style={{ width: '1px', height: '22px', backgroundColor: '#ccc' }} />
-
-        {/* 編集モードから全体に戻るボタン */}
-        {isEditing && (
-          <button onClick={() => setIsEditing(false)} style={{ ...btn, backgroundColor: '#ffebee' }}>
-            ◀ 全体に戻る
-          </button>
-        )}
       </div>
 
       {/* ===== 最近使った色パレット ===== */}
