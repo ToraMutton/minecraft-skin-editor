@@ -650,8 +650,12 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     const raycaster = new THREE.Raycaster();
     raycaster.setFromCamera(new THREE.Vector2(x, y), camera);
 
-    // 頭に当たったかチェック
-    const intersects = raycaster.intersectObjects(parts);
+    // まず「見えてるパーツ」だけを抜き出した配列を作る
+    const visibleMeshes = parts.filter(part => part.visible === true);
+    // ↓
+    // その見えてるパーツだけを Raycaster に渡す
+    const intersects = raycaster.intersectObjects(visibleMeshes);
+
     if (intersects.length > 0) {
       const hit = intersects[0];
       if (!hit.uv) return;
@@ -751,7 +755,12 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     const raycaster = new THREE.Raycaster();
     raycaster.setFromCamera(new THREE.Vector2(x, y), camera);
 
-    const intersects = raycaster.intersectObjects(parts);
+    // まず「見えてるパーツ」だけを抜き出した配列を作る
+    const visibleMeshes = parts.filter(part => part.visible === true);
+    // ↓
+    // その見えてるパーツだけを Raycaster に渡す
+    const intersects = raycaster.intersectObjects(visibleMeshes);
+
     if (intersects.length > 0) {
       const hit = intersects[0];
       if (!hit.uv) return;
