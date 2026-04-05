@@ -640,16 +640,6 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
 
   // クリックしたとき
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    // 右クリック or 中ボタンでパン開始
-    if (e.button === 2 || e.button === 1) {
-      e.preventDefault(); // ブラウザのデフォルト動作をキャンセル
-      setIsPanning(true); // パン中のフラグをtrueに
-
-      // クリックした位置、そのときのパン位置をを記録
-      panStart.current = { x: e.clientX, y: e.clientY, panX: pan.x, panY: pan.y };
-      return;
-    }
-
     const coords = toPixelCoords(e);
     if (!coords) return; // キャンバス外は無視
     const [x, y] = coords;
@@ -677,17 +667,6 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
   };
 
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    // パン中
-    if (isPanning) {
-      const dx = e.clientX - panStart.current.x; // x方向の移動量
-      const dy = e.clientY - panStart.current.y; // y方向の移動量
-      setPan({
-        x: panStart.current.panX + dx,
-        y: panStart.current.panY + dy,
-      });
-      return;
-    }
-
     // 常時ホバー中のパーツ名を更新
     const coords = toPixelCoords(e);
     if (!coords) return;
@@ -702,11 +681,6 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
 
   // マウスを離したときの挙動管理関数
   const handleMouseUp = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    // 右/中クリックを離す → パン終了
-    if (e.button === 2 || e.button === 1) {
-      setIsPanning(false);
-      return;
-    }
     // 左クリックを離す → 描画終了
     setIsDrawing(false);
   };
@@ -714,28 +688,6 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
   // キャンバス外に出たとき全フラグをリセット
   const handleMouseLeave = () => {
     setIsDrawing(false);
-    setIsPanning(false);
-    setHoverPart('');
-  };
-
-  // マウスホイールでズームイン/アウト
-  const handleWheel = (e: React.WheelEvent) => {
-    e.preventDefault(); // デフォルト動作(ページスクロール)をキャンセル
-    setZoom(prev => {
-      const next = prev + (e.deltaY < 0 ? 0.5 : -0.5);
-      return Math.max(1, Math.min(16, next)); // 範囲指定
-    });
-  };
-
-  // ダブルクリックでズームリセット
-  const handleDoubleClick = () => {
-    setZoom(1);
-    setPan({ x: 0, y: 0 });
-  };
-
-  // 右クリックメニュー無効化
-  const handleContextMenu = (e: React.MouseEvent) => {
-    e.preventDefault();
   };
 
 
