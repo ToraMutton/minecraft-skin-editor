@@ -248,6 +248,8 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
 
   const threeCtx = useRef<{ camera: THREE.PerspectiveCamera; parts: THREE.Mesh[], controls: OrbitControls } | null>(null);
 
+  const prevActiveCount = useRef(6);
+
   // 裏のメモ帳
   const undoStack = useRef<ImageData[]>([]) // Undo履歴
   const redoStack = useRef<ImageData[]>([]) // Redo履歴
@@ -693,28 +695,29 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
       }
     });
 
+    // 過去のパーツ数と比較し、パーツを追加したのかを判定
+    const isAddingPart = activeCount > prevActiveCount.current;
+    prevActiveCount.current = activeCount; // 記憶を更新
+
+    // 今のカメラの角度を取得
     const currentDir = new THREE.Vector3().subVectors(camera.position, controls.target).normalize();
 
-    // カメラ移動ロジック
     // 全部ON、または全部OFFの場合は全体ビューに戻す
     if (activeCount === 6 || activeCount === 0) {
       const targetCenter = new THREE.Vector3(0, 16, 0);
+      const targetCamPos = new THREE.Vector3().copy(targetCenter).add(currentDir.multiplyScalar(60));
 
-      // 中心点をコピーして、そこに今の方向を60倍に伸ばした矢印を足す
-      const targetCamPos = new THREE.Vector3().copy(targetCenter).add(currentDir.clone().multiplyScalar(60));
-
-      gsap.to(camera.position, {
-        x: targetCamPos.x,
-        y: targetCamPos.y,
-        z: targetCamPos.z,
-        duration: 0.6,
-        ease: "power2.out"
-      });
-      gsap.to(controls.target, { x: 0, y: 16, z: 0, duration: 0.6, ease: "power2.out", onUpdate: () => { controls.update() } });
+      gsap.to(camera.position, { x: targetCamPos.x, y: targetCamPos.y, z: targetCamPos.z, duration: 0.6, ease: "power2.out" });
+      gsap.to(controls.target, { x: targetCenter.x, y: targetCenter.y, z: targetCenter.z, duration: 0.6, ease: "power2.out", onUpdate: () => { controls.update() } });
       return;
     }
 
-    // ONになっているパーツをすべて包み込む箱を計算
+    // 全表示以外でパーツを表示(ON)にして増やしただけの時は、カメラを一切動かさず処理を終わる
+    if (isAddingPart) {
+      return;
+    }
+
+    // --- パーツを減らした(OFF)時だけ実行される、絞り込みズーム処理 ---
     const box = new THREE.Box3();
     activeMeshes.forEach(mesh => box.expandByObject(mesh));
 
@@ -723,32 +726,18 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     const size = new THREE.Vector3();
     box.getSize(size);
 
-    // 枠に収まらない対策: 距離の余裕を少し大きめ(1.8倍 + 15)にする
     const maxDim = Math.max(size.x, size.y, size.z);
 
+    // 距離を計算しつつ最大60を超えないように制限
     let distance = maxDim * 1.8 + 15;
-    distance = Math.min(distance, 60); // distanceと60を比べて、小さい方をdistanceに入れ直す
+    distance = Math.min(distance, 60);
 
-    // 今の角度のまま、新しい中心点から計算した距離をとる
-    const targetCamPos = new THREE.Vector3().copy(center).add(currentDir.clone().multiplyScalar(distance));
+    // 今の角度のまま新しい中心点から計算した距離をとる
+    const targetCamPos = new THREE.Vector3().copy(center).add(currentDir.multiplyScalar(distance));
 
     // カメラ本体と注視点を同時にアニメーション
-    gsap.to(camera.position, {
-      x: targetCamPos.x,
-      y: targetCamPos.y,
-      z: targetCamPos.z,
-      duration: 0.6,
-      ease: "power2.out",
-    });
-
-    gsap.to(controls.target, {
-      x: center.x,
-      y: center.y,
-      z: center.z,
-      duration: 0.6,
-      ease: "power2.out",
-      onUpdate: () => { controls.update() }
-    });
+    gsap.to(camera.position, { x: targetCamPos.x, y: targetCamPos.y, z: targetCamPos.z, duration: 0.6, ease: "power2.out" });
+    gsap.to(controls.target, { x: center.x, y: center.y, z: center.z, duration: 0.6, ease: "power2.out", onUpdate: () => { controls.update() } });
   }, [visibleParts]);
 
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
