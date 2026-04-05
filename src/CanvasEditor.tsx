@@ -429,8 +429,9 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
 
     setCanUndo(true);
     setCanRedo(redoStack.current.length > 0);
+    syncToWorkCanvas();
     notifyUpdate();
-  }, [canvasRef, notifyUpdate]);
+  }, [canvasRef, syncToWorkCanvas, notifyUpdate]);
 
 
   // --- 最近使った色 ---
