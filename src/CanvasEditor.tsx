@@ -682,7 +682,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
 
   // --- 表示切替と自動カメラズーム処理 ---
   useEffect(() => {
-    if (!threeCtx.current || !isAutoFocus) return;
+    if (!threeCtx.current) return;
     const { camera, parts, controls } = threeCtx.current;
 
     const activeMeshes: THREE.Mesh[] = [];
