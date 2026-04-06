@@ -286,8 +286,8 @@ function createGridTexture(color: string) {
     for (let i = 0; i <= 64; i++) {
       const pos = i * 8;
       // 線が細すぎて消えないように2px幅で描画
-      ctx.fillRect(pos - 1, 0, 2, 512); // 縦線
-      ctx.fillRect(0, pos - 1, 512, 2); // 横線
+      ctx.fillRect(pos, 0, 1, 512); // 縦線
+      ctx.fillRect(0, pos, 512, 1); // 横線
     }
   }
   const tex = new THREE.CanvasTexture(canvas);
