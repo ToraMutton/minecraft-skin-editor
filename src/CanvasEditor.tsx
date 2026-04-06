@@ -294,6 +294,15 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     leftLeg: true,
   });
 
+  const [visibleOverlay, setVisibleOverlay] = useState({
+    head: true,
+    body: true,
+    rightArm: true,
+    leftArm: true,
+    rightLeg: true,
+    leftLeg: true,
+  });
+
   const [isAutoFocus, setIsAutoFocus] = useState(true); // デフォルトはON
   const [showOverlay, setShowOverlay] = useState(true); // 上着を表示するかどうか(デフォルトはON)
 
@@ -777,19 +786,23 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     // 的絞り込み
     const targetMeshes: THREE.Mesh[] = [];
     parts.forEach(part => {
-      if (part.visible) {
-        if (showOverlay) {
-          // 上着表示中なら、上着(Over)を的にする
+      const partKey = part.name as keyof typeof visibleParts;
+      const isBaseVisible = visibleParts[partKey];
+      const isOverVisible = visibleOverlay[partKey];
+
+      if (isBaseVisible) { // そもそも部位全体が表示されている時だけ
+        if (isOverVisible) {
+          // そのパーツの上着がONなら、上着(Over)を的にする
           const overMesh = part.children.find(c => c.name === part.name + 'Over');
           if (overMesh) targetMeshes.push(overMesh as THREE.Mesh);
         } else {
-          // 上着非表示中なら、親(Base)を的にする
+          // そのパーツの上着がOFFなら、素肌(Base)を的にする
           targetMeshes.push(part);
         }
       }
     });
 
-    // 厳選した的だけで当たり判定 (false は子要素まで探さない設定)
+    // 厳選した的だけで当たり判定
     const intersects = raycaster.intersectObjects(targetMeshes, false);
 
     if (intersects.length > 0) {
@@ -822,16 +835,18 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     const activeMeshes: THREE.Mesh[] = [];
     let activeCount = 0;
 
-    // 完全に非表示
     parts.forEach(part => {
-      const isActive = visibleParts[part.name as keyof typeof visibleParts];
+      const partKey = part.name as keyof typeof visibleParts;
+      const isActive = visibleParts[partKey];
+      const isOverActive = visibleOverlay[partKey]; // 個別の上着状態を取得
 
-      // 物理的に消す
+      // 親(素肌)の表示
       part.visible = isActive;
 
+      // 子要素（上着）の表示切替
       const overMesh = part.children.find(c => c.name === part.name + 'Over');
       if (overMesh) {
-        overMesh.visible = showOverlay;
+        overMesh.visible = isOverActive;
       }
 
       if (isActive) {
@@ -885,7 +900,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     // カメラ本体と注視点を同時にアニメーション
     gsap.to(camera.position, { x: targetCamPos.x, y: targetCamPos.y, z: targetCamPos.z, duration: 0.6, ease: "power2.out" });
     gsap.to(controls.target, { x: center.x, y: center.y, z: center.z, duration: 0.6, ease: "power2.out", onUpdate: () => { controls.update() } });
-  }, [visibleParts, isAutoFocus, showOverlay]);
+  }, [visibleParts, visibleOverlay, isAutoFocus]);
 
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!isDrawing || !threeCtx.current) return;
@@ -901,19 +916,23 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     // 的絞り込み
     const targetMeshes: THREE.Mesh[] = [];
     parts.forEach(part => {
-      if (part.visible) {
-        if (showOverlay) {
-          // 上着表示中なら、上着(Over)を的にする
+      const partKey = part.name as keyof typeof visibleParts;
+      const isBaseVisible = visibleParts[partKey];
+      const isOverVisible = visibleOverlay[partKey];
+
+      if (isBaseVisible) { // そもそも部位全体が表示されている時だけ
+        if (isOverVisible) {
+          // そのパーツの上着がONなら、上着(Over)を的にする
           const overMesh = part.children.find(c => c.name === part.name + 'Over');
           if (overMesh) targetMeshes.push(overMesh as THREE.Mesh);
         } else {
-          // 上着非表示中なら、親(Base)を的にする
+          // そのパーツの上着がOFFなら、素肌(Base)を的にする
           targetMeshes.push(part);
         }
       }
     });
 
-    // 厳選した的だけで当たり判定 (false は子要素まで探さない設定)
+    // 厳選した的だけで当たり判定
     const intersects = raycaster.intersectObjects(targetMeshes, false);
 
     if (intersects.length > 0) {
@@ -1199,27 +1218,40 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
         }}>
           <span style={{ fontSize: '11px', color: '#fff', marginBottom: '4px', textAlign: 'center' }}>👁️ 表示切替</span>
           {(Object.keys(visibleParts) as (keyof typeof visibleParts)[]).map(key => {
-            const labels: Record<string, string> = { head: '頭', body: '胴体', rightArm: '右腕', leftArm: '左腕', rightLeg: '右足', leftLeg: '左足' };
-            const isActive = visibleParts[key];
+            const labels: Record<string, string> = { head: '頭', body: '胴', rightArm: '右腕', leftArm: '左腕', rightLeg: '右足', leftLeg: '左足' };
+            const isBaseActive = visibleParts[key];
+            const isOverActive = visibleOverlay[key as keyof typeof visibleOverlay];
+
             return (
-              <button
-                key={key}
-                onPointerDown={(e) => e.stopPropagation()} // キャンバスへのペイント誤爆を防ぐ
-                onClick={() => setVisibleParts(prev => ({ ...prev, [key]: !prev[key] }))}
-                style={{
-                  ...btn,
-                  backgroundColor: isActive ? '#4caf50' : '#555',
-                  color: '#fff',
-                  fontSize: '10px',
-                  border: 'none',
-                  width: '70px',
-                  display: 'flex',
-                  justifyContent: 'space-between'
-                }}
-              >
-                <span>{labels[key]}</span>
-                <span>{isActive ? 'ON' : 'OFF'}</span>
-              </button>
+              <div key={key} style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                <span style={{ fontSize: '11px', color: '#fff', width: '22px', textAlign: 'center' }}>{labels[key]}</span>
+
+                {/* 素肌トグル */}
+                <button
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={() => setVisibleParts(prev => ({ ...prev, [key]: !prev[key] }))}
+                  style={{
+                    ...btn,
+                    backgroundColor: isBaseActive ? '#4caf50' : '#555',
+                    color: '#fff', fontSize: '10px', border: 'none', padding: '2px 4px', width: '38px'
+                  }}
+                >
+                  肌 {isBaseActive ? 'ON' : 'OFF'}
+                </button>
+
+                {/* 上着トグル */}
+                <button
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={() => setVisibleOverlay(prev => ({ ...prev, [key]: !prev[key as keyof typeof visibleOverlay] }))}
+                  style={{
+                    ...btn,
+                    backgroundColor: isOverActive ? '#2196f3' : '#555',
+                    color: '#fff', fontSize: '10px', border: 'none', padding: '2px 4px', width: '38px'
+                  }}
+                >
+                  着 {isOverActive ? 'ON' : 'OFF'}
+                </button>
+              </div>
             );
           })}
         </div>
