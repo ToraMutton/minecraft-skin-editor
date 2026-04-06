@@ -242,6 +242,8 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     leftLeg: true,
   });
 
+  const [isAutoFocus, setIsAutoFocus] = useState(true); // デフォルトはON
+
   // useRef系
   const containerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null) // ファイル入力
@@ -680,7 +682,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
 
   // --- 表示切替と自動カメラズーム処理 ---
   useEffect(() => {
-    if (!threeCtx.current) return;
+    if (!threeCtx.current || !isAutoFocus) return;
     const { camera, parts, controls } = threeCtx.current;
 
     const activeMeshes: THREE.Mesh[] = [];
@@ -698,6 +700,8 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
         activeCount++;
       }
     });
+
+    if (!isAutoFocus) return;
 
     // 過去のパーツ数と比較し、パーツを追加したのかを判定
     const isAddingPart = activeCount > prevActiveCount.current;
@@ -742,7 +746,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     // カメラ本体と注視点を同時にアニメーション
     gsap.to(camera.position, { x: targetCamPos.x, y: targetCamPos.y, z: targetCamPos.z, duration: 0.6, ease: "power2.out" });
     gsap.to(controls.target, { x: center.x, y: center.y, z: center.z, duration: 0.6, ease: "power2.out", onUpdate: () => { controls.update() } });
-  }, [visibleParts]);
+  }, [visibleParts, isAutoFocus]);
 
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!isDrawing || !threeCtx.current) return;
@@ -937,6 +941,13 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
           🪞 {mirror ? 'ON' : 'OFF'}
         </button>
       </div>
+
+      <button
+        onClick={() => setIsAutoFocus(!isAutoFocus)}
+        style={toggleBtn(isAutoFocus, '#ffe0b2')}
+      >
+        {isAutoFocus ? '🎯 AF: ON' : '📍 AF: OFF'}
+      </button>
 
       {/* ===== ツールバー 2行目: 操作ボタン ===== */}
       <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'center' }}>
