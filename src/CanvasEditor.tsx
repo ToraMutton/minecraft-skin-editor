@@ -274,6 +274,28 @@ function rgbaToHex(r: number, g: number, b: number): string {
   return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
 }
 
+// 512x512の高解像度キャンバスに、ピクセル単位の網目を描画してテクスチャ化する関数
+function createGridTexture(color: string) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 512;
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    ctx.fillStyle = color;
+    // 64x64のマイクラテクスチャに合わせ、8ピクセルごとに線を引く(512/64 = 8)
+    for (let i = 0; i <= 64; i++) {
+      const pos = i * 8;
+      // 線が細すぎて消えないように2px幅で描画
+      ctx.fillRect(pos - 1, 0, 2, 512); // 縦線
+      ctx.fillRect(0, pos - 1, 512, 2); // 横線
+    }
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.magFilter = THREE.NearestFilter;
+  tex.minFilter = THREE.LinearFilter; // ズームアウトした時に線が消えないようにLinear
+  return tex;
+}
+
 // 描いたピクセルのミラー先座標を返す関数
 function getMirrorCoord(x: number, y: number): [number, number] | null {
   for (const map of FACE_MAPPINGS) {
@@ -424,6 +446,27 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
       side: THREE.FrontSide,
     });
 
+    const baseGridTex = createGridTexture('rgba(129, 212, 250, 0.4)'); // 素肌用の水色
+    const overGridTex = createGridTexture('rgba(255, 255, 255, 0.5)'); // 上着用の白色
+
+    const baseGridMaterial = new THREE.MeshBasicMaterial({
+      map: baseGridTex,
+      transparent: true,
+      depthWrite: false, // ちらつき防止
+      polygonOffset: true,
+      polygonOffsetFactor: -1,
+      polygonOffsetUnits: -1
+    });
+
+    const overGridMaterial = new THREE.MeshBasicMaterial({
+      map: overGridTex,
+      transparent: true,
+      depthWrite: false,
+      polygonOffset: true,
+      polygonOffsetFactor: -1,
+      polygonOffsetUnits: -1
+    });
+
     // 頭: 8x8x8
     const headGeo = new THREE.BoxGeometry(8, 8, 8);
     applyPartUV(headGeo, SKIN_UV.head);
@@ -530,23 +573,20 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     threeCtx.current = { camera, parts, controls };
 
     parts.forEach(part => {
-      // 素肌(Base)の枠線
-      const baseEdges = new THREE.EdgesGeometry(part.geometry);
-      const baseLineMat = new THREE.LineBasicMaterial({ color: 0x81d4fa, transparent: true, opacity: 0.3 });
-      const baseGrid = new THREE.LineSegments(baseEdges, baseLineMat);
+      // 素肌(Base)に網目メッシュを被せる
+      const baseGrid = new THREE.Mesh(part.geometry, baseGridMaterial);
       baseGrid.name = part.name + 'BaseGrid';
       part.add(baseGrid);
 
-      // 上着(Over)の枠線
+      // 上着(Over)に網目メッシュを被せる
       const overMesh = part.children.find(c => c.name === part.name + 'Over') as THREE.Mesh;
       if (overMesh) {
-        const overEdges = new THREE.EdgesGeometry(overMesh.geometry);
-        const overLineMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.4 });
-        const overGrid = new THREE.LineSegments(overEdges, overLineMat);
+        const overGrid = new THREE.Mesh(overMesh.geometry, overGridMaterial);
         overGrid.name = part.name + 'OverGrid';
         overMesh.add(overGrid);
       }
     });
+
 
     // アニメーションループ
     let animId: number;
@@ -576,6 +616,10 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
       // 大元のマテリアルとテクスチャ本体も忘れずに
       baseMaterial.dispose();
       overlayMaterial.dispose();
+      baseGridMaterial.dispose();
+      overGridMaterial.dispose();
+      baseGridTex.dispose();
+      overGridTex.dispose();
       texture.dispose();
 
       if (container.contains(renderer.domElement)) {
