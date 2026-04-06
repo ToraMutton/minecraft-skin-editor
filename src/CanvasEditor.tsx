@@ -187,47 +187,48 @@ type BrushSize = 1 | 2 | 3;
 
 
 // スキンのパーツ定義
-interface SkinPart {
-  name: string;
-  x: number; y: number; w: number; h: number;
+// 領域1に描いたら領域2にX反転してコピー、領域2に描いたら領域1にX反転してコピーするマッピング
+interface FaceMapping {
+  x1: number; y1: number; w: number; h: number; // 領域1
+  x2: number; y2: number;                       // 領域2 (幅と高さは共通)
 }
 
-const SKIN_PARTS: SkinPart[] = [
-  { name: '頭', x: 0, y: 0, w: 32, h: 16 },
-  { name: '右足', x: 0, y: 16, w: 16, h: 16 },
-  { name: '胴体', x: 16, y: 16, w: 24, h: 16 },
-  { name: '右腕', x: 40, y: 16, w: 16, h: 16 },
-  { name: '左足', x: 16, y: 48, w: 16, h: 16 },
-  { name: '左腕', x: 32, y: 48, w: 16, h: 16 },
-  { name: '頭(over)', x: 32, y: 0, w: 32, h: 16 },
-  { name: '右足(over)', x: 0, y: 32, w: 16, h: 16 },
-  { name: '胴体(over)', x: 16, y: 32, w: 24, h: 16 },
-  { name: '右腕(over)', x: 40, y: 32, w: 16, h: 16 },
-  { name: '左足(over)', x: 0, y: 48, w: 16, h: 16 },
-  { name: '左腕(over)', x: 48, y: 48, w: 16, h: 16 },
+// 腕と足の全6面（Base + Over）の正確な対応表
+const FACE_MAPPINGS: FaceMapping[] = [
+  // --- 素肌(Base) ---
+  // 右足 <-> 左足
+  { x1: 4, y1: 16, w: 4, h: 4, x2: 20, y2: 48 }, // Top
+  { x1: 8, y1: 16, w: 4, h: 4, x2: 24, y2: 48 }, // Bottom
+  { x1: 0, y1: 20, w: 4, h: 12, x2: 24, y2: 52 }, // Right(外側) <-> Left(外側)
+  { x1: 4, y1: 20, w: 4, h: 12, x2: 20, y2: 52 }, // Front
+  { x1: 8, y1: 20, w: 4, h: 12, x2: 16, y2: 52 }, // Left(内側) <-> Right(内側)
+  { x1: 12, y1: 20, w: 4, h: 12, x2: 28, y2: 52 }, // Back
+
+  // 右腕 <-> 左腕
+  { x1: 44, y1: 16, w: 4, h: 4, x2: 36, y2: 48 }, // Top
+  { x1: 48, y1: 16, w: 4, h: 4, x2: 40, y2: 48 }, // Bottom
+  { x1: 40, y1: 20, w: 4, h: 12, x2: 40, y2: 52 }, // Right(外側) <-> Left(外側)
+  { x1: 44, y1: 20, w: 4, h: 12, x2: 36, y2: 52 }, // Front
+  { x1: 48, y1: 20, w: 4, h: 12, x2: 32, y2: 52 }, // Left(内側) <-> Right(内側)
+  { x1: 52, y1: 20, w: 4, h: 12, x2: 44, y2: 52 }, // Back
+
+  // --- 上着(Over) ---
+  // 右足Over <-> 左足Over
+  { x1: 4, y1: 32, w: 4, h: 4, x2: 4, y2: 48 }, // Top
+  { x1: 8, y1: 32, w: 4, h: 4, x2: 8, y2: 48 }, // Bottom
+  { x1: 0, y1: 36, w: 4, h: 12, x2: 8, y2: 52 }, // Right <-> Left
+  { x1: 4, y1: 36, w: 4, h: 12, x2: 4, y2: 52 }, // Front
+  { x1: 8, y1: 36, w: 4, h: 12, x2: 0, y2: 52 }, // Left <-> Right
+  { x1: 12, y1: 36, w: 4, h: 12, x2: 12, y2: 52 }, // Back
+
+  // 右腕Over <-> 左腕Over
+  { x1: 44, y1: 32, w: 4, h: 4, x2: 52, y2: 48 }, // Top
+  { x1: 48, y1: 32, w: 4, h: 4, x2: 56, y2: 48 }, // Bottom
+  { x1: 40, y1: 36, w: 4, h: 12, x2: 56, y2: 52 }, // Right <-> Left
+  { x1: 44, y1: 36, w: 4, h: 12, x2: 52, y2: 52 }, // Front
+  { x1: 48, y1: 36, w: 4, h: 12, x2: 48, y2: 52 }, // Left <-> Right
+  { x1: 52, y1: 36, w: 4, h: 12, x2: 60, y2: 52 }, // Back
 ];
-
-// ミラー描画用の対応マッピング
-interface MirrorMapping {
-  src: SkinPart;
-  dst: SkinPart;
-}
-
-const MIRROR_PAIRS: MirrorMapping[] = [
-  { src: SKIN_PARTS[3], dst: SKIN_PARTS[5] },   // 右腕 → 左腕
-  { src: SKIN_PARTS[5], dst: SKIN_PARTS[3] },   // 左腕 → 右腕
-
-  { src: SKIN_PARTS[1], dst: SKIN_PARTS[4] },   // 右足 → 左足
-  { src: SKIN_PARTS[4], dst: SKIN_PARTS[1] },   // 左足 → 右足
-
-
-  { src: SKIN_PARTS[9], dst: SKIN_PARTS[11] },  // 右腕over → 左腕over
-  { src: SKIN_PARTS[11], dst: SKIN_PARTS[9] },  // 左腕over → 右腕over
-
-  { src: SKIN_PARTS[7], dst: SKIN_PARTS[10] },  // 右足over → 左足over
-  { src: SKIN_PARTS[10], dst: SKIN_PARTS[7] },  // 左足over → 右足over
-];
-
 
 // 色コードを数値に変換する関数
 function hexToRgba(hex: string) {
@@ -249,15 +250,18 @@ function rgbaToHex(r: number, g: number, b: number): string {
 
 // 描いたピクセルのミラー先座標を返す関数
 function getMirrorCoord(x: number, y: number): [number, number] | null {
-  for (const { src, dst } of MIRROR_PAIRS) {
-    if (x >= src.x && x < src.x + src.w && y >= src.y && y < src.y + src.h) {
-      // パーツ内の相対座標
-      const relX = x - src.x;
-      const relY = y - src.y;
-      // 左右反転してミラー先に変換
-      const mirrorX = dst.x + (dst.w - 1 - relX);
-      const mirrorY = dst.y + relY;
-      return [mirrorX, mirrorY];
+  for (const map of FACE_MAPPINGS) {
+    // 領域1にヒットした場合 -> 領域2へX反転コピー
+    if (x >= map.x1 && x < map.x1 + map.w && y >= map.y1 && y < map.y1 + map.h) {
+      const relX = x - map.x1;
+      const relY = y - map.y1;
+      return [map.x2 + (map.w - 1 - relX), map.y2 + relY];
+    }
+    // 領域2にヒットした場合 -> 領域1へX反転コピー
+    if (x >= map.x2 && x < map.x2 + map.w && y >= map.y2 && y < map.y2 + map.h) {
+      const relX = x - map.x2;
+      const relY = y - map.y2;
+      return [map.x1 + (map.w - 1 - relX), map.y1 + relY];
     }
   }
   return null;
