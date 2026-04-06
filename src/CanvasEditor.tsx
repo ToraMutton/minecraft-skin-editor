@@ -295,7 +295,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
   });
 
   const [isAutoFocus, setIsAutoFocus] = useState(true); // デフォルトはON
-  const [editLayer, setEditLayer] = useState<'base' | 'overlay'>('base'); // どっちの層を塗るか
+  const [showOverlay, setShowOverlay] = useState(true); // 上着を表示するかどうか(デフォルトはON)
 
   // useRef系
   const containerRef = useRef<HTMLDivElement>(null);
@@ -774,11 +774,23 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     const raycaster = new THREE.Raycaster();
     raycaster.setFromCamera(new THREE.Vector2(x, y), camera);
 
-    // まず「見えてるパーツ」だけを抜き出した配列を作る
-    const visibleMeshes = parts.filter(part => part.visible === true);
-    // ↓
-    // その見えてるパーツだけを Raycaster に渡す
-    const intersects = raycaster.intersectObjects(visibleMeshes);
+    // 的絞り込み
+    const targetMeshes: THREE.Mesh[] = [];
+    parts.forEach(part => {
+      if (part.visible) {
+        if (showOverlay) {
+          // 上着表示中なら、上着(Over)を的にする
+          const overMesh = part.children.find(c => c.name === part.name + 'Over');
+          if (overMesh) targetMeshes.push(overMesh as THREE.Mesh);
+        } else {
+          // 上着非表示中なら、親(Base)を的にする
+          targetMeshes.push(part);
+        }
+      }
+    });
+
+    // 厳選した的だけで当たり判定 (false は子要素まで探さない設定)
+    const intersects = raycaster.intersectObjects(targetMeshes, false);
 
     if (intersects.length > 0) {
       const hit = intersects[0];
@@ -816,6 +828,11 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
 
       // 物理的に消す
       part.visible = isActive;
+
+      const overMesh = part.children.find(c => c.name === part.name + 'Over');
+      if (overMesh) {
+        overMesh.visible = showOverlay;
+      }
 
       if (isActive) {
         activeMeshes.push(part);
@@ -868,7 +885,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     // カメラ本体と注視点を同時にアニメーション
     gsap.to(camera.position, { x: targetCamPos.x, y: targetCamPos.y, z: targetCamPos.z, duration: 0.6, ease: "power2.out" });
     gsap.to(controls.target, { x: center.x, y: center.y, z: center.z, duration: 0.6, ease: "power2.out", onUpdate: () => { controls.update() } });
-  }, [visibleParts, isAutoFocus]);
+  }, [visibleParts, isAutoFocus, showOverlay]);
 
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!isDrawing || !threeCtx.current) return;
@@ -881,11 +898,23 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     const raycaster = new THREE.Raycaster();
     raycaster.setFromCamera(new THREE.Vector2(x, y), camera);
 
-    // まず「見えてるパーツ」だけを抜き出した配列を作る
-    const visibleMeshes = parts.filter(part => part.visible === true);
-    // ↓
-    // その見えてるパーツだけを Raycaster に渡す
-    const intersects = raycaster.intersectObjects(visibleMeshes);
+    // 的絞り込み
+    const targetMeshes: THREE.Mesh[] = [];
+    parts.forEach(part => {
+      if (part.visible) {
+        if (showOverlay) {
+          // 上着表示中なら、上着(Over)を的にする
+          const overMesh = part.children.find(c => c.name === part.name + 'Over');
+          if (overMesh) targetMeshes.push(overMesh as THREE.Mesh);
+        } else {
+          // 上着非表示中なら、親(Base)を的にする
+          targetMeshes.push(part);
+        }
+      }
+    });
+
+    // 厳選した的だけで当たり判定 (false は子要素まで探さない設定)
+    const intersects = raycaster.intersectObjects(targetMeshes, false);
 
     if (intersects.length > 0) {
       const hit = intersects[0];
@@ -1068,10 +1097,10 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
 
         {/* レイヤー切り替え */}
         <button
-          onClick={() => setEditLayer(editLayer === 'base' ? 'overlay' : 'base')}
-          style={toggleBtn(editLayer === 'overlay', '#f8bbd0')}
+          onClick={() => setShowOverlay(!showOverlay)}
+          style={toggleBtn(showOverlay, '#c5cae9')}
         >
-          {editLayer === 'base' ? '👕 素肌(Base)' : '🧥 上着(Over)'}
+          {showOverlay ? '上着: 表示' : '上着: 非表示'}
         </button>
       </div>
 
