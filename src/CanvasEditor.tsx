@@ -86,6 +86,58 @@ const SKIN_UV: Record<string, PartUV> = {
   },
 };
 
+// オーバーレイ用UVマッピング定義
+const SKIN_UV_OVER: Record<string, PartUV> = {
+  head: {
+    right: { u: 32, v: 8, w: 8, h: 8 },
+    front: { u: 40, v: 8, w: 8, h: 8 },
+    left: { u: 48, v: 8, w: 8, h: 8 },
+    back: { u: 56, v: 8, w: 8, h: 8 },
+    top: { u: 40, v: 0, w: 8, h: 8 },
+    bottom: { u: 48, v: 0, w: 8, h: 8 },
+  },
+  rightLeg: {
+    right: { u: 0, v: 36, w: 4, h: 12 },
+    front: { u: 4, v: 36, w: 4, h: 12 },
+    left: { u: 8, v: 36, w: 4, h: 12 },
+    back: { u: 12, v: 36, w: 4, h: 12 },
+    top: { u: 4, v: 32, w: 4, h: 4 },
+    bottom: { u: 8, v: 32, w: 4, h: 4 },
+  },
+  body: {
+    right: { u: 16, v: 36, w: 4, h: 12 },
+    front: { u: 20, v: 36, w: 8, h: 12 },
+    left: { u: 28, v: 36, w: 4, h: 12 },
+    back: { u: 32, v: 36, w: 8, h: 12 },
+    top: { u: 20, v: 32, w: 8, h: 4 },
+    bottom: { u: 28, v: 32, w: 8, h: 4 },
+  },
+  rightArm: {
+    right: { u: 40, v: 36, w: 4, h: 12 },
+    front: { u: 44, v: 36, w: 4, h: 12 },
+    left: { u: 48, v: 36, w: 4, h: 12 },
+    back: { u: 52, v: 36, w: 4, h: 12 },
+    top: { u: 44, v: 32, w: 4, h: 4 },
+    bottom: { u: 48, v: 32, w: 4, h: 4 },
+  },
+  leftLeg: {
+    right: { u: 0, v: 52, w: 4, h: 12 },
+    front: { u: 4, v: 52, w: 4, h: 12 },
+    left: { u: 8, v: 52, w: 4, h: 12 },
+    back: { u: 12, v: 52, w: 4, h: 12 },
+    top: { u: 4, v: 48, w: 4, h: 4 },
+    bottom: { u: 8, v: 48, w: 4, h: 4 },
+  },
+  leftArm: {
+    right: { u: 48, v: 52, w: 4, h: 12 },
+    front: { u: 52, v: 52, w: 4, h: 12 },
+    left: { u: 56, v: 52, w: 4, h: 12 },
+    back: { u: 60, v: 52, w: 4, h: 12 },
+    top: { u: 52, v: 48, w: 4, h: 4 },
+    bottom: { u: 56, v: 48, w: 4, h: 4 },
+  },
+};
+
 // UVFaceからThree.jsのUV座標を設定する
 // Three.jsのUV座標系: 左下が(0,0)、右上が(1,1)
 // Minecraftのテクスチャ座標系: 左上が(0,0)、右上が(64,64)
