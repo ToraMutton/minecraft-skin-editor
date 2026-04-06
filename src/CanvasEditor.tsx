@@ -335,6 +335,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
 
   const [isAutoFocus, setIsAutoFocus] = useState(true); // デフォルトはON
   const [showOverlay, setShowOverlay] = useState(true); // 上着を表示するかどうか(デフォルトはON)
+  const [showGuide, setShowGuide] = useState(true);
 
   // useRef系
   const containerRef = useRef<HTMLDivElement>(null);
@@ -527,6 +528,25 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
 
     const parts = [head, body, rArm, lArm, rLeg, lLeg];
     threeCtx.current = { camera, parts, controls };
+
+    parts.forEach(part => {
+      // 素肌(Base)の枠線
+      const baseEdges = new THREE.EdgesGeometry(part.geometry);
+      const baseLineMat = new THREE.LineBasicMaterial({ color: 0x81d4fa, transparent: true, opacity: 0.3 });
+      const baseGrid = new THREE.LineSegments(baseEdges, baseLineMat);
+      baseGrid.name = part.name + 'BaseGrid';
+      part.add(baseGrid);
+
+      // 上着(Over)の枠線
+      const overMesh = part.children.find(c => c.name === part.name + 'Over') as THREE.Mesh;
+      if (overMesh) {
+        const overEdges = new THREE.EdgesGeometry(overMesh.geometry);
+        const overLineMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.4 });
+        const overGrid = new THREE.LineSegments(overEdges, overLineMat);
+        overGrid.name = part.name + 'OverGrid';
+        overMesh.add(overGrid);
+      }
+    });
 
     // アニメーションループ
     let animId: number;
@@ -873,10 +893,22 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
       // 親(素肌)の表示
       part.visible = isActive;
 
+      // 素肌の枠線(BaseGrid)を探す
+      const baseGrid = part.children.find(c => c.name === part.name + 'BaseGrid');
+
       // 子要素（上着）の表示切替
       const overMesh = part.children.find(c => c.name === part.name + 'Over');
       if (overMesh) {
         overMesh.visible = isOverActive;
+
+        // 上着の枠線(OverGrid)を探す
+        const overGrid = overMesh.children.find(c => c.name === part.name + 'OverGrid');
+
+        // 大元のガイド(showGuide)がONのときだけ
+        // 上着ONなら上着のガイドを表示
+        if (overGrid) overGrid.visible = showGuide && isOverActive;
+        // 上着OFFなら素肌のガイドを表示
+        if (baseGrid) baseGrid.visible = showGuide && !isOverActive;
       }
 
       if (isActive) {
@@ -930,7 +962,8 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     // カメラ本体と注視点を同時にアニメーション
     gsap.to(camera.position, { x: targetCamPos.x, y: targetCamPos.y, z: targetCamPos.z, duration: 0.6, ease: "power2.out" });
     gsap.to(controls.target, { x: center.x, y: center.y, z: center.z, duration: 0.6, ease: "power2.out", onUpdate: () => { controls.update() } });
-  }, [visibleParts, visibleOverlay, isAutoFocus]);
+
+  }, [visibleParts, visibleOverlay, isAutoFocus, showGuide]);
 
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!isDrawing || !threeCtx.current) return;
@@ -1190,6 +1223,14 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
 
         {/* 縦線 */}
         <div style={{ width: '1px', height: '22px', backgroundColor: '#ccc' }} />
+
+        {/* コンテキスト・ガイド切替 */}
+        <button
+          onClick={() => setShowGuide(!showGuide)}
+          style={toggleBtn(showGuide, '#b2ebf2')}
+        >
+          {showGuide ? '🌐 ガイド: ON' : '🌑 ガイド: OFF'}
+        </button>
       </div>
 
       {/* ===== 最近使った色パレット ===== */}
