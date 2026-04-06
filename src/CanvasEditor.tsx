@@ -295,6 +295,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
   });
 
   const [isAutoFocus, setIsAutoFocus] = useState(true); // デフォルトはON
+  const [editLayer, setEditLayer] = useState<'base' | 'overlay'>('base'); // どっちの層を塗るか
 
   // useRef系
   const containerRef = useRef<HTMLDivElement>(null);
@@ -372,6 +373,14 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
 
     const baseMaterial = new THREE.MeshLambertMaterial({
       map: texture,
+      transparent: false,
+      side: THREE.FrontSide,
+    });
+
+    const overlayMaterial = new THREE.MeshLambertMaterial({
+      map: texture,
+      transparent: true,
+      alphaTest: 0.1,
       side: THREE.FrontSide,
     });
 
@@ -384,6 +393,14 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     head.position.set(0, 24, 0);
     scene.add(head);
 
+    // 頭Over
+    const headOverGeo = new THREE.BoxGeometry(9, 9, 9);
+    applyPartUV(headOverGeo, SKIN_UV_OVER.head);
+    headOverGeo.translate(0, 4, 0);
+    const headOver = new THREE.Mesh(headOverGeo, overlayMaterial.clone());
+    headOver.name = 'headOver';
+    head.add(headOver);
+
     // 胴体: 8x12x4
     const bodyGeo = new THREE.BoxGeometry(8, 12, 4);
     applyPartUV(bodyGeo, SKIN_UV.body);
@@ -391,6 +408,13 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     body.name = 'body';
     body.position.set(0, 18, 0);
     scene.add(body);
+
+    // 胴体Over
+    const bodyOverGeo = new THREE.BoxGeometry(8.5, 12.5, 4.5);
+    applyPartUV(bodyOverGeo, SKIN_UV_OVER.body);
+    const bodyOver = new THREE.Mesh(bodyOverGeo, overlayMaterial.clone());
+    bodyOver.name = 'bodyOver';
+    body.add(bodyOver);
 
     // 右腕: 4x12x4
     const rArmGeo = new THREE.BoxGeometry(4, 12, 4);
@@ -401,6 +425,14 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     rArm.position.set(-6, 24, 0);
     scene.add(rArm);
 
+    // 右腕Over
+    const rArmOverGeo = new THREE.BoxGeometry(4.5, 12.5, 4.5);
+    applyPartUV(rArmOverGeo, SKIN_UV_OVER.rightArm);
+    rArmOverGeo.translate(0, -6, 0);
+    const rArmOver = new THREE.Mesh(rArmOverGeo, overlayMaterial.clone());
+    rArmOver.name = 'rightArmOver';
+    rArm.add(rArmOver);
+
     // 左腕: 4x12x4
     const lArmGeo = new THREE.BoxGeometry(4, 12, 4);
     applyPartUV(lArmGeo, SKIN_UV.leftArm);
@@ -409,6 +441,14 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     lArm.name = 'leftArm';
     lArm.position.set(6, 24, 0);
     scene.add(lArm);
+
+    // 左腕Over
+    const lArmOverGeo = new THREE.BoxGeometry(4.5, 12.5, 4.5);
+    applyPartUV(lArmOverGeo, SKIN_UV_OVER.leftArm);
+    lArmOverGeo.translate(0, -6, 0);
+    const lArmOver = new THREE.Mesh(lArmOverGeo, overlayMaterial.clone());
+    lArmOver.name = 'leftArmOver';
+    lArm.add(lArmOver);
 
     // 右足: 4x12x4
     const rLegGeo = new THREE.BoxGeometry(4, 12, 4);
@@ -419,6 +459,14 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     rLeg.position.set(-2, 12, 0);
     scene.add(rLeg);
 
+    // 右足Over
+    const rLegOverGeo = new THREE.BoxGeometry(4.5, 12.5, 4.5);
+    applyPartUV(rLegOverGeo, SKIN_UV_OVER.rightLeg);
+    rLegOverGeo.translate(0, -6, 0);
+    const rLegOver = new THREE.Mesh(rLegOverGeo, overlayMaterial.clone());
+    rLegOver.name = 'rightLegOver';
+    rLeg.add(rLegOver);
+
     // 左足: 4x12x4
     const lLegGeo = new THREE.BoxGeometry(4, 12, 4);
     applyPartUV(lLegGeo, SKIN_UV.leftLeg);
@@ -426,6 +474,15 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     const lLeg = new THREE.Mesh(lLegGeo, baseMaterial.clone());
     lLeg.name = 'leftLeg';
     lLeg.position.set(2, 12, 0);
+    scene.add(lLeg);
+
+    // 左足Over
+    const lLegOverGeo = new THREE.BoxGeometry(4.5, 12.5, 4.5);
+    applyPartUV(lLegOverGeo, SKIN_UV_OVER.leftLeg);
+    lLegOverGeo.translate(0, -6, 0);
+    const lLegOver = new THREE.Mesh(lLegOverGeo, overlayMaterial.clone());
+    lLegOver.name = 'leftLegOver';
+    lLeg.add(lLegOver);
 
     scene.add(lLeg);
 
@@ -446,8 +503,21 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     return () => {
       cancelAnimationFrame(animId);
       renderer.dispose();
-      // クローンしたマテリアルの掃除
-      parts.forEach(part => (part.material as THREE.Material).dispose());
+
+      // シーン内の全オブジェクトを巡回して、Meshだったらジオメトリとマテリアルを破棄
+      scene.traverse((object) => {
+        if (object instanceof THREE.Mesh) {
+          object.geometry?.dispose();
+          if (object.material instanceof THREE.Material) {
+            object.material.dispose();
+          }
+        }
+      });
+
+      // 大元のマテリアルとテクスチャ本体も忘れずに
+      baseMaterial.dispose();
+      overlayMaterial.dispose();
+      texture.dispose();
 
       if (container.contains(renderer.domElement)) {
         container.removeChild(renderer.domElement);
@@ -991,6 +1061,17 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
         {/* ミラー */}
         <button onClick={() => setMirror(!mirror)} style={toggleBtn(mirror, '#e1bee7')}>
           🪞 {mirror ? 'ON' : 'OFF'}
+        </button>
+
+        {/* 縦線 */}
+        <div style={{ width: '1px', height: '22px', backgroundColor: '#ccc' }} />
+
+        {/* レイヤー切り替え */}
+        <button
+          onClick={() => setEditLayer(editLayer === 'base' ? 'overlay' : 'base')}
+          style={toggleBtn(editLayer === 'overlay', '#f8bbd0')}
+        >
+          {editLayer === 'base' ? '👕 素肌(Base)' : '🧥 上着(Over)'}
         </button>
       </div>
 
