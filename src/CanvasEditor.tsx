@@ -359,6 +359,13 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
   const [showOverlay, setShowOverlay] = useState(true); // 上着を表示するかどうか(デフォルトはON)
   const [showGuide, setShowGuide] = useState(true);
 
+  const [mode, setMode] = useState<'edit' | 'pose'>('edit'); // 編集 or ポーズ
+  const modeRef = useRef(mode); // アニメーションループから参照するための裏メモ
+
+  useEffect(() => {
+    modeRef.current = mode;
+  }, [mode]);
+
   // useRef系
   const containerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null) // ファイル入力
@@ -417,9 +424,11 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.target.set(0, 16, 0); // 回転の中心をスキンの中心に設定
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    controls.mouseButtons = { LEFT: null as any, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE };
+    controls.enablePan = false; // パン(平行移動)を無効化
 
+    // 左クリックを「回転」、中クリックを「ズーム」、右クリックは無効(null)にする
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    controls.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: null as any };
 
     // 光の追加
     scene.add(new THREE.AmbientLight(0xffffff, 0.7)); // 全体を照らす薄い光
@@ -594,6 +603,21 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
       animId = requestAnimationFrame(animate);
       controls.update(); // コントローラーの動きを計算
       texture.needsUpdate = true; // 毎フレーム裏方キャンバスの最新状態を引っ張る
+
+      if (modeRef.current === 'pose') {
+        const time = Date.now() * 0.005; // 振るスピード
+        rArm.rotation.x = Math.sin(time) * 0.5;
+        lArm.rotation.x = -Math.sin(time) * 0.5;
+        rLeg.rotation.x = -Math.sin(time) * 0.5;
+        lLeg.rotation.x = Math.sin(time) * 0.5;
+      } else {
+        // 編集モードなら直立に戻す
+        rArm.rotation.x = 0;
+        lArm.rotation.x = 0;
+        rLeg.rotation.x = 0;
+        lLeg.rotation.x = 0;
+      }
+
       renderer.render(scene, camera); // 撮影して画面に出力
     };
     animate(); // ループ開始
@@ -866,10 +890,11 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
 
   // --- 3D直接ペイント処理 (Raycaster) ---
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    // 左クリック(0)以外は無視してカメラ操作に譲る
+    if (mode === 'pose') return; // ✨鑑賞モード時は描画を無効化
+
     if (e.button !== 0 || !threeCtx.current) return;
 
-    const { camera, parts } = threeCtx.current;
+    const { camera, parts, controls } = threeCtx.current;
     const rect = e.currentTarget.getBoundingClientRect();
     const x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
     const y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
@@ -884,29 +909,29 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
       const isBaseVisible = visibleParts[partKey];
       const isOverVisible = visibleOverlay[partKey];
 
-      if (isBaseVisible) { // そもそも部位全体が表示されている時だけ
+      if (isBaseVisible) {
         if (isOverVisible) {
-          // そのパーツの上着がONなら、上着(Over)を的にする
           const overMesh = part.children.find(c => c.name === part.name + 'Over');
           if (overMesh) targetMeshes.push(overMesh as THREE.Mesh);
         } else {
-          // そのパーツの上着がOFFなら、素肌(Base)を的にする
           targetMeshes.push(part);
         }
       }
     });
 
-    // 厳選した的だけで当たり判定
     const intersects = raycaster.intersectObjects(targetMeshes, false);
 
     if (intersects.length > 0) {
+      // スキンに当たる -> カメラ回転を止めて、描画モードに入る
+      controls.enabled = false;
+
       const hit = intersects[0];
       if (!hit.uv) return;
 
       const texX = Math.floor(hit.uv.x * 64);
       const texY = Math.floor((1 - hit.uv.y) * 64);
 
-      pushUndo(); // 塗る前に履歴保存
+      pushUndo();
       if (tool === 'picker') {
         pickColor(texX, texY);
       } else if (tool === 'bucket') {
@@ -918,6 +943,9 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
         if (tool === 'pen') addRecentColor(color);
       }
       notifyUpdate();
+    } else {
+      // 空振りした（背景をクリック） -> カメラ回転を許可
+      controls.enabled = true;
     }
   };
 
@@ -1010,7 +1038,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
   }, [visibleParts, visibleOverlay, isAutoFocus, showGuide]);
 
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!isDrawing || !threeCtx.current) return;
+    if (mode === 'pose' || !isDrawing || !threeCtx.current) return;
 
     const { camera, parts } = threeCtx.current;
     const rect = e.currentTarget.getBoundingClientRect();
@@ -1020,26 +1048,19 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     const raycaster = new THREE.Raycaster();
     raycaster.setFromCamera(new THREE.Vector2(x, y), camera);
 
-    // 的絞り込み
     const targetMeshes: THREE.Mesh[] = [];
     parts.forEach(part => {
       const partKey = part.name as keyof typeof visibleParts;
-      const isBaseVisible = visibleParts[partKey];
-      const isOverVisible = visibleOverlay[partKey];
-
-      if (isBaseVisible) { // そもそも部位全体が表示されている時だけ
-        if (isOverVisible) {
-          // そのパーツの上着がONなら、上着(Over)を的にする
+      if (visibleParts[partKey]) {
+        if (visibleOverlay[partKey]) {
           const overMesh = part.children.find(c => c.name === part.name + 'Over');
           if (overMesh) targetMeshes.push(overMesh as THREE.Mesh);
         } else {
-          // そのパーツの上着がOFFなら、素肌(Base)を的にする
           targetMeshes.push(part);
         }
       }
     });
 
-    // 厳選した的だけで当たり判定
     const intersects = raycaster.intersectObjects(targetMeshes, false);
 
     if (intersects.length > 0) {
@@ -1055,6 +1076,10 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
 
   const handlePointerUp = () => {
     setIsDrawing(false);
+    // マウスから指を離したらカメラ操作を再有効化
+    if (threeCtx.current) {
+      threeCtx.current.controls.enabled = true;
+    }
   };
 
 
@@ -1274,6 +1299,23 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
           style={toggleBtn(showGuide, '#b2ebf2')}
         >
           {showGuide ? '🌐 ガイド: ON' : '🌑 ガイド: OFF'}
+        </button>
+
+        {/* 縦線 */}
+        <div style={{ width: '1px', height: '22px', backgroundColor: '#ccc' }} />
+
+        {/* モード切替ボタン */}
+        <button
+          onClick={() => setMode(mode === 'edit' ? 'pose' : 'edit')}
+          style={{
+            ...btn,
+            backgroundColor: mode === 'pose' ? '#a5d6a7' : '#ffcdd2',
+            fontWeight: 'bold',
+            color: '#333',
+            border: mode === 'pose' ? '2px solid #4caf50' : '2px solid #f44336'
+          }}
+        >
+          {mode === 'edit' ? '🖌️ 編集モード' : '🚶‍♂️ 鑑賞モード'}
         </button>
       </div>
 
