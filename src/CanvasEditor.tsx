@@ -11,7 +11,7 @@ import { useSkinLogic } from './useSkinLogic';
 import {
   Pencil, Eraser, PaintBucket, Pipette,
   Undo2, Redo2, Trash2, FolderOpen, Download,
-  FlipHorizontal, Grid, PenTool, Accessibility, Focus, User, Layers
+  FlipHorizontal, Grid, PenTool, Accessibility, Eye, Focus, User, Layers
 } from 'lucide-react';
 
 const PRESET_COLORS = [
@@ -76,6 +76,10 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.target.set(0, 16, 0);
     controls.enablePan = false;
+
+    controls.minDistance = 20;
+    controls.maxDistance = 80;
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     controls.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: null as any };
 
@@ -597,27 +601,42 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
 
           {/* セクション1: カラーパレット */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-              <div style={{
-                width: '40px', height: '40px', borderRadius: '8px', overflow: 'hidden',
-                border: '2px solid #cbd5e1', cursor: colorDisabled ? 'not-allowed' : 'pointer',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
-              }}>
-                <input type="color" value={color} onChange={(e) => { setColor(e.target.value); addRecentColor(e.target.value); }}
-                  disabled={colorDisabled} style={{ width: '150%', height: '150%', margin: '-25%', cursor: 'inherit', border: 'none' }}
-                />
+
+            {/* フルカラーピッカーボタン */}
+            <div style={{ position: 'relative', width: '100%', height: '40px', borderRadius: '8px', overflow: 'hidden', border: '1px solid #cbd5e1', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', background: 'linear-gradient(to right, #ff0000, #ff8000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000)', cursor: colorDisabled ? 'not-allowed' : 'pointer' }}
+              onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.05)'; }}
+            >
+              <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.4)', color: '#0f172a', fontSize: '13px', fontWeight: 'bold', textShadow: '0 1px 2px rgba(255,255,255,0.8)', pointerEvents: 'none' }}>
+                フルカラーから選ぶ
               </div>
-              <div style={{ fontSize: '13px', color: '#64748b', fontWeight: 'bold' }}>現在の色</div>
+              <input type="color" value={color} onChange={(e) => { setColor(e.target.value); addRecentColor(e.target.value); }} disabled={colorDisabled} style={{ width: '100%', height: '100%', opacity: 0, cursor: 'inherit' }} />
             </div>
+
+            {/* 現在の色表示 */}
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <div style={{ width: '24px', height: '24px', borderRadius: '4px', backgroundColor: color, border: '1px solid #cbd5e1', boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.1)' }} />
+              <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 'bold' }}>現在の色: <span style={{ fontFamily: 'monospace' }}>{color.toUpperCase()}</span></div>
+            </div>
+
+            {/* 最近使った色パレット */}
+            {recentColors.length > 0 && (
+              <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', padding: '8px', backgroundColor: '#f1f5f9', borderRadius: '8px' }}>
+                {recentColors.map((c, i) => (
+                  <button key={`${c}-${i}`} onClick={() => { setColor(c); setTool('pen'); }} title={c}
+                    style={{ width: '20px', height: '20px', backgroundColor: c, border: c === color ? '2px solid #0f172a' : '1px solid #cbd5e1', borderRadius: '4px', cursor: 'pointer', padding: 0, transition: 'transform 0.1s' }}
+                    onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.2)'}
+                    onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                  />
+                ))}
+              </div>
+            )}
 
             {/* 大型パレット */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '6px', padding: '12px', backgroundColor: '#f1f5f9', borderRadius: '8px' }}>
               {PRESET_COLORS.map((c) => (
                 <button key={c} onClick={() => { setColor(c); setTool('pen'); }} title={c}
-                  style={{
-                    aspectRatio: '1', backgroundColor: c, border: c === color ? '2px solid #0f172a' : '1px solid rgba(0,0,0,0.1)',
-                    borderRadius: '4px', cursor: 'pointer', padding: 0, transition: 'transform 0.1s'
-                  }}
+                  style={{ aspectRatio: '1', backgroundColor: c, border: c === color ? '2px solid #0f172a' : '1px solid rgba(0,0,0,0.1)', borderRadius: '4px', cursor: 'pointer', padding: 0, transition: 'transform 0.1s' }}
                   onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
                   onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
                 />
@@ -628,10 +647,18 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
           {/* セクション2: ツール */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <div style={{ display: 'flex', gap: '8px' }}>
-              <button onClick={() => setTool('pen')} style={toolBtn('pen')} title="ペン"><Pencil size={18} /></button>
-              <button onClick={() => setTool('eraser')} style={toolBtn('eraser')} title="消しゴム"><Eraser size={18} /></button>
-              <button onClick={() => setTool('bucket')} style={toolBtn('bucket')} title="バケツ"><PaintBucket size={18} /></button>
-              <button onClick={() => setTool('picker')} style={toolBtn('picker')} title="スポイト"><Pipette size={18} /></button>
+              {(['pen', 'eraser', 'bucket', 'picker'] as Tool[]).map((t) => {
+                const icons = { pen: <Pencil size={18} />, eraser: <Eraser size={18} />, bucket: <PaintBucket size={18} />, picker: <Pipette size={18} /> };
+                const titles = { pen: 'ペン', eraser: '消しゴム', bucket: 'バケツ', picker: 'スポイト' };
+                return (
+                  <button key={t} onClick={() => setTool(t)} style={toolBtn(t)} title={titles[t]}
+                    onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.1)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 1px 2px rgba(0,0,0,0.05)'; }}
+                  >
+                    {icons[t]}
+                  </button>
+                )
+              })}
             </div>
             <div style={{ display: 'flex', gap: '8px', alignItems: 'center', backgroundColor: '#f1f5f9', padding: '8px', borderRadius: '8px' }}>
               <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 'bold', marginLeft: '4px' }}>太さ</span>
@@ -662,7 +689,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
                 border: mode === 'pose' ? '1px solid #cbd5e1' : '1px solid #3b82f6',
               }}
             >
-              {mode === 'edit' ? <><PenTool size={16} /> 編集モード</> : <><Accessibility size={16} /> 鑑賞モード</>}
+              {mode === 'edit' ? <><PenTool size={16} /> 編集モード</> : <><Eye size={16} /> 鑑賞モード</>}
             </button>
 
             <button onClick={clearCanvas}
@@ -694,7 +721,8 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
               zIndex: 10, borderRadius: '20px', padding: '8px 16px', boxShadow: '0 4px 6px rgba(0,0,0,0.3)'
             }}
           >
-            {isAutoFocus ? '🎯 オートフォーカス: ON' : '📍 オートフォーカス: OFF'}
+            <Focus size={16} />
+            {isAutoFocus ? 'オートフォーカス: ON' : 'オートフォーカス: OFF'}
           </button>
 
           {/* 3Dキャンバス本体 */}
