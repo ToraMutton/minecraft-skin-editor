@@ -8,6 +8,8 @@ import type { Tool, BrushSize } from './skinUtils';
 import { SKIN_UV, SKIN_UV_OVER, applyPartUV, createGridTexture } from './skinUtils';
 import { useSkinLogic } from './useSkinLogic';
 
+import { User, Layers } from 'lucide-react';
+
 interface Props {
   // テクスチャ更新を親に通知するコールバック
   onTextureUpdate?: () => void;
@@ -55,7 +57,6 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     if (!container) return;
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setSize(512, 512);
     renderer.setPixelRatio(window.devicePixelRatio);
     container.appendChild(renderer.domElement);
 
@@ -197,6 +198,17 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
       }
     });
 
+    const handleResize = () => {
+      if (!container) return;
+      const width = container.clientWidth;
+      const height = container.clientHeight;
+      renderer.setSize(width, height);
+      camera.aspect = width / height;
+      camera.updateProjectionMatrix();
+    };
+    window.addEventListener('resize', handleResize);
+    handleResize(); // 初回実行で枠いっぱいに広げる
+
     let animId: number;
     const animate = () => {
       animId = requestAnimationFrame(animate);
@@ -217,6 +229,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     return () => {
       cancelAnimationFrame(animId);
       renderer.dispose();
+      window.removeEventListener('resize', handleResize);
       scene.traverse((object) => {
         if (object instanceof THREE.Mesh) {
           object.geometry?.dispose();
@@ -472,25 +485,75 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     fontWeight: brushSize === s ? 'bold' : 'normal',
   });
 
-  const avatarBtn = (isActive: boolean, w: string, h: string): React.CSSProperties => ({
-    width: w, height: h,
-    backgroundColor: isActive ? '#4caf50' : '#f0f0f0', // ONなら緑、OFFならグレー
-    border: isActive ? '2px solid #2e7d32' : '2px dashed #ccc',
-    borderRadius: '4px', cursor: 'pointer',
-    color: isActive ? '#fff' : '#888',
-    fontSize: '10px', fontWeight: 'bold', padding: 0,
-    display: 'flex', justifyContent: 'center', alignItems: 'center',
-    transition: 'all 0.1s ease'
-  });
+
+
+  // --- 右サイドバー：パーツUI描画関数 ---
+  const togglePart = (part: keyof typeof visibleParts) => {
+    setVisibleParts(p => ({ ...p, [part]: !p[part] }));
+  };
+
+  const toggleOverlay = (part: keyof typeof visibleOverlay) => {
+    setVisibleOverlay(p => ({ ...p, [part]: !p[part] }));
+  };
+
+  const renderPart = (part: keyof typeof visibleParts, label: string, w: number, h: number) => {
+    const isBase = visibleParts[part];
+    const isOver = visibleOverlay[part];
+
+    return (
+      <div style={{ position: 'relative', width: w, height: h }}>
+        {/* メイン部分（素肌切り替え） */}
+        <button
+          onClick={() => togglePart(part)}
+          title={`${label}の素肌を切替`}
+          style={{
+            width: '100%', height: '100%',
+            backgroundColor: isBase ? '#eff6ff' : '#f1f5f9',
+            border: isBase ? '2px solid #3b82f6' : '2px dashed #cbd5e1',
+            borderRadius: '6px',
+            color: isBase ? '#1d4ed8' : '#94a3b8',
+            fontSize: '12px', fontWeight: 'bold',
+            display: 'flex', justifyContent: 'center', alignItems: 'center',
+            cursor: 'pointer', transition: 'all 0.15s ease', padding: 0
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.filter = 'brightness(0.95)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.filter = 'brightness(1)'; }}
+        >
+          {label}
+        </button>
+
+        {/* 右上のバッジ部分（上着切り替え） */}
+        <button
+          onClick={() => toggleOverlay(part)}
+          title={`${label}の上着を切替`}
+          style={{
+            position: 'absolute', top: -8, right: -8,
+            width: '24px', height: '24px',
+            backgroundColor: isOver ? '#3b82f6' : '#f8fafc',
+            border: isOver ? '2px solid #1d4ed8' : '2px solid #cbd5e1',
+            borderRadius: '50%',
+            color: isOver ? '#ffffff' : '#94a3b8',
+            display: 'flex', justifyContent: 'center', alignItems: 'center',
+            cursor: 'pointer', transition: 'transform 0.15s ease', padding: 0,
+            boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.1)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
+        >
+          <Layers size={12} />
+        </button>
+      </div>
+    );
+  };
 
 
   // return部分
   return (
     <div style={{
       display: 'grid',
-      gridTemplateColumns: '240px 1fr 260px', // 左サイド240px、中央残り全部、右サイド260px
-      height: '100vh', // 画面いっぱいに広げる
-      width: '100vw',
+      gridTemplateColumns: '260px 1fr 280px',
+      height: '100%',
+      width: '100%',
       backgroundColor: '#f5f5f7',
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif'
     }}>
@@ -593,18 +656,20 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
 
       {/* 中央エリア */}
       <main style={{
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'center',
-        alignItems: 'center',
         position: 'relative',
-        padding: '40px',
-        gap: '16px'
+        width: '100%',
+        height: '100%',
+        overflow: 'hidden',
+        backgroundColor: '#1e1e1e'
       }}>
-        {/* AFボタンはキャンバスの上に配置 */}
+        {/* AFボタンはキャンバスの上部に浮かせる */}
         <button
           onClick={() => setIsAutoFocus(!isAutoFocus)}
-          style={toggleBtn(isAutoFocus, '#ffe0b2')}
+          style={{
+            ...toggleBtn(isAutoFocus, '#ffe0b2'),
+            position: 'absolute', top: '24px', left: '50%', transform: 'translateX(-50%)',
+            zIndex: 10, borderRadius: '20px', padding: '8px 16px', boxShadow: '0 4px 6px rgba(0,0,0,0.3)'
+          }}
         >
           {isAutoFocus ? '🎯 オートフォーカス: ON' : '📍 オートフォーカス: OFF'}
         </button>
@@ -617,11 +682,9 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
           onPointerUp={handlePointerUp}
           onPointerLeave={handlePointerUp}
           style={{
-            width: '512px', height: '512px',
-            border: '2px solid #555',
-            overflow: 'hidden',
-            backgroundColor: '#222',
+            width: '100%', height: '100%',
             touchAction: 'none',
+            cursor: mode === 'edit' ? 'crosshair' : 'grab'
           }}
         />
 
@@ -630,67 +693,50 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
       </main>
 
 
-      {/* 右サイドバー（パーツ表示切替メニュー） */}
-      <aside style={{ borderLeft: '1px solid #ccc', padding: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center', backgroundColor: '#fff' }}>
+      {/* --- 右サイドバー --- */}
+      <aside style={{
+        borderLeft: '1px solid #e2e8f0', padding: '24px',
+        display: 'flex', flexDirection: 'column', alignItems: 'center',
+        backgroundColor: '#ffffff', overflowY: 'auto'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '32px', color: '#1e293b' }}>
+          <User size={20} />
+          <span style={{ fontSize: '15px', fontWeight: 'bold' }}>パーツと上着の表示</span>
+        </div>
 
-        <span style={{ fontSize: '14px', fontWeight: 'bold', color: '#333', marginBottom: '24px' }}>👁️ 素肌の表示切替</span>
-
-        {/* 人型アバターUI */}
+        {/* アバターUI (マイクラ比率 x 6) */}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
-          {/* 頭 */}
-          <button
-            onClick={() => setVisibleParts(p => ({ ...p, head: !p.head }))}
-            style={avatarBtn(visibleParts.head, '40px', '40px')}
-          >頭</button>
-
-          {/* 腕と胴体 */}
-          <div style={{ display: 'flex', gap: '4px' }}>
-            <button
-              onClick={() => setVisibleParts(p => ({ ...p, rightArm: !p.rightArm }))}
-              style={avatarBtn(visibleParts.rightArm, '20px', '60px')}
-            >右</button>
-
-            <button
-              onClick={() => setVisibleParts(p => ({ ...p, body: !p.body }))}
-              style={avatarBtn(visibleParts.body, '40px', '60px')}
-            >胴</button>
-
-            <button
-              onClick={() => setVisibleParts(p => ({ ...p, leftArm: !p.leftArm }))}
-              style={avatarBtn(visibleParts.leftArm, '20px', '60px')}
-            >左</button>
+          {/* 頭 (8x8 -> 48x48) */}
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '4px' }}>
+            {renderPart('head', '頭', 48, 48)}
           </div>
 
-          {/* 足 */}
-          <div style={{ display: 'flex', gap: '4px' }}>
-            <button
-              onClick={() => setVisibleParts(p => ({ ...p, rightLeg: !p.rightLeg }))}
-              style={avatarBtn(visibleParts.rightLeg, '20px', '60px')}
-            >右</button>
+          {/* 腕と胴体 (腕 4x12 -> 24x72, 胴 8x12 -> 48x72) */}
+          <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
+            {renderPart('rightArm', '右', 24, 72)}
+            {renderPart('body', '胴', 48, 72)}
+            {renderPart('leftArm', '左', 24, 72)}
+          </div>
 
-            <button
-              onClick={() => setVisibleParts(p => ({ ...p, leftLeg: !p.leftLeg }))}
-              style={avatarBtn(visibleParts.leftLeg, '20px', '60px')}
-            >左</button>
+          {/* 足 (4x12 -> 24x72) */}
+          <div style={{ display: 'flex', gap: '4px', justifyContent: 'center', marginTop: '4px' }}>
+            {renderPart('rightLeg', '右', 24, 72)}
+            {renderPart('leftLeg', '左', 24, 72)}
           </div>
         </div>
 
-        {/* 上着レイヤーの一括切替 */}
-        <div style={{ marginTop: '32px', width: '100%', borderTop: '1px solid #eee', paddingTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#888', textAlign: 'center' }}>👕 上着 (Overlay)</span>
+        {/* 一括操作 */}
+        <div style={{ marginTop: '40px', width: '100%', borderTop: '1px solid #e2e8f0', paddingTop: '24px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
           <button
             onClick={() => {
-              // 上着の全表示/非表示を一括で切り替える
-              const nextState = !showOverlay;
-              setShowOverlay(nextState);
-              setVisibleOverlay({ head: nextState, body: nextState, rightArm: nextState, leftArm: nextState, rightLeg: nextState, leftLeg: nextState });
+              const allOver = !(visibleOverlay.head && visibleOverlay.body && visibleOverlay.rightArm && visibleOverlay.leftArm && visibleOverlay.rightLeg && visibleOverlay.leftLeg);
+              setVisibleOverlay({ head: allOver, body: allOver, rightArm: allOver, leftArm: allOver, rightLeg: allOver, leftLeg: allOver });
             }}
-            style={{ ...btn, width: '100%', backgroundColor: showOverlay ? '#2196f3' : '#f0f0f0', color: showOverlay ? '#fff' : '#333', padding: '10px', fontWeight: 'bold' }}
+            style={{ ...btn, justifyContent: 'center', backgroundColor: '#f1f5f9' }}
           >
-            {showOverlay ? '上着: すべて表示' : '上着: すべて非表示'}
+            <Layers size={16} /> 上着をすべて切り替え
           </button>
         </div>
-
       </aside>
 
     </div>
