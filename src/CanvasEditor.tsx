@@ -474,226 +474,202 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
 
 
   // return部分
-
-
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+    <div style={{
+      display: 'grid',
+      gridTemplateColumns: '240px 1fr 260px', // 左サイド240px、中央残り全部、右サイド260px
+      height: '100vh', // 画面いっぱいに広げる
+      width: '100vw',
+      backgroundColor: '#f5f5f7',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif'
+    }}>
 
-      {/* ===== ツールバー 1行目: ツール選択 ===== */}
-      <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'center' }}>
-        {/* カラーピッカー */}
-        <input
-          type="color"
-          value={color}
-          onChange={(e) => { setColor(e.target.value); addRecentColor(e.target.value); }}
-          disabled={colorDisabled}
-          style={{ cursor: colorDisabled ? 'not-allowed' : 'pointer', width: '32px', height: '28px' }}
+      {/* 左サイドバー（ツール＆パレット＆操作ボタン） */}
+      <aside style={{
+        backgroundColor: '#ffffff',
+        borderRight: '1px solid #e5e5e5',
+        padding: '20px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '24px',
+        overflowY: 'auto'
+      }}>
+        {/* ツール群 */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <input
+              type="color"
+              value={color}
+              onChange={(e) => { setColor(e.target.value); addRecentColor(e.target.value); }}
+              disabled={colorDisabled}
+              style={{ cursor: colorDisabled ? 'not-allowed' : 'pointer', width: '32px', height: '28px' }}
+            />
+            {(['pen', 'eraser', 'bucket', 'picker'] as Tool[]).map(t => (
+              <button key={t} onClick={() => setTool(t)} style={toolBtn(t)}>
+                {toolConfig[t].label}
+              </button>
+            ))}
+          </div>
+
+          {/* 最近使った色パレット */}
+          {recentColors.length > 0 && (
+            <div style={{ display: 'flex', gap: '3px', flexWrap: 'wrap' }}>
+              {recentColors.map((c, i) => (
+                <button key={`${c}-${i}`}
+                  onClick={() => { setColor(c); setTool('pen'); }}
+                  title={c}
+                  style={{
+                    width: '20px', height: '20px', backgroundColor: c,
+                    border: c === color ? '2px solid #333' : '1px solid #aaa',
+                    borderRadius: '3px', cursor: 'pointer', padding: 0,
+                  }}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* ブラシサイズ */}
+          <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+            <span style={{ fontSize: '11px', color: '#888' }}>筆</span>
+            {([1, 2, 3] as BrushSize[]).map(s => (
+              <button key={s} onClick={() => setBrushSize(s)} style={sizeBtn(s)}>
+                {s}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* 操作ボタン群（Undo/Redo/保存など） */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <div style={{ display: 'flex', gap: '6px' }}>
+            <button onClick={handleUndo} disabled={!canUndo} style={{ ...btn, opacity: canUndo ? 1 : 0.4, flex: 1 }} title="元に戻す">↩️ Undo</button>
+            <button onClick={handleRedo} disabled={!canRedo} style={{ ...btn, opacity: canRedo ? 1 : 0.4, flex: 1 }} title="やり直す">↪️ Redo</button>
+          </div>
+          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+            <button onClick={newCanvas} style={btn}>新規 📄</button>
+            <button onClick={clearCanvas} style={btn}>全消し 🗑️</button>
+            <button onClick={() => fileInputRef.current?.click()} style={{ ...btn, backgroundColor: '#fff3e0' }}>読込 📂</button>
+            <input ref={fileInputRef} type="file" accept=".png" onChange={handleImport} style={{ display: 'none' }} />
+            <button onClick={downloadImage} style={{ ...btn, backgroundColor: '#e0f7fa' }}>保存 💾</button>
+          </div>
+        </div>
+
+        {/* 各種設定 */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <button onClick={() => setMirror(!mirror)} style={toggleBtn(mirror, '#e1bee7')}>
+            🪞 ミラー: {mirror ? 'ON' : 'OFF'}
+          </button>
+          <button onClick={() => setShowOverlay(!showOverlay)} style={toggleBtn(showOverlay, '#c5cae9')}>
+            👕 上着: {showOverlay ? '表示' : '非表示'}
+          </button>
+          <button onClick={() => setShowGuide(!showGuide)} style={toggleBtn(showGuide, '#b2ebf2')}>
+            🌐 ガイド: {showGuide ? 'ON' : 'OFF'}
+          </button>
+          <button
+            onClick={() => setMode(mode === 'edit' ? 'pose' : 'edit')}
+            style={{
+              ...btn,
+              backgroundColor: mode === 'pose' ? '#a5d6a7' : '#ffcdd2',
+              fontWeight: 'bold', color: '#333',
+              border: mode === 'pose' ? '2px solid #4caf50' : '2px solid #f44336'
+            }}
+          >
+            {mode === 'edit' ? '🖌️ 編集モード' : '🚶‍♂️ 鑑賞モード'}
+          </button>
+        </div>
+      </aside>
+
+
+      {/* 中央エリア */}
+      <main style={{
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+        alignItems: 'center',
+        position: 'relative',
+        padding: '40px',
+        gap: '16px'
+      }}>
+        {/* AFボタンはキャンバスの上に配置 */}
+        <button
+          onClick={() => setIsAutoFocus(!isAutoFocus)}
+          style={toggleBtn(isAutoFocus, '#ffe0b2')}
+        >
+          {isAutoFocus ? '🎯 オートフォーカス: ON' : '📍 オートフォーカス: OFF'}
+        </button>
+
+        {/* 3Dキャンバス本体 */}
+        <div
+          ref={containerRef}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerLeave={handlePointerUp}
+          style={{
+            width: '512px', height: '512px',
+            border: '2px solid #555',
+            overflow: 'hidden',
+            backgroundColor: '#222',
+            touchAction: 'none',
+          }}
         />
 
-        {/* ペン、消しゴム、バケツ、スポイト */}
-        {(['pen', 'eraser', 'bucket', 'picker'] as Tool[]).map(t => (
-          <button key={t} onClick={() => setTool(t)} style={toolBtn(t)}>
-            {toolConfig[t].label}
-          </button>
-        ))}
+        {/* --- 見えない裏方キャンバス --- */}
+        <canvas ref={canvasRef} width={64} height={64} style={{ display: 'none' }} />
+      </main>
 
-        {/* 縦線 */}
-        <div style={{ width: '1px', height: '22px', backgroundColor: '#ccc' }} />
 
-        {/* ブラシサイズ */}
-        <span style={{ fontSize: '11px', color: '#888' }}>筆</span>
-        {([1, 2, 3] as BrushSize[]).map(s => (
-          <button key={s} onClick={() => setBrushSize(s)} style={sizeBtn(s)}>
-            {s}
-          </button>
-        ))}
+      {/* 右サイドバー（パーツ表示切替メニュー） */}
+      <aside style={{
+        backgroundColor: '#ffffff',
+        borderLeft: '1px solid #e5e5e5',
+        padding: '20px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '4px',
+        overflowY: 'auto'
+      }}>
+        <span style={{ fontSize: '14px', fontWeight: 'bold', color: '#333', marginBottom: '8px', textAlign: 'center' }}>👁️ 表示切替</span>
 
-        {/* 縦線 */}
-        <div style={{ width: '1px', height: '22px', backgroundColor: '#ccc' }} />
+        {(Object.keys(visibleParts) as (keyof typeof visibleParts)[]).map(key => {
+          const labels: Record<string, string> = { head: '頭', body: '胴', rightArm: '右腕', leftArm: '左腕', rightLeg: '右足', leftLeg: '左足' };
+          const isBaseActive = visibleParts[key];
+          const isOverActive = visibleOverlay[key as keyof typeof visibleOverlay];
 
-        {/* ミラー */}
-        <button onClick={() => setMirror(!mirror)} style={toggleBtn(mirror, '#e1bee7')}>
-          🪞 {mirror ? 'ON' : 'OFF'}
-        </button>
+          return (
+            <div key={key} style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'center', padding: '4px 0' }}>
+              <span style={{ fontSize: '12px', color: '#333', width: '28px', textAlign: 'center' }}>{labels[key]}</span>
 
-        {/* 縦線 */}
-        <div style={{ width: '1px', height: '22px', backgroundColor: '#ccc' }} />
+              {/* 素肌トグル */}
+              <button
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={() => setVisibleParts(prev => ({ ...prev, [key]: !prev[key] }))}
+                style={{
+                  ...btn,
+                  backgroundColor: isBaseActive ? '#4caf50' : '#f0f0f0',
+                  color: isBaseActive ? '#fff' : '#333', fontSize: '11px', border: '1px solid #ccc', padding: '4px 8px', width: '48px'
+                }}
+              >
+                肌 {isBaseActive ? 'ON' : 'OFF'}
+              </button>
 
-        {/* レイヤー切り替え */}
-        <button
-          onClick={() => setShowOverlay(!showOverlay)}
-          style={toggleBtn(showOverlay, '#c5cae9')}
-        >
-          {showOverlay ? '上着: 表示' : '上着: 非表示'}
-        </button>
-      </div>
+              {/* 上着トグル */}
+              <button
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={() => setVisibleOverlay(prev => ({ ...prev, [key]: !prev[key as keyof typeof visibleOverlay] }))}
+                style={{
+                  ...btn,
+                  backgroundColor: isOverActive ? '#2196f3' : '#f0f0f0',
+                  color: isOverActive ? '#fff' : '#333', fontSize: '11px', border: '1px solid #ccc', padding: '4px 8px', width: '48px'
+                }}
+              >
+                着 {isOverActive ? 'ON' : 'OFF'}
+              </button>
+            </div>
+          );
+        })}
+      </aside>
 
-      <button
-        onClick={() => setIsAutoFocus(!isAutoFocus)}
-        style={toggleBtn(isAutoFocus, '#ffe0b2')}
-      >
-        {isAutoFocus ? '🎯 AF: ON' : '📍 AF: OFF'}
-      </button>
-
-      {/* ===== ツールバー 2行目: 操作ボタン ===== */}
-      <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'center' }}>
-
-        {/* Undo / Redo ボタン */}
-        <button onClick={handleUndo} disabled={!canUndo}
-          style={{ ...btn, opacity: canUndo ? 1 : 0.4 }} title="元に戻す">↩️</button>
-        <button onClick={handleRedo} disabled={!canRedo}
-          style={{ ...btn, opacity: canRedo ? 1 : 0.4 }} title="やり直す">↪️</button>
-
-        {/* 縦線 */}
-        <div style={{ width: '1px', height: '22px', backgroundColor: '#ccc' }} />
-
-        {/* 新規作成 */}
-        <button onClick={newCanvas} style={btn}>新規 📄</button>
-
-        {/* 全消し */}
-        <button onClick={clearCanvas} style={btn}>全消し 🗑️</button>
-
-        {/* 読込 */}
-        <button onClick={() => fileInputRef.current?.click()} style={{ ...btn, backgroundColor: '#fff3e0' }}>
-          読込 📂
-        </button>
-
-        <input ref={fileInputRef} type="file" accept=".png" onChange={handleImport} style={{ display: 'none' }} />
-
-        {/* 保存 */}
-        <button onClick={downloadImage} style={{ ...btn, backgroundColor: '#e0f7fa' }}>保存 💾</button>
-
-        {/* 縦線 */}
-        <div style={{ width: '1px', height: '22px', backgroundColor: '#ccc' }} />
-
-        {/* コンテキスト・ガイド切替 */}
-        <button
-          onClick={() => setShowGuide(!showGuide)}
-          style={toggleBtn(showGuide, '#b2ebf2')}
-        >
-          {showGuide ? '🌐 ガイド: ON' : '🌑 ガイド: OFF'}
-        </button>
-
-        {/* 縦線 */}
-        <div style={{ width: '1px', height: '22px', backgroundColor: '#ccc' }} />
-
-        {/* モード切替ボタン */}
-        <button
-          onClick={() => setMode(mode === 'edit' ? 'pose' : 'edit')}
-          style={{
-            ...btn,
-            backgroundColor: mode === 'pose' ? '#a5d6a7' : '#ffcdd2',
-            fontWeight: 'bold',
-            color: '#333',
-            border: mode === 'pose' ? '2px solid #4caf50' : '2px solid #f44336'
-          }}
-        >
-          {mode === 'edit' ? '🖌️ 編集モード' : '🚶‍♂️ 鑑賞モード'}
-        </button>
-      </div>
-
-      {/* ===== 最近使った色パレット ===== */}
-      {/* 最近使った色が1つ以上あるときだけ表示 */}
-      {recentColors.length > 0 && (
-        <div style={{ display: 'flex', gap: '3px', flexWrap: 'wrap', justifyContent: 'center' }}>
-          {recentColors.map((c, i) => (
-            <button key={`${c}-${i}`}
-              onClick={() => { setColor(c); setTool('pen'); }}
-              title={c}
-              style={{
-                width: '20px',
-                height: '20px',
-                backgroundColor: c,
-                border: c === color ? '2px solid #333' : '1px solid #aaa',
-                borderRadius: '3px',
-                cursor: 'pointer',
-                padding: 0,
-              }}
-            />
-          ))}
-        </div>
-      )}
-
-      {/* ===== キャンバスエリア ===== */}
-      <div
-        ref={containerRef}
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onPointerLeave={handlePointerUp}
-        style={{
-          width: '512px', height: '512px',
-          border: '2px solid #555',
-          overflow: 'hidden',
-          position: 'relative',
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          backgroundColor: '#222',
-          touchAction: 'none',
-        }}
-      >
-        {/* パーツ表示切替メニュー */}
-        <div style={{
-          position: 'absolute',
-          top: '10px',
-          right: '10px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '4px',
-          background: 'rgba(0, 0, 0, 0.6)',
-          padding: '8px',
-          borderRadius: '8px',
-          pointerEvents: 'auto',
-        }}>
-          <span style={{ fontSize: '11px', color: '#fff', marginBottom: '4px', textAlign: 'center' }}>👁️ 表示切替</span>
-          {(Object.keys(visibleParts) as (keyof typeof visibleParts)[]).map(key => {
-            const labels: Record<string, string> = { head: '頭', body: '胴', rightArm: '右腕', leftArm: '左腕', rightLeg: '右足', leftLeg: '左足' };
-            const isBaseActive = visibleParts[key];
-            const isOverActive = visibleOverlay[key as keyof typeof visibleOverlay];
-
-            return (
-              <div key={key} style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                <span style={{ fontSize: '11px', color: '#fff', width: '22px', textAlign: 'center' }}>{labels[key]}</span>
-
-                {/* 素肌トグル */}
-                <button
-                  onPointerDown={(e) => e.stopPropagation()}
-                  onClick={() => setVisibleParts(prev => ({ ...prev, [key]: !prev[key] }))}
-                  style={{
-                    ...btn,
-                    backgroundColor: isBaseActive ? '#4caf50' : '#555',
-                    color: '#fff', fontSize: '10px', border: 'none', padding: '2px 4px', width: '38px'
-                  }}
-                >
-                  肌 {isBaseActive ? 'ON' : 'OFF'}
-                </button>
-
-                {/* 上着トグル */}
-                <button
-                  onPointerDown={(e) => e.stopPropagation()}
-                  onClick={() => setVisibleOverlay(prev => ({ ...prev, [key]: !prev[key as keyof typeof visibleOverlay] }))}
-                  style={{
-                    ...btn,
-                    backgroundColor: isOverActive ? '#2196f3' : '#555',
-                    color: '#fff', fontSize: '10px', border: 'none', padding: '2px 4px', width: '38px'
-                  }}
-                >
-                  着 {isOverActive ? 'ON' : 'OFF'}
-                </button>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* --- 見えない裏方キャンバス --- */}
-      <canvas
-        ref={canvasRef}
-        width={64}
-        height={64}
-        style={{ display: 'none' }}
-      />
     </div>
   );
 }
