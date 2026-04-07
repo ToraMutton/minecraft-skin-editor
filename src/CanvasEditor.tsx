@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { useRef, useState, useEffect } from 'react';
 import gsap from 'gsap';
+import { HexColorPicker } from 'react-colorful';
 
 // 外部ファイル化したものをインポート
 import type { Tool, BrushSize } from './skinUtils';
@@ -11,7 +12,7 @@ import { useSkinLogic } from './useSkinLogic';
 import {
   Pencil, Eraser, PaintBucket, Pipette,
   Undo2, Redo2, Trash2, FolderOpen, Download,
-  FlipHorizontal, Grid, PenTool, Accessibility, Eye, Focus, User, Layers
+  FlipHorizontal, Grid, PenTool, Eye, Focus, User, Layers, PlusSquare
 } from 'lucide-react';
 
 const PRESET_COLORS = [
@@ -21,7 +22,6 @@ const PRESET_COLORS = [
 ];
 
 interface Props {
-  // テクスチャ更新を親に通知するコールバック
   onTextureUpdate?: () => void;
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
 }
@@ -43,11 +43,11 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     head: true, body: true, rightArm: true, leftArm: true, rightLeg: true, leftLeg: true,
   });
 
-  const [isAutoFocus, setIsAutoFocus] = useState(true); // デフォルトはON
+  const [isAutoFocus, setIsAutoFocus] = useState(true);
   const [showGuide, setShowGuide] = useState(true);
 
-  const [mode, setMode] = useState<'edit' | 'pose'>('edit'); // 編集 or ポーズ
-  const modeRef = useRef(mode); // アニメーションループから参照するための裏メモ
+  const [mode, setMode] = useState<'edit' | 'pose'>('edit');
+  const modeRef = useRef(mode);
 
   useEffect(() => {
     modeRef.current = mode;
@@ -55,7 +55,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
 
   // useRef系
   const containerRef = useRef<HTMLDivElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null) // ファイル入力
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const threeCtx = useRef<{ camera: THREE.PerspectiveCamera; parts: THREE.Mesh[], controls: OrbitControls } | null>(null);
   const prevActiveCount = useRef(6);
@@ -102,98 +102,44 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     const baseGridMaterial = new THREE.MeshBasicMaterial({ map: baseGridTex, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
     const overGridMaterial = new THREE.MeshBasicMaterial({ map: overGridTex, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
 
-    // 頭
-    const headGeo = new THREE.BoxGeometry(8, 8, 8);
-    applyPartUV(headGeo, SKIN_UV.head);
-    headGeo.translate(0, 4, 0);
-    const head = new THREE.Mesh(headGeo, baseMaterial.clone());
-    head.name = 'head';
-    head.position.set(0, 24, 0);
-    scene.add(head);
+    const createPart = (name: string, geo: THREE.BoxGeometry, overGeo: THREE.BoxGeometry, pos: THREE.Vector3) => {
+      const mesh = new THREE.Mesh(geo, baseMaterial.clone());
+      mesh.name = name;
+      mesh.position.copy(pos);
+      scene.add(mesh);
 
-    const headOverGeo = new THREE.BoxGeometry(9, 9, 9);
-    applyPartUV(headOverGeo, SKIN_UV_OVER.head);
-    headOverGeo.translate(0, 4, 0);
-    const headOver = new THREE.Mesh(headOverGeo, overlayMaterial.clone());
-    headOver.name = 'headOver';
-    head.add(headOver);
+      const overMesh = new THREE.Mesh(overGeo, overlayMaterial.clone());
+      overMesh.name = name + 'Over';
+      mesh.add(overMesh);
+      return mesh;
+    };
 
-    // 胴体
-    const bodyGeo = new THREE.BoxGeometry(8, 12, 4);
-    applyPartUV(bodyGeo, SKIN_UV.body);
-    const body = new THREE.Mesh(bodyGeo, baseMaterial.clone());
-    body.name = 'body';
-    body.position.set(0, 18, 0);
-    scene.add(body);
+    const headGeo = new THREE.BoxGeometry(8, 8, 8); applyPartUV(headGeo, SKIN_UV.head); headGeo.translate(0, 4, 0);
+    const headOverGeo = new THREE.BoxGeometry(9, 9, 9); applyPartUV(headOverGeo, SKIN_UV_OVER.head); headOverGeo.translate(0, 4, 0);
+    const head = createPart('head', headGeo, headOverGeo, new THREE.Vector3(0, 24, 0));
 
-    const bodyOverGeo = new THREE.BoxGeometry(8.5, 12.5, 4.5);
-    applyPartUV(bodyOverGeo, SKIN_UV_OVER.body);
-    const bodyOver = new THREE.Mesh(bodyOverGeo, overlayMaterial.clone());
-    bodyOver.name = 'bodyOver';
-    body.add(bodyOver);
+    const bodyGeo = new THREE.BoxGeometry(8, 12, 4); applyPartUV(bodyGeo, SKIN_UV.body);
+    const bodyOverGeo = new THREE.BoxGeometry(8.5, 12.5, 4.5); applyPartUV(bodyOverGeo, SKIN_UV_OVER.body);
+    const body = createPart('body', bodyGeo, bodyOverGeo, new THREE.Vector3(0, 18, 0));
 
-    // 右腕
-    const rArmGeo = new THREE.BoxGeometry(4, 12, 4);
-    applyPartUV(rArmGeo, SKIN_UV.rightArm);
-    rArmGeo.translate(0, -6, 0);
-    const rArm = new THREE.Mesh(rArmGeo, baseMaterial.clone());
-    rArm.name = 'rightArm';
-    rArm.position.set(-6, 24, 0); scene.add(rArm);
+    const armGeo = new THREE.BoxGeometry(4, 12, 4); armGeo.translate(0, -6, 0);
+    const armOverGeo = new THREE.BoxGeometry(4.5, 12.5, 4.5); armOverGeo.translate(0, -6, 0);
 
-    const rArmOverGeo = new THREE.BoxGeometry(4.5, 12.5, 4.5);
-    applyPartUV(rArmOverGeo, SKIN_UV_OVER.rightArm);
-    rArmOverGeo.translate(0, -6, 0);
-    const rArmOver = new THREE.Mesh(rArmOverGeo, overlayMaterial.clone());
-    rArmOver.name = 'rightArmOver';
-    rArm.add(rArmOver);
+    const rArmGeo = armGeo.clone(); applyPartUV(rArmGeo, SKIN_UV.rightArm);
+    const rArmOverGeo = armOverGeo.clone(); applyPartUV(rArmOverGeo, SKIN_UV_OVER.rightArm);
+    const rArm = createPart('rightArm', rArmGeo, rArmOverGeo, new THREE.Vector3(-6, 24, 0));
 
-    // 左腕
-    const lArmGeo = new THREE.BoxGeometry(4, 12, 4);
-    applyPartUV(lArmGeo, SKIN_UV.leftArm);
-    lArmGeo.translate(0, -6, 0);
-    const lArm = new THREE.Mesh(lArmGeo, baseMaterial.clone());
-    lArm.name = 'leftArm';
-    lArm.position.set(6, 24, 0);
-    scene.add(lArm);
+    const lArmGeo = armGeo.clone(); applyPartUV(lArmGeo, SKIN_UV.leftArm);
+    const lArmOverGeo = armOverGeo.clone(); applyPartUV(lArmOverGeo, SKIN_UV_OVER.leftArm);
+    const lArm = createPart('leftArm', lArmGeo, lArmOverGeo, new THREE.Vector3(6, 24, 0));
 
-    const lArmOverGeo = new THREE.BoxGeometry(4.5, 12.5, 4.5);
-    applyPartUV(lArmOverGeo, SKIN_UV_OVER.leftArm);
-    lArmOverGeo.translate(0, -6, 0);
-    const lArmOver = new THREE.Mesh(lArmOverGeo, overlayMaterial.clone());
-    lArmOver.name = 'leftArmOver';
-    lArm.add(lArmOver);
+    const rLegGeo = armGeo.clone(); applyPartUV(rLegGeo, SKIN_UV.rightLeg);
+    const rLegOverGeo = armOverGeo.clone(); applyPartUV(rLegOverGeo, SKIN_UV_OVER.rightLeg);
+    const rLeg = createPart('rightLeg', rLegGeo, rLegOverGeo, new THREE.Vector3(-2, 12, 0));
 
-    // 右足
-    const rLegGeo = new THREE.BoxGeometry(4, 12, 4);
-    applyPartUV(rLegGeo, SKIN_UV.rightLeg);
-    rLegGeo.translate(0, -6, 0);
-    const rLeg = new THREE.Mesh(rLegGeo, baseMaterial.clone());
-    rLeg.name = 'rightLeg';
-    rLeg.position.set(-2, 12, 0);
-    scene.add(rLeg);
-
-    const rLegOverGeo = new THREE.BoxGeometry(4.5, 12.5, 4.5);
-    applyPartUV(rLegOverGeo, SKIN_UV_OVER.rightLeg);
-    rLegOverGeo.translate(0, -6, 0);
-    const rLegOver = new THREE.Mesh(rLegOverGeo, overlayMaterial.clone());
-    rLegOver.name = 'rightLegOver';
-    rLeg.add(rLegOver);
-
-    // 左足
-    const lLegGeo = new THREE.BoxGeometry(4, 12, 4);
-    applyPartUV(lLegGeo, SKIN_UV.leftLeg);
-    lLegGeo.translate(0, -6, 0);
-    const lLeg = new THREE.Mesh(lLegGeo, baseMaterial.clone());
-    lLeg.name = 'leftLeg';
-    lLeg.position.set(2, 12, 0);
-    scene.add(lLeg);
-
-    const lLegOverGeo = new THREE.BoxGeometry(4.5, 12.5, 4.5);
-    applyPartUV(lLegOverGeo, SKIN_UV_OVER.leftLeg);
-    lLegOverGeo.translate(0, -6, 0);
-    const lLegOver = new THREE.Mesh(lLegOverGeo, overlayMaterial.clone());
-    lLegOver.name = 'leftLegOver';
-    lLeg.add(lLegOver);
+    const lLegGeo = armGeo.clone(); applyPartUV(lLegGeo, SKIN_UV.leftLeg);
+    const lLegOverGeo = armOverGeo.clone(); applyPartUV(lLegOverGeo, SKIN_UV_OVER.leftLeg);
+    const lLeg = createPart('leftLeg', lLegGeo, lLegOverGeo, new THREE.Vector3(2, 12, 0));
 
     const parts = [head, body, rArm, lArm, rLeg, lLeg];
     threeCtx.current = { camera, parts, controls };
@@ -220,7 +166,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
       camera.updateProjectionMatrix();
     };
     window.addEventListener('resize', handleResize);
-    handleResize(); // 初回実行で枠いっぱいに広げる
+    handleResize();
 
     let animId: number;
     const animate = () => {
@@ -256,7 +202,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
 
   // --- 3D直接ペイント処理 (Raycaster) ---
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (mode === 'pose') return; // ✨鑑賞モード時は描画を無効化
+    if (mode === 'pose') return;
 
     if (e.button !== 0 || !threeCtx.current) return;
 
@@ -268,7 +214,6 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     const raycaster = new THREE.Raycaster();
     raycaster.setFromCamera(new THREE.Vector2(x, y), camera);
 
-    // 的絞り込み
     const targetMeshes: THREE.Mesh[] = [];
     parts.forEach(part => {
       const partKey = part.name as keyof typeof visibleParts;
@@ -288,7 +233,6 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     const intersects = raycaster.intersectObjects(targetMeshes, false);
 
     if (intersects.length > 0) {
-      // スキンに当たる -> カメラ回転を止めて、描画モードに入る
       controls.enabled = false;
 
       const hit = intersects[0];
@@ -310,7 +254,6 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
       }
       notifyUpdate();
     } else {
-      // 空振りした（背景をクリック） -> カメラ回転を許可
       controls.enabled = true;
     }
   };
@@ -326,26 +269,16 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     parts.forEach(part => {
       const partKey = part.name as keyof typeof visibleParts;
       const isActive = visibleParts[partKey];
-      const isOverActive = visibleOverlay[partKey]; // 個別の上着状態を取得
+      const isOverActive = visibleOverlay[partKey];
 
-      // 親(素肌)の表示
       part.visible = isActive;
-
-      // 素肌の枠線(BaseGrid)を探す
       const baseGrid = part.children.find(c => c.name === part.name + 'BaseGrid');
-
-      // 子要素（上着）の表示切替
       const overMesh = part.children.find(c => c.name === part.name + 'Over');
+
       if (overMesh) {
         overMesh.visible = isOverActive;
-
-        // 上着の枠線(OverGrid)を探す
         const overGrid = overMesh.children.find(c => c.name === part.name + 'OverGrid');
-
-        // 大元のガイド(showGuide)がONのときだけ
-        // 上着ONなら上着のガイドを表示
         if (overGrid) overGrid.visible = showGuide && isOverActive;
-        // 上着OFFなら素肌のガイドを表示
         if (baseGrid) baseGrid.visible = showGuide && !isOverActive;
       }
 
@@ -357,14 +290,11 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
 
     if (!isAutoFocus) return;
 
-    // 過去のパーツ数と比較し、パーツを追加したのかを判定
     const isAddingPart = activeCount > prevActiveCount.current;
-    prevActiveCount.current = activeCount; // 記憶を更新
+    prevActiveCount.current = activeCount;
 
-    // 今のカメラの角度を取得
     const currentDir = new THREE.Vector3().subVectors(camera.position, controls.target).normalize();
 
-    // 全部ON、または全部OFFの場合は全体ビューに戻す
     if (activeCount === 6 || activeCount === 0) {
       const targetCenter = new THREE.Vector3(0, 16, 0);
       const targetCamPos = new THREE.Vector3().copy(targetCenter).add(currentDir.multiplyScalar(60));
@@ -374,12 +304,8 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
       return;
     }
 
-    // 全表示以外でパーツを表示(ON)にして増やしただけの時は、カメラを一切動かさず処理を終わる
-    if (isAddingPart) {
-      return;
-    }
+    if (isAddingPart) return;
 
-    // --- パーツを減らした(OFF)時だけ実行される、絞り込みズーム処理 ---
     const box = new THREE.Box3();
     activeMeshes.forEach(mesh => box.expandByObject(mesh));
 
@@ -389,15 +315,11 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     box.getSize(size);
 
     const maxDim = Math.max(size.x, size.y, size.z);
-
-    // 距離を計算しつつ最大60を超えないように制限
     let distance = maxDim * 1.8 + 15;
     distance = Math.min(distance, 60);
 
-    // 今の角度のまま新しい中心点から計算した距離をとる
     const targetCamPos = new THREE.Vector3().copy(center).add(currentDir.multiplyScalar(distance));
 
-    // カメラ本体と注視点を同時にアニメーション
     gsap.to(camera.position, { x: targetCamPos.x, y: targetCamPos.y, z: targetCamPos.z, duration: 0.6, ease: "power2.out" });
     gsap.to(controls.target, { x: center.x, y: center.y, z: center.z, duration: 0.6, ease: "power2.out", onUpdate: () => { controls.update() } });
 
@@ -442,25 +364,13 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
 
   const handlePointerUp = () => {
     setIsDrawing(false);
-    // マウスから指を離したらカメラ操作を再有効化
     if (threeCtx.current) {
       threeCtx.current.controls.enabled = true;
     }
   };
 
-
-  // --- ツール定義 ---
-
-  const toolConfig: Record<Tool, { label: string; cursor: string }> = {
-    pen: { label: 'ペン ✏️', cursor: 'crosshair' },
-    eraser: { label: '消しゴム 🧹', cursor: 'cell' },
-    bucket: { label: 'バケツ 🪣', cursor: 'cell' },
-    picker: { label: 'スポイト 💧', cursor: 'copy' },
-  };
-
-  const colorDisabled = tool === 'eraser';
-
   // --- スタイル ---
+  const colorDisabled = tool === 'eraser';
 
   const btnBase: React.CSSProperties = {
     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
@@ -478,9 +388,9 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     padding: '8px', flex: 1
   });
 
-  const toggleBtn = (active: boolean): React.CSSProperties => ({
+  const toggleBtn = (active: boolean, activeColor: string = '#eff6ff'): React.CSSProperties => ({
     ...btnBase,
-    backgroundColor: active ? '#eff6ff' : '#ffffff',
+    backgroundColor: active ? activeColor : '#ffffff',
     border: active ? '1px solid #3b82f6' : '1px solid #cbd5e1',
     color: active ? '#1d4ed8' : '#334155',
   });
@@ -492,16 +402,18 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     color: brushSize === s ? '#1d4ed8' : '#334155',
   });
 
-
+  const sectionTitle = {
+    fontSize: '10px',
+    fontWeight: '700' as const,
+    letterSpacing: '0.08em',
+    color: '#94a3b8',
+    textTransform: 'uppercase' as const,
+    marginBottom: '8px'
+  };
 
   // --- 右サイドバー：パーツUI描画関数 ---
-  const togglePart = (part: keyof typeof visibleParts) => {
-    setVisibleParts(p => ({ ...p, [part]: !p[part] }));
-  };
-
-  const toggleOverlay = (part: keyof typeof visibleOverlay) => {
-    setVisibleOverlay(p => ({ ...p, [part]: !p[part] }));
-  };
+  const togglePart = (part: keyof typeof visibleParts) => setVisibleParts(p => ({ ...p, [part]: !p[part] }));
+  const toggleOverlay = (part: keyof typeof visibleOverlay) => setVisibleOverlay(p => ({ ...p, [part]: !p[part] }));
 
   const renderPart = (part: keyof typeof visibleParts, label: string, w: number, h: number) => {
     const isBase = visibleParts[part];
@@ -509,7 +421,6 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
 
     return (
       <div style={{ position: 'relative', width: w, height: h }}>
-        {/* メイン部分（素肌切り替え） */}
         <button
           onClick={() => togglePart(part)}
           title={`${label}の素肌を切替`}
@@ -529,7 +440,6 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
           {label}
         </button>
 
-        {/* 右上のバッジ部分（上着切り替え） */}
         <button
           onClick={() => toggleOverlay(part)}
           title={`${label}の上着を切替`}
@@ -554,11 +464,10 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
   };
 
 
-  // return部分
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%' }}>
 
-      {/* --- ヘッダー (右上に読込・保存を配置) --- */}
+      {/* --- ヘッダー --- */}
       <header style={{
         backgroundColor: '#1e293b', color: '#ffffff', padding: '12px 24px',
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
@@ -567,7 +476,16 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
         <h1 style={{ margin: 0, fontSize: '20px', fontWeight: 'bold', letterSpacing: '1px' }}>
           Vextra - Minecraft Skin Editor
         </h1>
-        <div style={{ display: 'flex', gap: '12px' }}>
+        <div style={{ display: 'flex', gap: '12px', borderLeft: '1px solid #334155', paddingLeft: '12px' }}>
+          {/* ファイル操作をグループ化 */}
+          <button onClick={() => { if (window.confirm('キャンバスをリセットして新規作成しますか？')) newCanvas(); }}
+            style={{ ...btnBase, backgroundColor: '#334155', color: '#f8fafc', border: '1px solid #475569' }}
+            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#475569'}
+            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#334155'}
+          >
+            <PlusSquare size={16} /> 新規
+          </button>
+
           <button onClick={() => fileInputRef.current?.click()}
             style={{ ...btnBase, backgroundColor: '#334155', color: '#f8fafc', border: '1px solid #475569' }}
             onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#475569'}
@@ -595,42 +513,62 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
 
         {/* --- 左サイドバー --- */}
         <aside style={{
+          minWidth: '220px', maxWidth: '280px', // 幅を固定
           backgroundColor: '#ffffff', borderRight: '1px solid #e2e8f0', padding: '24px',
           display: 'flex', flexDirection: 'column', gap: '28px', overflowY: 'auto'
         }}>
 
           {/* セクション1: カラーパレット */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div style={sectionTitle}>カラー</div>
 
-            {/* フルカラーピッカーボタン */}
-            <div style={{ position: 'relative', width: '100%', height: '40px', borderRadius: '8px', overflow: 'hidden', border: '1px solid #cbd5e1', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', background: 'linear-gradient(to right, #ff0000, #ff8000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000)', cursor: colorDisabled ? 'not-allowed' : 'pointer' }}
-              onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.05)'; }}
-            >
-              <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.4)', color: '#0f172a', fontSize: '13px', fontWeight: 'bold', textShadow: '0 1px 2px rgba(255,255,255,0.8)', pointerEvents: 'none' }}>
-                フルカラーから選ぶ
-              </div>
-              <input type="color" value={color} onChange={(e) => { setColor(e.target.value); addRecentColor(e.target.value); }} disabled={colorDisabled} style={{ width: '100%', height: '100%', opacity: 0, cursor: 'inherit' }} />
+            <div onPointerUp={() => addRecentColor(color)} style={{ opacity: colorDisabled ? 0.5 : 1, pointerEvents: colorDisabled ? 'none' : 'auto' }}>
+              <HexColorPicker color={color} onChange={setColor} style={{ width: '100%' }} />
             </div>
 
-            {/* 現在の色表示 */}
             <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-              <div style={{ width: '24px', height: '24px', borderRadius: '4px', backgroundColor: color, border: '1px solid #cbd5e1', boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.1)' }} />
-              <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 'bold' }}>現在の色: <span style={{ fontFamily: 'monospace' }}>{color.toUpperCase()}</span></div>
+              <div style={{ width: '24px', height: '24px', borderRadius: '4px', backgroundColor: color, border: '1px solid #cbd5e1', boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.1)', flexShrink: 0 }} />
+              <input
+                type="text"
+                value={color}
+                onChange={e => {
+                  if (/^#[0-9a-f]{0,6}$/i.test(e.target.value)) setColor(e.target.value);
+                }}
+                onBlur={() => {
+                  if (/^#[0-9a-f]{6}$/i.test(color)) addRecentColor(color);
+                }}
+                disabled={colorDisabled}
+                style={{
+                  width: '100%', padding: '6px 10px',
+                  fontFamily: 'monospace', fontSize: '13px',
+                  border: '1px solid #cbd5e1', borderRadius: '6px',
+                  backgroundColor: '#f8fafc',
+                  outline: 'none'
+                }}
+              />
             </div>
 
-            {/* 最近使った色パレット */}
-            {recentColors.length > 0 && (
-              <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', padding: '8px', backgroundColor: '#f1f5f9', borderRadius: '8px' }}>
-                {recentColors.map((c, i) => (
+            {/* 最近使った色パレット - 常に表示 */}
+            <div style={{
+              minHeight: '44px',
+              display: 'flex', gap: '4px', flexWrap: 'wrap',
+              alignItems: 'center',
+              padding: '8px',
+              backgroundColor: '#f1f5f9',
+              borderRadius: '8px'
+            }}>
+              {recentColors.length === 0 ? (
+                <span style={{ fontSize: '11px', color: '#94a3b8' }}>最近使った色がここに出ます</span>
+              ) : (
+                recentColors.map((c, i) => (
                   <button key={`${c}-${i}`} onClick={() => { setColor(c); setTool('pen'); }} title={c}
                     style={{ width: '20px', height: '20px', backgroundColor: c, border: c === color ? '2px solid #0f172a' : '1px solid #cbd5e1', borderRadius: '4px', cursor: 'pointer', padding: 0, transition: 'transform 0.1s' }}
                     onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.2)'}
                     onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
                   />
-                ))}
-              </div>
-            )}
+                ))
+              )}
+            </div>
 
             {/* 大型パレット */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '6px', padding: '12px', backgroundColor: '#f1f5f9', borderRadius: '8px' }}>
@@ -646,10 +584,11 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
 
           {/* セクション2: ツール */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div style={sectionTitle}>ツール</div>
             <div style={{ display: 'flex', gap: '8px' }}>
               {(['pen', 'eraser', 'bucket', 'picker'] as Tool[]).map((t) => {
                 const icons = { pen: <Pencil size={18} />, eraser: <Eraser size={18} />, bucket: <PaintBucket size={18} />, picker: <Pipette size={18} /> };
-                const titles = { pen: 'ペン', eraser: '消しゴム', bucket: 'バケツ', picker: 'スポイト' };
+                const titles = { pen: 'ペン (P)', eraser: '消しゴム (E)', bucket: 'バケツ塗り (B)', picker: 'スポイト (I)' };
                 return (
                   <button key={t} onClick={() => setTool(t)} style={toolBtn(t)} title={titles[t]}
                     onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.1)'; }}
@@ -663,15 +602,25 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
             <div style={{ display: 'flex', gap: '8px', alignItems: 'center', backgroundColor: '#f1f5f9', padding: '8px', borderRadius: '8px' }}>
               <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 'bold', marginLeft: '4px' }}>太さ</span>
               <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end', gap: '6px' }}>
-                {([1, 2, 3] as BrushSize[]).map(s => (
-                  <button key={s} onClick={() => setBrushSize(s)} style={sizeBtn(s)}>{s}</button>
-                ))}
+                {([1, 2, 3] as BrushSize[]).map(s => {
+                  const sizeVisuals = {
+                    1: <div style={{ width: '4px', height: '4px', borderRadius: '50%', backgroundColor: 'currentColor' }} />,
+                    2: <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: 'currentColor' }} />,
+                    3: <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: 'currentColor' }} />,
+                  };
+                  return (
+                    <button key={s} onClick={() => setBrushSize(s)} style={sizeBtn(s)} title={`サイズ ${s}`}>
+                      {sizeVisuals[s]}
+                    </button>
+                  )
+                })}
               </div>
             </div>
           </div>
 
           {/* セクション3: 操作 & 設定 */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', borderTop: '1px solid #e2e8f0', paddingTop: '24px' }}>
+            <div style={sectionTitle}>設定</div>
             <div style={{ display: 'flex', gap: '8px' }}>
               <button onClick={handleUndo} disabled={!canUndo} style={{ ...btnBase, opacity: canUndo ? 1 : 0.4, flex: 1 }}><Undo2 size={16} /> Undo</button>
               <button onClick={handleRedo} disabled={!canRedo} style={{ ...btnBase, opacity: canRedo ? 1 : 0.4, flex: 1 }}><Redo2 size={16} /> Redo</button>
@@ -692,7 +641,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
               {mode === 'edit' ? <><PenTool size={16} /> 編集モード</> : <><Eye size={16} /> 鑑賞モード</>}
             </button>
 
-            <button onClick={clearCanvas}
+            <button onClick={() => { if (window.confirm('本当にキャンバスを全消ししますか？')) clearCanvas(); }}
               style={{ ...btnBase, color: '#ef4444', borderColor: '#fca5a5', backgroundColor: '#fef2f2', marginTop: '12px' }}
               onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#fee2e2'}
               onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#fef2f2'}
@@ -702,8 +651,6 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
           </div>
         </aside>
 
-
-
         {/* 中央エリア */}
         <main style={{
           position: 'relative',
@@ -712,7 +659,6 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
           overflow: 'hidden',
           backgroundColor: '#1e1e1e'
         }}>
-          {/* AFボタンはキャンバスの上部に浮かせる */}
           <button
             onClick={() => setIsAutoFocus(!isAutoFocus)}
             style={{
@@ -725,7 +671,6 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
             {isAutoFocus ? 'オートフォーカス: ON' : 'オートフォーカス: OFF'}
           </button>
 
-          {/* 3Dキャンバス本体 */}
           <div
             ref={containerRef}
             onPointerDown={handlePointerDown}
@@ -739,10 +684,8 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
             }}
           />
 
-          {/* --- 見えない裏方キャンバス --- */}
           <canvas ref={canvasRef} width={64} height={64} style={{ display: 'none' }} />
         </main>
-
 
         {/* --- 右サイドバー --- */}
         <aside style={{
@@ -755,28 +698,23 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
             <span style={{ fontSize: '15px', fontWeight: 'bold' }}>パーツと上着の表示</span>
           </div>
 
-          {/* アバターUI (マイクラ比率 x 6) */}
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
-            {/* 頭 (8x8 -> 48x48) */}
             <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '4px' }}>
               {renderPart('head', '頭', 48, 48)}
             </div>
 
-            {/* 腕と胴体 (腕 4x12 -> 24x72, 胴 8x12 -> 48x72) */}
             <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
               {renderPart('rightArm', '右', 24, 72)}
               {renderPart('body', '胴', 48, 72)}
               {renderPart('leftArm', '左', 24, 72)}
             </div>
 
-            {/* 足 (4x12 -> 24x72) */}
             <div style={{ display: 'flex', gap: '4px', justifyContent: 'center', marginTop: '4px' }}>
               {renderPart('rightLeg', '右', 24, 72)}
               {renderPart('leftLeg', '左', 24, 72)}
             </div>
           </div>
 
-          {/* 一括操作 */}
           <div style={{ marginTop: '40px', width: '100%', borderTop: '1px solid #e2e8f0', paddingTop: '24px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <button
               onClick={() => {
