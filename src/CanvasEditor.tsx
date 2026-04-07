@@ -472,6 +472,17 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     fontWeight: brushSize === s ? 'bold' : 'normal',
   });
 
+  const avatarBtn = (isActive: boolean, w: string, h: string): React.CSSProperties => ({
+    width: w, height: h,
+    backgroundColor: isActive ? '#4caf50' : '#f0f0f0', // ONなら緑、OFFならグレー
+    border: isActive ? '2px solid #2e7d32' : '2px dashed #ccc',
+    borderRadius: '4px', cursor: 'pointer',
+    color: isActive ? '#fff' : '#888',
+    fontSize: '10px', fontWeight: 'bold', padding: 0,
+    display: 'flex', justifyContent: 'center', alignItems: 'center',
+    transition: 'all 0.1s ease'
+  });
+
 
   // return部分
   return (
@@ -620,54 +631,66 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
 
 
       {/* 右サイドバー（パーツ表示切替メニュー） */}
-      <aside style={{
-        backgroundColor: '#ffffff',
-        borderLeft: '1px solid #e5e5e5',
-        padding: '20px',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '4px',
-        overflowY: 'auto'
-      }}>
-        <span style={{ fontSize: '14px', fontWeight: 'bold', color: '#333', marginBottom: '8px', textAlign: 'center' }}>👁️ 表示切替</span>
+      <aside style={{ borderLeft: '1px solid #ccc', padding: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center', backgroundColor: '#fff' }}>
 
-        {(Object.keys(visibleParts) as (keyof typeof visibleParts)[]).map(key => {
-          const labels: Record<string, string> = { head: '頭', body: '胴', rightArm: '右腕', leftArm: '左腕', rightLeg: '右足', leftLeg: '左足' };
-          const isBaseActive = visibleParts[key];
-          const isOverActive = visibleOverlay[key as keyof typeof visibleOverlay];
+        <span style={{ fontSize: '14px', fontWeight: 'bold', color: '#333', marginBottom: '24px' }}>👁️ 素肌の表示切替</span>
 
-          return (
-            <div key={key} style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'center', padding: '4px 0' }}>
-              <span style={{ fontSize: '12px', color: '#333', width: '28px', textAlign: 'center' }}>{labels[key]}</span>
+        {/* 人型アバターUI */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+          {/* 頭 */}
+          <button
+            onClick={() => setVisibleParts(p => ({ ...p, head: !p.head }))}
+            style={avatarBtn(visibleParts.head, '40px', '40px')}
+          >頭</button>
 
-              {/* 素肌トグル */}
-              <button
-                onPointerDown={(e) => e.stopPropagation()}
-                onClick={() => setVisibleParts(prev => ({ ...prev, [key]: !prev[key] }))}
-                style={{
-                  ...btn,
-                  backgroundColor: isBaseActive ? '#4caf50' : '#f0f0f0',
-                  color: isBaseActive ? '#fff' : '#333', fontSize: '11px', border: '1px solid #ccc', padding: '4px 8px', width: '48px'
-                }}
-              >
-                肌 {isBaseActive ? 'ON' : 'OFF'}
-              </button>
+          {/* 腕と胴体 */}
+          <div style={{ display: 'flex', gap: '4px' }}>
+            <button
+              onClick={() => setVisibleParts(p => ({ ...p, rightArm: !p.rightArm }))}
+              style={avatarBtn(visibleParts.rightArm, '20px', '60px')}
+            >右</button>
 
-              {/* 上着トグル */}
-              <button
-                onPointerDown={(e) => e.stopPropagation()}
-                onClick={() => setVisibleOverlay(prev => ({ ...prev, [key]: !prev[key as keyof typeof visibleOverlay] }))}
-                style={{
-                  ...btn,
-                  backgroundColor: isOverActive ? '#2196f3' : '#f0f0f0',
-                  color: isOverActive ? '#fff' : '#333', fontSize: '11px', border: '1px solid #ccc', padding: '4px 8px', width: '48px'
-                }}
-              >
-                着 {isOverActive ? 'ON' : 'OFF'}
-              </button>
-            </div>
-          );
-        })}
+            <button
+              onClick={() => setVisibleParts(p => ({ ...p, body: !p.body }))}
+              style={avatarBtn(visibleParts.body, '40px', '60px')}
+            >胴</button>
+
+            <button
+              onClick={() => setVisibleParts(p => ({ ...p, leftArm: !p.leftArm }))}
+              style={avatarBtn(visibleParts.leftArm, '20px', '60px')}
+            >左</button>
+          </div>
+
+          {/* 足 */}
+          <div style={{ display: 'flex', gap: '4px' }}>
+            <button
+              onClick={() => setVisibleParts(p => ({ ...p, rightLeg: !p.rightLeg }))}
+              style={avatarBtn(visibleParts.rightLeg, '20px', '60px')}
+            >右</button>
+
+            <button
+              onClick={() => setVisibleParts(p => ({ ...p, leftLeg: !p.leftLeg }))}
+              style={avatarBtn(visibleParts.leftLeg, '20px', '60px')}
+            >左</button>
+          </div>
+        </div>
+
+        {/* 上着レイヤーの一括切替 */}
+        <div style={{ marginTop: '32px', width: '100%', borderTop: '1px solid #eee', paddingTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#888', textAlign: 'center' }}>👕 上着 (Overlay)</span>
+          <button
+            onClick={() => {
+              // 上着の全表示/非表示を一括で切り替える
+              const nextState = !showOverlay;
+              setShowOverlay(nextState);
+              setVisibleOverlay({ head: nextState, body: nextState, rightArm: nextState, leftArm: nextState, rightLeg: nextState, leftLeg: nextState });
+            }}
+            style={{ ...btn, width: '100%', backgroundColor: showOverlay ? '#2196f3' : '#f0f0f0', color: showOverlay ? '#fff' : '#333', padding: '10px', fontWeight: 'bold' }}
+          >
+            {showOverlay ? '上着: すべて表示' : '上着: すべて非表示'}
+          </button>
+        </div>
+
       </aside>
 
     </div>
