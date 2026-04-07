@@ -463,6 +463,45 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     );
   };
 
+  // --- キーボードショートカット ---
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // input要素などに入力中の場合は無視
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
+      // ツール切り替え
+      switch (e.key.toLowerCase()) {
+        case 'w': setTool('pen'); break;
+        case 'e': setTool('eraser'); break;
+        case 'f': setTool('bucket'); break;
+        case 's': setTool('picker'); break;
+        // ブラシサイズ変更 (1, 2, 3)
+        case '1': setBrushSize(1); break;
+        case '2': setBrushSize(2); break;
+        case '3': setBrushSize(3); break;
+      }
+
+      // Undo / Redo (Ctrl+Z or Cmd+Z)
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) {
+          if (canRedo) handleRedo(); // Cmd+Shift+Z
+        } else {
+          if (canUndo) handleUndo(); // Cmd+Z
+        }
+      }
+
+      // Redo (Ctrl+Y or Cmd+Y)
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+        e.preventDefault();
+        if (canRedo) handleRedo();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [setTool, setBrushSize, canUndo, canRedo, handleUndo, handleRedo]);
+
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%' }}>
@@ -588,7 +627,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
             <div style={{ display: 'flex', gap: '8px' }}>
               {(['pen', 'eraser', 'bucket', 'picker'] as Tool[]).map((t) => {
                 const icons = { pen: <Pencil size={18} />, eraser: <Eraser size={18} />, bucket: <PaintBucket size={18} />, picker: <Pipette size={18} /> };
-                const titles = { pen: 'ペン (P)', eraser: '消しゴム (E)', bucket: 'バケツ塗り (B)', picker: 'スポイト (I)' };
+                const titles = { pen: 'ペン (W)', eraser: '消しゴム (E)', bucket: 'バケツ (F)', picker: 'スポイト (S)' };
                 return (
                   <button key={t} onClick={() => setTool(t)} style={toolBtn(t)} title={titles[t]}
                     onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.1)'; }}
