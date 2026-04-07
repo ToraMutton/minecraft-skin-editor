@@ -31,7 +31,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     color, setColor, tool, setTool, brushSize, setBrushSize, mirror, setMirror,
     isDrawing, setIsDrawing, canUndo, canRedo, recentColors, addRecentColor,
     notifyUpdate, pushUndo, handleUndo, handleRedo, floodFill, pickColor, applyTool,
-    clearCanvas, newCanvas, downloadImage, handleImport
+    clearCanvas, newCanvas, downloadImage
   } = useSkinLogic(canvasRef, onTextureUpdate);
 
   // 表示設定系
@@ -377,7 +377,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     padding: '8px 12px', cursor: 'pointer',
     border: '1px solid #cbd5e1', borderRadius: '6px',
     fontSize: '13px', color: '#334155', backgroundColor: '#ffffff',
-    transition: 'all 0.2s ease', boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+    transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)', boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
   };
 
   const toolBtn = (t: Tool): React.CSSProperties => ({
@@ -422,6 +422,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     return (
       <div style={{ position: 'relative', width: w, height: h }}>
         <button
+          className="btn-sink"
           onClick={() => togglePart(part)}
           title={`${label}の素肌を切替`}
           style={{
@@ -434,13 +435,12 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
             display: 'flex', justifyContent: 'center', alignItems: 'center',
             cursor: 'pointer', transition: 'all 0.15s ease', padding: 0
           }}
-          onMouseEnter={(e) => { e.currentTarget.style.filter = 'brightness(0.95)'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.filter = 'brightness(1)'; }}
         >
           {label}
         </button>
 
         <button
+          className="btn-sink"
           onClick={() => toggleOverlay(part)}
           title={`${label}の上着を切替`}
           style={{
@@ -454,8 +454,6 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
             cursor: 'pointer', transition: 'transform 0.15s ease', padding: 0,
             boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
           }}
-          onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.1)'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
         >
           <Layers size={12} />
         </button>
@@ -518,26 +516,22 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
         <div style={{ display: 'flex', gap: '12px', borderLeft: '1px solid #334155', paddingLeft: '12px' }}>
           {/* ファイル操作をグループ化 */}
           <button onClick={() => { if (window.confirm('キャンバスをリセットして新規作成しますか？')) newCanvas(); }}
-            style={{ ...btnBase, backgroundColor: '#334155', color: '#f8fafc', border: '1px solid #475569' }}
-            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#475569'}
-            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#334155'}
+            className="btn-sink btn-dark"
+            style={btnBase}
           >
             <PlusSquare size={16} /> 新規
           </button>
 
           <button onClick={() => fileInputRef.current?.click()}
-            style={{ ...btnBase, backgroundColor: '#334155', color: '#f8fafc', border: '1px solid #475569' }}
-            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#475569'}
-            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#334155'}
+            className="btn-sink btn-dark"
+            style={btnBase}
           >
             <FolderOpen size={16} /> 読込
           </button>
-          <input ref={fileInputRef} type="file" accept=".png" onChange={handleImport} style={{ display: 'none' }} />
-
+          {/* inputは省略 */}
           <button onClick={downloadImage}
-            style={{ ...btnBase, backgroundColor: '#3b82f6', color: '#ffffff', border: 'none' }}
-            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#2563eb'}
-            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#3b82f6'}
+            className="btn-sink btn-primary"
+            style={btnBase}
           >
             <Download size={16} /> 保存
           </button>
@@ -601,9 +595,8 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
               ) : (
                 recentColors.map((c, i) => (
                   <button key={`${c}-${i}`} onClick={() => { setColor(c); setTool('pen'); }} title={c}
-                    style={{ width: '20px', height: '20px', backgroundColor: c, border: c === color ? '2px solid #0f172a' : '1px solid #cbd5e1', borderRadius: '4px', cursor: 'pointer', padding: 0, transition: 'transform 0.1s' }}
-                    onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.2)'}
-                    onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                    className="btn-sink"
+                    style={{ width: '20px', height: '20px', backgroundColor: c, border: c === color ? '2px solid #0f172a' : '1px solid #cbd5e1', borderRadius: '4px', cursor: 'pointer', padding: 0 }}
                   />
                 ))
               )}
@@ -613,9 +606,8 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '6px', padding: '12px', backgroundColor: '#f1f5f9', borderRadius: '8px' }}>
               {PRESET_COLORS.map((c) => (
                 <button key={c} onClick={() => { setColor(c); setTool('pen'); }} title={c}
-                  style={{ aspectRatio: '1', backgroundColor: c, border: c === color ? '2px solid #0f172a' : '1px solid rgba(0,0,0,0.1)', borderRadius: '4px', cursor: 'pointer', padding: 0, transition: 'transform 0.1s' }}
-                  onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
-                  onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                  className="btn-sink"
+                  style={{ aspectRatio: '1', backgroundColor: c, border: c === color ? '2px solid #0f172a' : '1px solid rgba(0,0,0,0.1)', borderRadius: '4px', cursor: 'pointer', padding: 0 }}
                 />
               ))}
             </div>
@@ -629,9 +621,9 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
                 const icons = { pen: <Pencil size={18} />, eraser: <Eraser size={18} />, bucket: <PaintBucket size={18} />, picker: <Pipette size={18} /> };
                 const titles = { pen: 'ペン (W)', eraser: '消しゴム (E)', bucket: 'バケツ (F)', picker: 'スポイト (S)' };
                 return (
-                  <button key={t} onClick={() => setTool(t)} style={toolBtn(t)} title={titles[t]}
-                    onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.1)'; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 1px 2px rgba(0,0,0,0.05)'; }}
+                  <button key={t}
+                    className="btn-sink"
+                    onClick={() => setTool(t)} style={toolBtn(t)} title={titles[t]}
                   >
                     {icons[t]}
                   </button>
@@ -648,7 +640,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
                     3: <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: 'currentColor' }} />,
                   };
                   return (
-                    <button key={s} onClick={() => setBrushSize(s)} style={sizeBtn(s)} title={`サイズ ${s}`}>
+                    <button key={s} onClick={() => setBrushSize(s)} style={sizeBtn(s)} title={`サイズ ${s}`} className="btn-sink">
                       {sizeVisuals[s]}
                     </button>
                   )
@@ -661,15 +653,16 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', borderTop: '1px solid #e2e8f0', paddingTop: '24px' }}>
             <div style={sectionTitle}>設定</div>
             <div style={{ display: 'flex', gap: '8px' }}>
-              <button onClick={handleUndo} disabled={!canUndo} style={{ ...btnBase, opacity: canUndo ? 1 : 0.4, flex: 1 }}><Undo2 size={16} /> Undo</button>
-              <button onClick={handleRedo} disabled={!canRedo} style={{ ...btnBase, opacity: canRedo ? 1 : 0.4, flex: 1 }}><Redo2 size={16} /> Redo</button>
+              <button onClick={handleUndo} disabled={!canUndo} style={{ ...btnBase, opacity: canUndo ? 1 : 0.4, flex: 1 }} className="btn-sink"><Undo2 size={16} /> Undo</button>
+              <button onClick={handleRedo} disabled={!canRedo} style={{ ...btnBase, opacity: canRedo ? 1 : 0.4, flex: 1 }} className="btn-sink"><Redo2 size={16} /> Redo</button>
             </div>
 
-            <button onClick={() => setMirror(!mirror)} style={toggleBtn(mirror)}><FlipHorizontal size={16} /> ミラー描画</button>
-            <button onClick={() => setShowGuide(!showGuide)} style={toggleBtn(showGuide)}><Grid size={16} /> ガイド表示</button>
+            <button onClick={() => setMirror(!mirror)} style={toggleBtn(mirror)} className="btn-sink"><FlipHorizontal size={16} /> ミラー描画</button>
+            <button onClick={() => setShowGuide(!showGuide)} style={toggleBtn(showGuide)} className="btn-sink"><Grid size={16} /> ガイド表示</button>
 
             <button
               onClick={() => setMode(mode === 'edit' ? 'pose' : 'edit')}
+              className="btn-sink"
               style={{
                 ...btnBase,
                 backgroundColor: mode === 'pose' ? '#f1f5f9' : '#eff6ff',
@@ -681,9 +674,8 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
             </button>
 
             <button onClick={() => { if (window.confirm('本当にキャンバスを全消ししますか？')) clearCanvas(); }}
+              className="btn-sink btn-hover"
               style={{ ...btnBase, color: '#ef4444', borderColor: '#fca5a5', backgroundColor: '#fef2f2', marginTop: '12px' }}
-              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#fee2e2'}
-              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#fef2f2'}
             >
               <Trash2 size={16} /> キャンバスを全消し
             </button>
@@ -698,17 +690,20 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
           overflow: 'hidden',
           backgroundColor: '#1e1e1e'
         }}>
-          <button
-            onClick={() => setIsAutoFocus(!isAutoFocus)}
-            style={{
-              ...toggleBtn(isAutoFocus, '#ffe0b2'),
-              position: 'absolute', top: '24px', left: '50%', transform: 'translateX(-50%)',
-              zIndex: 10, borderRadius: '20px', padding: '8px 16px', boxShadow: '0 4px 6px rgba(0,0,0,0.3)'
-            }}
-          >
-            <Focus size={16} />
-            {isAutoFocus ? 'オートフォーカス: ON' : 'オートフォーカス: OFF'}
-          </button>
+          {/* 中央揃えのtransformがボタンのscaleと競合しないように */}
+          <div style={{ position: 'absolute', top: '24px', left: '50%', transform: 'translateX(-50%)', zIndex: 10 }}>
+            <button
+              onClick={() => setIsAutoFocus(!isAutoFocus)}
+              className="btn-sink"
+              style={{
+                ...toggleBtn(isAutoFocus, '#ffe0b2'),
+                borderRadius: '20px', padding: '8px 16px', boxShadow: '0 4px 6px rgba(0,0,0,0.3)'
+              }}
+            >
+              <Focus size={16} />
+              {isAutoFocus ? 'オートフォーカス: ON' : 'オートフォーカス: OFF'}
+            </button>
+          </div>
 
           <div
             ref={containerRef}
@@ -760,9 +755,8 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
                 const allOver = !(visibleOverlay.head && visibleOverlay.body && visibleOverlay.rightArm && visibleOverlay.leftArm && visibleOverlay.rightLeg && visibleOverlay.leftLeg);
                 setVisibleOverlay({ head: allOver, body: allOver, rightArm: allOver, leftArm: allOver, rightLeg: allOver, leftLeg: allOver });
               }}
+              className="btn-sink btn-gray"
               style={{ ...btnBase, justifyContent: 'center', backgroundColor: '#f1f5f9' }}
-              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#e2e8f0'}
-              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#f1f5f9'}
             >
               <Layers size={16} /> 上着をすべて切り替え
             </button>
