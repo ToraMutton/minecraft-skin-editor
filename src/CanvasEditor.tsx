@@ -1,14 +1,12 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { useRef, useState, useEffect, useCallback } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import gsap from 'gsap';
+
+// 外部ファイル化したものをインポート
 import type { Tool, BrushSize } from './skinUtils';
-import {
-  MAX_HISTORY, MAX_RECENT_COLORS, AUTOSAVE_KEY, AUTOSAVE_DELAY,
-  SKIN_UV, SKIN_UV_OVER, applyPartUV, hexToRgba, rgbaToHex, createGridTexture, getMirrorCoord
-} from './skinUtils';
-
-
+import { SKIN_UV, SKIN_UV_OVER, applyPartUV, createGridTexture } from './skinUtils';
+import { useSkinLogic } from './useSkinLogic';
 
 interface Props {
   // テクスチャ更新を親に通知するコールバック
@@ -17,36 +15,20 @@ interface Props {
 }
 
 export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
-  // 描画ツール系
-  const [color, setColor] = useState('#000000') // 現在の色
-  const [tool, setTool] = useState<Tool>('pen') // 現在のツール
-  const [brushSize, setBrushSize] = useState<BrushSize>(1) // ブラシサイズ
+  const {
+    color, setColor, tool, setTool, brushSize, setBrushSize, mirror, setMirror,
+    isDrawing, setIsDrawing, canUndo, canRedo, recentColors, addRecentColor,
+    notifyUpdate, pushUndo, handleUndo, handleRedo, floodFill, pickColor, applyTool,
+    clearCanvas, newCanvas, downloadImage, handleImport
+  } = useSkinLogic(canvasRef, onTextureUpdate);
 
   // 表示設定系
-  const [mirror, setMirror] = useState(false) // ミラー
-
-  // UI状態系
-  const [isDrawing, setIsDrawing] = useState(false) // 描画中かどうか
-  const [canUndo, setCanUndo] = useState(false) // Undo可能か
-  const [canRedo, setCanRedo] = useState(false) // Redo可能か
-  const [recentColors, setRecentColors] = useState<string[]>([]) //最近の色
-
   const [visibleParts, setVisibleParts] = useState({
-    head: true,
-    body: true,
-    rightArm: true,
-    leftArm: true,
-    rightLeg: true,
-    leftLeg: true,
+    head: true, body: true, rightArm: true, leftArm: true, rightLeg: true, leftLeg: true,
   });
 
   const [visibleOverlay, setVisibleOverlay] = useState({
-    head: true,
-    body: true,
-    rightArm: true,
-    leftArm: true,
-    rightLeg: true,
-    leftLeg: true,
+    head: true, body: true, rightArm: true, leftArm: true, rightLeg: true, leftLeg: true,
   });
 
   const [isAutoFocus, setIsAutoFocus] = useState(true); // デフォルトはON
@@ -65,112 +47,48 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null) // ファイル入力
 
   const threeCtx = useRef<{ camera: THREE.PerspectiveCamera; parts: THREE.Mesh[], controls: OrbitControls } | null>(null);
-
   const prevActiveCount = useRef(6);
-
-  // 裏のメモ帳
-  const undoStack = useRef<ImageData[]>([]) // Undo履歴
-  const redoStack = useRef<ImageData[]>([]) // Redo履歴
-  const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null) // 自動保存タイマー
-
-
-  // 3Dプレビューにテクスチャ変更を通知 + 自動保存
-  const notifyUpdate = useCallback(() => {
-    // 親コンポーネントに変更を通知
-    onTextureUpdate?.();
-
-    // 自動保存(デバウンス)
-    if (autosaveTimer.current) {
-      clearTimeout(autosaveTimer.current); // 前回のタイマーをキャンセル
-    }
-
-    // 新しくタイマーをセット(1000ミリ秒後に実行)
-    autosaveTimer.current = setTimeout(() => {
-      const canvas = canvasRef.current;
-      if (canvas) {
-        try {
-          // キャンバスの内容を画像としてブラウザに保存
-          localStorage.setItem(AUTOSAVE_KEY, canvas.toDataURL('image/png'));
-        } catch {
-          /* localStorageが満杯の場合は無視 */
-        }
-      }
-    }, AUTOSAVE_DELAY);
-  }, [onTextureUpdate, canvasRef]);
 
   // --- 3Dキャンバスの初期化と描画ループ ---
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 
-    // レンダラー（描画エンジン）の作成
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setSize(512, 512); // 一旦空き地のサイズ(512x512)に固定
+    renderer.setSize(512, 512);
     renderer.setPixelRatio(window.devicePixelRatio);
-    container.appendChild(renderer.domElement); // 空き地にcanvasをぶち込む
+    container.appendChild(renderer.domElement);
 
-    // シーンとカメラの作成
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(35, 1, 0.1, 100);
     camera.position.set(0, 16, 60);
 
-    // コントローラーの追加
     const controls = new OrbitControls(camera, renderer.domElement);
-    controls.target.set(0, 16, 0); // 回転の中心をスキンの中心に設定
-
-    controls.enablePan = false; // パン(平行移動)を無効化
-
-    // 左クリックを「回転」、中クリックを「ズーム」、右クリックは無効(null)にする
+    controls.target.set(0, 16, 0);
+    controls.enablePan = false;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     controls.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: null as any };
 
-    // 光の追加
-    scene.add(new THREE.AmbientLight(0xffffff, 0.7)); // 全体を照らす薄い光
-    const dir = new THREE.DirectionalLight(0xffffff, 0.8); // 影を作る強い光
+    scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+    const dir = new THREE.DirectionalLight(0xffffff, 0.8);
     dir.position.set(5, 10, 7);
     scene.add(dir);
 
-    // テクスチャとマテリアルの準備
     const texture = new THREE.CanvasTexture(canvasRef.current!);
-    texture.magFilter = THREE.NearestFilter; // ドット絵がぼやけないように
+    texture.magFilter = THREE.NearestFilter;
     texture.minFilter = THREE.NearestFilter;
-    texture.colorSpace = THREE.SRGBColorSpace; // 色を正確に
+    texture.colorSpace = THREE.SRGBColorSpace;
 
-    const baseMaterial = new THREE.MeshLambertMaterial({
-      map: texture,
-      transparent: false,
-      side: THREE.FrontSide,
-    });
+    const baseMaterial = new THREE.MeshLambertMaterial({ map: texture, transparent: false, side: THREE.FrontSide });
+    const overlayMaterial = new THREE.MeshLambertMaterial({ map: texture, transparent: true, alphaTest: 0.1, side: THREE.FrontSide });
 
-    const overlayMaterial = new THREE.MeshLambertMaterial({
-      map: texture,
-      transparent: true,
-      alphaTest: 0.1,
-      side: THREE.FrontSide,
-    });
+    const baseGridTex = createGridTexture('rgba(129, 212, 250, 0.4)');
+    const overGridTex = createGridTexture('rgba(255, 255, 255, 0.5)');
 
-    const baseGridTex = createGridTexture('rgba(129, 212, 250, 0.4)'); // 素肌用の水色
-    const overGridTex = createGridTexture('rgba(255, 255, 255, 0.5)'); // 上着用の白色
+    const baseGridMaterial = new THREE.MeshBasicMaterial({ map: baseGridTex, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
+    const overGridMaterial = new THREE.MeshBasicMaterial({ map: overGridTex, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
 
-    const baseGridMaterial = new THREE.MeshBasicMaterial({
-      map: baseGridTex,
-      transparent: true,
-      depthWrite: false, // ちらつき防止
-      polygonOffset: true,
-      polygonOffsetFactor: -1,
-      polygonOffsetUnits: -1
-    });
-
-    const overGridMaterial = new THREE.MeshBasicMaterial({
-      map: overGridTex,
-      transparent: true,
-      depthWrite: false,
-      polygonOffset: true,
-      polygonOffsetFactor: -1,
-      polygonOffsetUnits: -1
-    });
-
-    // 頭: 8x8x8
+    // 頭
     const headGeo = new THREE.BoxGeometry(8, 8, 8);
     applyPartUV(headGeo, SKIN_UV.head);
     headGeo.translate(0, 4, 0);
@@ -179,7 +97,6 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     head.position.set(0, 24, 0);
     scene.add(head);
 
-    // 頭Over
     const headOverGeo = new THREE.BoxGeometry(9, 9, 9);
     applyPartUV(headOverGeo, SKIN_UV_OVER.head);
     headOverGeo.translate(0, 4, 0);
@@ -187,7 +104,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     headOver.name = 'headOver';
     head.add(headOver);
 
-    // 胴体: 8x12x4
+    // 胴体
     const bodyGeo = new THREE.BoxGeometry(8, 12, 4);
     applyPartUV(bodyGeo, SKIN_UV.body);
     const body = new THREE.Mesh(bodyGeo, baseMaterial.clone());
@@ -195,23 +112,20 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     body.position.set(0, 18, 0);
     scene.add(body);
 
-    // 胴体Over
     const bodyOverGeo = new THREE.BoxGeometry(8.5, 12.5, 4.5);
     applyPartUV(bodyOverGeo, SKIN_UV_OVER.body);
     const bodyOver = new THREE.Mesh(bodyOverGeo, overlayMaterial.clone());
     bodyOver.name = 'bodyOver';
     body.add(bodyOver);
 
-    // 右腕: 4x12x4
+    // 右腕
     const rArmGeo = new THREE.BoxGeometry(4, 12, 4);
     applyPartUV(rArmGeo, SKIN_UV.rightArm);
     rArmGeo.translate(0, -6, 0);
     const rArm = new THREE.Mesh(rArmGeo, baseMaterial.clone());
     rArm.name = 'rightArm';
-    rArm.position.set(-6, 24, 0);
-    scene.add(rArm);
+    rArm.position.set(-6, 24, 0); scene.add(rArm);
 
-    // 右腕Over
     const rArmOverGeo = new THREE.BoxGeometry(4.5, 12.5, 4.5);
     applyPartUV(rArmOverGeo, SKIN_UV_OVER.rightArm);
     rArmOverGeo.translate(0, -6, 0);
@@ -219,7 +133,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     rArmOver.name = 'rightArmOver';
     rArm.add(rArmOver);
 
-    // 左腕: 4x12x4
+    // 左腕
     const lArmGeo = new THREE.BoxGeometry(4, 12, 4);
     applyPartUV(lArmGeo, SKIN_UV.leftArm);
     lArmGeo.translate(0, -6, 0);
@@ -228,7 +142,6 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     lArm.position.set(6, 24, 0);
     scene.add(lArm);
 
-    // 左腕Over
     const lArmOverGeo = new THREE.BoxGeometry(4.5, 12.5, 4.5);
     applyPartUV(lArmOverGeo, SKIN_UV_OVER.leftArm);
     lArmOverGeo.translate(0, -6, 0);
@@ -236,7 +149,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     lArmOver.name = 'leftArmOver';
     lArm.add(lArmOver);
 
-    // 右足: 4x12x4
+    // 右足
     const rLegGeo = new THREE.BoxGeometry(4, 12, 4);
     applyPartUV(rLegGeo, SKIN_UV.rightLeg);
     rLegGeo.translate(0, -6, 0);
@@ -245,7 +158,6 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     rLeg.position.set(-2, 12, 0);
     scene.add(rLeg);
 
-    // 右足Over
     const rLegOverGeo = new THREE.BoxGeometry(4.5, 12.5, 4.5);
     applyPartUV(rLegOverGeo, SKIN_UV_OVER.rightLeg);
     rLegOverGeo.translate(0, -6, 0);
@@ -253,7 +165,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     rLegOver.name = 'rightLegOver';
     rLeg.add(rLegOver);
 
-    // 左足: 4x12x4
+    // 左足
     const lLegGeo = new THREE.BoxGeometry(4, 12, 4);
     applyPartUV(lLegGeo, SKIN_UV.leftLeg);
     lLegGeo.translate(0, -6, 0);
@@ -262,7 +174,6 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     lLeg.position.set(2, 12, 0);
     scene.add(lLeg);
 
-    // 左足Over
     const lLegOverGeo = new THREE.BoxGeometry(4.5, 12.5, 4.5);
     applyPartUV(lLegOverGeo, SKIN_UV_OVER.leftLeg);
     lLegOverGeo.translate(0, -6, 0);
@@ -270,18 +181,14 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     lLegOver.name = 'leftLegOver';
     lLeg.add(lLegOver);
 
-    scene.add(lLeg);
-
     const parts = [head, body, rArm, lArm, rLeg, lLeg];
     threeCtx.current = { camera, parts, controls };
 
     parts.forEach(part => {
-      // 素肌(Base)に網目メッシュを被せる
       const baseGrid = new THREE.Mesh(part.geometry, baseGridMaterial);
       baseGrid.name = part.name + 'BaseGrid';
       part.add(baseGrid);
 
-      // 上着(Over)に網目メッシュを被せる
       const overMesh = part.children.find(c => c.name === part.name + 'Over') as THREE.Mesh;
       if (overMesh) {
         const overGrid = new THREE.Mesh(overMesh.geometry, overGridMaterial);
@@ -290,297 +197,36 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
       }
     });
 
-
-    // アニメーションループ
     let animId: number;
     const animate = () => {
       animId = requestAnimationFrame(animate);
-      controls.update(); // コントローラーの動きを計算
-      texture.needsUpdate = true; // 毎フレーム裏方キャンバスの最新状態を引っ張る
+      controls.update();
+      texture.needsUpdate = true;
 
       if (modeRef.current === 'pose') {
-        const time = Date.now() * 0.005; // 振るスピード
-        rArm.rotation.x = Math.sin(time) * 0.5;
-        lArm.rotation.x = -Math.sin(time) * 0.5;
-        rLeg.rotation.x = -Math.sin(time) * 0.5;
-        lLeg.rotation.x = Math.sin(time) * 0.5;
+        const time = Date.now() * 0.005;
+        rArm.rotation.x = Math.sin(time) * 0.5; lArm.rotation.x = -Math.sin(time) * 0.5;
+        rLeg.rotation.x = -Math.sin(time) * 0.5; lLeg.rotation.x = Math.sin(time) * 0.5;
       } else {
-        // 編集モードなら直立に戻す
-        rArm.rotation.x = 0;
-        lArm.rotation.x = 0;
-        rLeg.rotation.x = 0;
-        lLeg.rotation.x = 0;
+        rArm.rotation.x = 0; lArm.rotation.x = 0; rLeg.rotation.x = 0; lLeg.rotation.x = 0;
       }
-
-      renderer.render(scene, camera); // 撮影して画面に出力
+      renderer.render(scene, camera);
     };
-    animate(); // ループ開始
+    animate();
 
-    // クリーンアップ
     return () => {
       cancelAnimationFrame(animId);
       renderer.dispose();
-
-      // シーン内の全オブジェクトを巡回して、Meshだったらジオメトリとマテリアルを破棄
       scene.traverse((object) => {
         if (object instanceof THREE.Mesh) {
           object.geometry?.dispose();
-          if (object.material instanceof THREE.Material) {
-            object.material.dispose();
-          }
+          if (object.material instanceof THREE.Material) object.material.dispose();
         }
       });
-
-      // 大元のマテリアルとテクスチャ本体も忘れずに
-      baseMaterial.dispose();
-      overlayMaterial.dispose();
-      baseGridMaterial.dispose();
-      overGridMaterial.dispose();
-      baseGridTex.dispose();
-      overGridTex.dispose();
-      texture.dispose();
-
-      if (container.contains(renderer.domElement)) {
-        container.removeChild(renderer.domElement);
-      }
+      baseMaterial.dispose(); overlayMaterial.dispose(); baseGridMaterial.dispose(); overGridMaterial.dispose(); baseGridTex.dispose(); overGridTex.dispose(); texture.dispose();
+      if (container.contains(renderer.domElement)) container.removeChild(renderer.domElement);
     };
   }, [canvasRef]);
-
-
-  // 起動時にlocalStorageからキャンバスを復元
-  useEffect(() => {
-    // localStorageをチェック
-    const saved = localStorage.getItem(AUTOSAVE_KEY);
-    if (!saved) return;
-
-    // キャンバスを準備
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    // 画像を読み込む
-    const img = new Image(); // 空の画像オブジェクトを作成
-    img.onload = () => {
-      ctx.clearRect(0, 0, 64, 64);
-      ctx.drawImage(img, 0, 0, 64, 64);
-      onTextureUpdate?.();
-    };
-    img.src = saved;
-  }, [onTextureUpdate, canvasRef]);
-
-
-  // --- 履歴操作 ---
-
-  // 現在の状態をUndo履歴に保存する関数
-  const pushUndo = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    // 状態を履歴に積む
-    undoStack.current.push(
-      ctx.getImageData(0, 0, canvas.width, canvas.height)
-    );
-
-    // 履歴が30件を超えたら古いものを削除
-    if (undoStack.current.length > MAX_HISTORY) undoStack.current.shift();
-
-    // 新しく描くとredoStackを空に
-    redoStack.current = [];
-    // ボタンの状態を更新
-    setCanUndo(true);
-    setCanRedo(false);
-  }, [canvasRef]);
-
-  // Undo履歴を使って1つ前に戻る
-  const handleUndo = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    // undoStackが空なら何もしない
-    if (undoStack.current.length === 0) return;
-
-    // 現在の状態をredoStackに積む
-    redoStack.current.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
-
-    // undoStackから1つ取り出してcanvasに反映
-    ctx.putImageData(undoStack.current.pop()!, 0, 0);
-
-    // ボタンの状態を更新
-    // まだundoStackに履歴があればtrueのまま、なければfalse
-    setCanUndo(undoStack.current.length > 0);
-    setCanRedo(true);
-    notifyUpdate();
-  }, [canvasRef, notifyUpdate]);
-
-  // Redo履歴を使って1つ先に進む
-  const handleRedo = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    if (redoStack.current.length === 0) return;
-
-    undoStack.current.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
-    ctx.putImageData(redoStack.current.pop()!, 0, 0);
-
-    setCanUndo(true);
-    setCanRedo(redoStack.current.length > 0);
-    notifyUpdate();
-  }, [canvasRef, notifyUpdate]);
-
-
-  // --- 最近使った色 ---
-
-  const addRecentColor = useCallback((c: string) => {
-    setRecentColors(prev => {
-      // prevの中からcと違う色だけ残す
-      const filtered = prev.filter(e => e !== c);
-      // 配列を展開し、1つの配列にまとめる
-      return [c, ...filtered].slice(0, MAX_RECENT_COLORS);
-    });
-  }, []);
-
-
-  // --- バケツ ---
-
-  const floodFill = useCallback((startX: number, startY: number, fillColor: string) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    const { width, height } = canvas;
-    const imageData = ctx.getImageData(0, 0, width, height); // putImageDataで再利用するため
-    const data = imageData.data; // ピクセルの読み書き用
-    const fill = hexToRgba(fillColor);
-
-    // クリックした座標からdata配列のインデックスを計算
-    const idx = (startY * width + startX) * 4;
-    // クリックした座標の色を取得
-    const tR = data[idx], tG = data[idx + 1], tB = data[idx + 2], tA = data[idx + 3];
-    // クリックした色と塗りたい色が同じなら何もしない
-    if (tR === fill.r && tG === fill.g && tB === fill.b && tA === fill.a) return;
-
-    // ---
-
-    // キューにクリックした座標をいれて開始
-    const queue: [number, number][] = [[startX, startY]];
-
-    // 64 × 64 = 4096個の0が並んだ配列
-    // 0 → まだ訪れていない
-    // 1 → 既に訪れた
-    const visited = new Uint8Array(width * height);
-
-    // キューが空になるまで繰り返す
-    while (queue.length > 0) {
-      // 先端の座標を取り出す
-      const [cx, cy] = queue.pop()!;
-
-      // キャンバス範囲外チェック
-      if (cx < 0 || cx >= 64 || cy < 0 || cy >= 64) continue;
-      // 訪問済みチェック
-      const pos = cy * width + cx; // visited配列用に2次元座標を1次元インデックスに変換
-      if (visited[pos]) continue; // 0 → Falsy, 1 → Truthy
-      visited[pos] = 1; // 訪れた印をつける(1を代入)
-
-      // 色チェック
-      const i = pos * 4;
-      // クリックした色と違う色なら次のループへ
-      if (data[i] !== tR || data[i + 1] !== tG || data[i + 2] !== tB || data[i + 3] !== tA) continue;
-
-      // 塗る
-      data[i] = fill.r
-      data[i + 1] = fill.g
-      data[i + 2] = fill.b
-      data[i + 3] = fill.a
-
-      // 右、左、下、上をキューに追加して次のループで処理
-      queue.push([cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1]);
-    }
-    ctx.putImageData(imageData, 0, 0);
-  }, [canvasRef]);
-
-  // --- スポイト ---
-
-  const pickColor = (x: number, y: number) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    // 1ピクセルだけ取得
-    const pixel = ctx.getImageData(x, y, 1, 1).data;
-    // 透明なら無視
-    if (pixel[3] === 0) return;
-    const hex = rgbaToHex(pixel[0], pixel[1], pixel[2]);
-
-    // 状態を更新
-    setColor(hex); // 現在の色を変更
-    addRecentColor(hex); // 最近使った色に追加
-    setTool('pen'); // penに自動切り替え
-  };
-
-  // --- 描画(ブラシサイズ＆ミラー対応) ---
-
-  // 1点を中心にブラスサイズ分のピクセルを塗る
-  const applyToolAt = useCallback((x: number, y: number, ctx: CanvasRenderingContext2D) => {
-    // ブラシサイズの半径
-    const half = Math.floor(brushSize / 2);
-
-    for (let dy = -half; dy < brushSize - half; dy++) {
-      for (let dx = -half; dx < brushSize - half; dx++) {
-        const px = x + dx, py = y + dy;
-        // キャンバス外なら次のループへ
-        if (px < 0 || px >= 64 || py < 0 || py >= 64) continue;
-
-        if (tool === 'eraser') {
-          ctx.clearRect(px, py, 1, 1); // 消しゴム: 透明にする
-        } else {
-          ctx.fillStyle = color;
-          ctx.fillRect(px, py, 1, 1); // 1×1ピクセルを塗る
-        }
-      }
-    }
-  }, [tool, color, brushSize]);
-
-  // ミラーも考慮して塗るver
-  const applyTool = useCallback((x: number, y: number) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    applyToolAt(x, y, ctx);
-
-    // ミラー描画
-    if (mirror) {
-      const half = Math.floor(brushSize / 2);
-
-      for (let dy = -half; dy < brushSize - half; dy++) {
-        for (let dx = -half; dx < brushSize - half; dx++) {
-          const px = x + dx, py = y + dy;
-          // ミラー先座標を取得
-          const mc = getMirrorCoord(px, py);
-
-          // ミラー先座標が存在する場合だけ
-          if (mc) {
-            if (tool === 'eraser') {
-              ctx.clearRect(mc[0], mc[1], 1, 1);
-            } else {
-              ctx.fillStyle = color;
-              ctx.fillRect(mc[0], mc[1], 1, 1);
-            }
-          }
-        }
-      }
-    }
-  }, [canvasRef, applyToolAt, mirror, brushSize, tool, color]);
 
   // --- 3D直接ペイント処理 (Raycaster) ---
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -774,73 +420,6 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     if (threeCtx.current) {
       threeCtx.current.controls.enabled = true;
     }
-  };
-
-
-  // --- 全消し ---
-
-  const clearCanvas = () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    pushUndo(); // 消す前の状態を履歴に保存
-    ctx.clearRect(0, 0, 64, 64); // キャンバス全体を透明に
-    notifyUpdate(); // 3Dプレビューに通知
-  };
-
-
-  // --- 新規作成 ---
-
-  const newCanvas = () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    pushUndo();
-    ctx.clearRect(0, 0, 64, 64);
-    localStorage.removeItem(AUTOSAVE_KEY); // オートセーブのデータも削除
-    notifyUpdate();
-  };
-
-  // --- PNG保存 ---
-
-  const downloadImage = () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    // 画像保存をブラウザだけで完結させる流れ
-    const link = document.createElement('a'); // aタグを動的に作成
-    link.download = 'NewSkin.png'; // ダウンロードファイル名を設定
-    link.href = canvas.toDataURL('image/png'); // キャンバスをPNG形式の文字列に変換
-    link.click(); // プログラムからクリックしてダウンロード開始
-  };
-
-  // --- 画像インポート ---
-
-  const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]; // 選ばれたファイルが複数の場合でも最初の1枚を対象にする
-    if (!file) return; // ファイルがなければ終了
-
-    const img = new Image(); // ブラウザ組み込みの画像オブジェクトを作成
-
-    // 画像読み込みが完了したら実行
-    img.onload = () => {
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
-
-      pushUndo();
-      ctx.clearRect(0, 0, 64, 64);
-      ctx.drawImage(img, 0, 0, 64, 64);
-      notifyUpdate();
-      URL.revokeObjectURL(img.src);
-    };
-    img.src = URL.createObjectURL(file);
-    e.target.value = ''; // 同じファイルを再度選べるようにリセット
   };
 
 
