@@ -1,8 +1,9 @@
 import * as THREE from 'three';
 
 // 全身を映すときの注視点とカメラの距離
-export const HOME_TARGET = new THREE.Vector3(0, 16, 0);
-export const HOME_DISTANCE = 60;
+// (体の中心は y=16 だが、足元の「正面の矢印」まで入るように少し下を向いて引いておく)
+export const HOME_TARGET = new THREE.Vector3(0, 15, 0);
+export const HOME_DISTANCE = 64;
 
 // 指定したパーツ(子のメッシュも含む)がちょうど収まる、注視点とカメラの距離
 export function focusOn(objects: THREE.Object3D[]): { center: THREE.Vector3; distance: number } {

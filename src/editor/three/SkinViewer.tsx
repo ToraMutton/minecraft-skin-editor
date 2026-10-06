@@ -7,6 +7,7 @@ import { createSkinModel } from './createSkinModel';
 import type { SkinPart, PartName } from './createSkinModel';
 import { pickTexel } from './raycast';
 import { focusOn, HOME_TARGET, HOME_DISTANCE } from './camera';
+import { createFrontArrow } from './frontArrow';
 import type { PartVisibility, ViewMode } from '../viewTypes';
 
 interface Props {
@@ -25,7 +26,7 @@ interface Props {
 // スキンを3Dで表示し、モデルの上でのクリック・ドラッグを「テクスチャ上のピクセル」として親に伝える
 export function SkinViewer({ canvasRef, visibleParts, visibleOverlay, showGuide, isAutoFocus, mode, onPaintStart, onPaintMove, onPaintEnd }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const threeCtx = useRef<{ camera: THREE.PerspectiveCamera; parts: SkinPart[], controls: OrbitControls } | null>(null);
+  const threeCtx = useRef<{ camera: THREE.PerspectiveCamera; parts: SkinPart[], controls: OrbitControls, frontArrow: THREE.Mesh } | null>(null);
   const prevActiveCount = useRef(6);
   const isStroking = useRef(false); // モデルの上で押したまま動かしているか
 
@@ -46,10 +47,10 @@ export function SkinViewer({ canvasRef, visibleParts, visibleOverlay, showGuide,
 
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(35, 1, 0.1, 100);
-    camera.position.set(0, 16, 60);
+    camera.position.copy(HOME_TARGET).add(new THREE.Vector3(0, 0, HOME_DISTANCE)); // 正面から全身を映す
 
     const controls = new OrbitControls(camera, renderer.domElement);
-    controls.target.set(0, 16, 0);
+    controls.target.copy(HOME_TARGET);
     controls.enablePan = false;
 
     controls.minDistance = 20;
@@ -75,7 +76,12 @@ export function SkinViewer({ canvasRef, visibleParts, visibleOverlay, showGuide,
 
     const model = createSkinModel(texture);
     model.parts.forEach(part => scene.add(part.mesh));
-    threeCtx.current = { camera, parts: model.parts, controls };
+
+    // 足元の「正面」の矢印 (塗る対象ではないので、Raycastの対象には入れない)
+    const frontArrow = createFrontArrow();
+    scene.add(frontArrow);
+
+    threeCtx.current = { camera, parts: model.parts, controls, frontArrow };
 
     // 鑑賞モードで手足を振るために取り出しておく
     const limb = (name: PartName) => model.parts.find(p => p.name === name)!.mesh;
@@ -120,14 +126,17 @@ export function SkinViewer({ canvasRef, visibleParts, visibleOverlay, showGuide,
       renderer.dispose();
       window.removeEventListener('resize', handleResize);
       model.dispose();
+      frontArrow.geometry.dispose();
+      (frontArrow.material as THREE.Material).dispose();
       texture.dispose();
       if (container.contains(renderer.domElement)) container.removeChild(renderer.domElement);
     };
   }, [canvasRef]);
 
-  // --- 表示の切り替え (パーツ・上着・ガイド線) ---
+  // --- 表示の切り替え (パーツ・上着・ガイド線・正面の矢印) ---
   useEffect(() => {
     if (!threeCtx.current) return;
+    threeCtx.current.frontArrow.visible = showGuide; // 矢印もガイドの一部として扱う
 
     threeCtx.current.parts.forEach(part => {
       const isOverActive = visibleOverlay[part.name];
