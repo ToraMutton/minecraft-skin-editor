@@ -1,11 +1,13 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import type { Tool, BrushSize } from './tools';
-import { MAX_HISTORY, MAX_RECENT_COLORS, AUTOSAVE_KEY, AUTOSAVE_DELAY } from './constants';
+import { MAX_HISTORY, MAX_RECENT_COLORS, AUTOSAVE_KEY, AUTOSAVE_DELAY, UNREADABLE_BACKUP_KEY } from './constants';
 import { createLayers, cloneLayers } from './layers';
 import type { SkinLayers } from './layers';
 import { paintPixel, erasePixel, brushPixels, floodFill as floodFillLayers, pickColor as pickLayerColor } from './operations';
-import { imageToPixels, renderToCanvas } from './image';
+import { imageToPixels, decodeImage, renderToCanvas } from './image';
+import { loadAutosave } from './autosave';
 import { History } from './history';
+import { strokePoints } from './line';
 import { hexToRgba, rgbaToHex } from '../../shared/color';
 
 // スキン画像の編集・Undo/Redo・自動保存・読み込み/書き出しをまとめたhook
@@ -32,6 +34,7 @@ export function useSkinCanvas(canvasRef: React.RefObject<HTMLCanvasElement | nul
   const layersRef = useRef<SkinLayers>(createLayers()) // スキンのデータ本体
   const history = useRef(new History<SkinLayers>(MAX_HISTORY)) // Undo/Redo履歴 (層の複製を積む)
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null) // 自動保存タイマー
+  const lastPoint = useRef<[number, number] | null>(null) // なぞり描きで前回塗った点
 
   // 層を書き換えたら呼ぶ: 見た目を canvas に反映する
   const render = useCallback(() => {
@@ -60,17 +63,28 @@ export function useSkinCanvas(canvasRef: React.RefObject<HTMLCanvasElement | nul
     }, AUTOSAVE_DELAY);
   }, [canvasRef]);
 
-  // 起動時にlocalStorageから復元する (保存されている画像を下地にする)
+  // 起動時にlocalStorageから復元する (保存されている画像を下地にする。V1の保存データもこれで読める)
   useEffect(() => {
-    const saved = localStorage.getItem(AUTOSAVE_KEY);
-    if (!saved) return;
+    let saved: string | null = null;
+    try {
+      saved = localStorage.getItem(AUTOSAVE_KEY);
+    } catch {
+      return; // localStorage が使えない環境 (プライベートモードの一部など) では、空の状態で始める
+    }
 
-    const img = new Image();
-    img.onload = () => {
-      layersRef.current = createLayers(imageToPixels(img));
-      render();
-    };
-    img.src = saved;
+    let cancelled = false; // 読み込み中に画面が閉じられたら、結果を使わない
+    loadAutosave(saved, decodeImage).then(result => {
+      if (cancelled) return;
+      if (result.status === 'loaded') {
+        layersRef.current = createLayers(result.pixels);
+        render();
+      } else if (result.status === 'unreadable' && saved) {
+        // 読めなかったデータは、次の自動保存で上書きされて消えないよう退避しておく (作品を失わないため)
+        console.warn(`自動保存データを読み込めませんでした: ${result.reason}`);
+        try { localStorage.setItem(UNREADABLE_BACKUP_KEY, saved); } catch { /* 退避できなくても起動は続ける */ }
+      }
+    });
+    return () => { cancelled = true; };
   }, [render]);
 
   // --- 履歴操作 ---
@@ -145,13 +159,18 @@ export function useSkinCanvas(canvasRef: React.RefObject<HTMLCanvasElement | nul
 
   // --- 描画(ブラシサイズ＆ミラー対応) ---
 
-  const applyTool = useCallback((x: number, y: number) => {
+  // (x, y) にペン/消しゴムを使う
+  // connect = true なら、前回の点から線でつなぐ (マウスを速く動かしても途切れないように。同じ面の中だけ)
+  const applyTool = useCallback((x: number, y: number, connect = false) => {
     const layers = layersRef.current;
     const rgba = hexToRgba(color);
-    for (const [px, py] of brushPixels(x, y, brushSize, mirror)) {
-      if (tool === 'eraser') erasePixel(layers, px, py); // 消しゴム: 透明にする
-      else paintPixel(layers, px, py, rgba);
+    for (const [cx, cy] of strokePoints(connect ? lastPoint.current : null, [x, y])) {
+      for (const [px, py] of brushPixels(cx, cy, brushSize, mirror)) {
+        if (tool === 'eraser') erasePixel(layers, px, py); // 消しゴム: 透明にする
+        else paintPixel(layers, px, py, rgba);
+      }
     }
+    lastPoint.current = [x, y];
     render();
   }, [tool, color, brushSize, mirror, render]);
 

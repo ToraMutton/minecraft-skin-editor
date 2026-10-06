@@ -55,9 +55,9 @@ export function EditorLayout() {
   };
 
   // なぞって描けるのはペンと消しゴムだけ (isDrawing は押したときに立つ)
-  const handlePaintMove = (texX: number, texY: number) => {
+  const handlePaintMove = (texX: number, texY: number, connected: boolean) => {
     if (!isDrawing) return;
-    applyTool(texX, texY);
+    applyTool(texX, texY, connected); // 途切れずになぞっていれば、前の点から線でつなぐ
     notifyUpdate();
   };
 

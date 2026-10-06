@@ -19,7 +19,7 @@ interface Props {
   mode: ViewMode;
   // モデル上のピクセル(x, y)が押された・なぞられた・離された。何を塗るかは親が決める
   onPaintStart: (x: number, y: number) => void;
-  onPaintMove: (x: number, y: number) => void;
+  onPaintMove: (x: number, y: number, connected: boolean) => void; // connected: 前回の点から途切れずになぞっているか
   onPaintEnd: () => void;
 }
 
@@ -29,6 +29,7 @@ export function SkinViewer({ canvasRef, visibleParts, visibleOverlay, showGuide,
   const threeCtx = useRef<{ camera: THREE.PerspectiveCamera; parts: SkinPart[], controls: OrbitControls, frontArrow: THREE.Mesh } | null>(null);
   const prevActiveCount = useRef(6);
   const isStroking = useRef(false); // モデルの上で押したまま動かしているか
+  const lastMoveHit = useRef(false); // 前回のポインタ移動でモデルに当たっていたか (外に出たら線を切るため)
 
   // 描画ループ(useEffectの外で動き続ける)から最新のモードを読めるように、refにも入れておく
   const modeRef = useRef(mode);
@@ -204,6 +205,7 @@ export function SkinViewer({ canvasRef, visibleParts, visibleOverlay, showGuide,
 
     controls.enabled = false;
     isStroking.current = true;
+    lastMoveHit.current = true;
     onPaintStart(texel[0], texel[1]);
   };
 
@@ -212,9 +214,13 @@ export function SkinViewer({ canvasRef, visibleParts, visibleOverlay, showGuide,
 
     const { camera, parts } = threeCtx.current;
     const texel = pickTexel(e.clientX, e.clientY, e.currentTarget.getBoundingClientRect(), camera, paintTargets(parts));
-    if (!texel) return;
+    if (!texel) {
+      lastMoveHit.current = false; // モデルの外に出た → 次に戻ってきたときは、そこから新しい線として描く
+      return;
+    }
 
-    onPaintMove(texel[0], texel[1]);
+    onPaintMove(texel[0], texel[1], lastMoveHit.current);
+    lastMoveHit.current = true;
   };
 
   const handlePointerUp = () => {

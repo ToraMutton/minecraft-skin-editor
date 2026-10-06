@@ -1,6 +1,7 @@
 // 画像(<img> / <canvas>)と層のデータの変換。ブラウザのcanvasが必要な処理はここに集める
 import { SKIN_SIZE, composite } from './layers';
 import type { SkinLayers, Pixels } from './layers';
+import type { DecodedImage } from './autosave';
 
 // 読み込んだ画像を、64×64のRGBA配列にする
 export function imageToPixels(img: HTMLImageElement): Pixels {
@@ -10,6 +11,16 @@ export function imageToPixels(img: HTMLImageElement): Pixels {
   const ctx = canvas.getContext('2d')!;
   ctx.drawImage(img, 0, 0, SKIN_SIZE, SKIN_SIZE);
   return ctx.getImageData(0, 0, SKIN_SIZE, SKIN_SIZE).data;
+}
+
+// データURL(など)の画像を読み込み、大きさと中身を返す。読めなければ失敗(reject)する
+export function decodeImage(url: string): Promise<DecodedImage> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight, pixels: imageToPixels(img) });
+    img.onerror = () => reject(new Error('画像を読み込めませんでした'));
+    img.src = url;
+  });
 }
 
 // 3つの層を重ねた見た目を canvas に描く (3D表示のテクスチャ・PNG書き出しはこの canvas を使う)
