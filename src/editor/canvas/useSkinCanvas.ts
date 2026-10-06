@@ -5,6 +5,7 @@ import { createLayers, cloneLayers } from './layers';
 import type { SkinLayers } from './layers';
 import { paintPixel, erasePixel, brushPixels, floodFill as floodFillLayers, pickColor as pickLayerColor } from './operations';
 import { imageToPixels, renderToCanvas } from './image';
+import { History } from './history';
 import { hexToRgba, rgbaToHex } from '../../shared/color';
 
 // スキン画像の編集・Undo/Redo・自動保存・読み込み/書き出しをまとめたhook
@@ -29,8 +30,7 @@ export function useSkinCanvas(canvasRef: React.RefObject<HTMLCanvasElement | nul
 
   // 裏のメモ帳
   const layersRef = useRef<SkinLayers>(createLayers()) // スキンのデータ本体
-  const undoStack = useRef<SkinLayers[]>([]) // Undo履歴 (層の複製)
-  const redoStack = useRef<SkinLayers[]>([]) // Redo履歴
+  const history = useRef(new History<SkinLayers>(MAX_HISTORY)) // Undo/Redo履歴 (層の複製を積む)
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null) // 自動保存タイマー
 
   // 層を書き換えたら呼ぶ: 見た目を canvas に反映する
@@ -75,49 +75,37 @@ export function useSkinCanvas(canvasRef: React.RefObject<HTMLCanvasElement | nul
 
   // --- 履歴操作 ---
 
-  // 履歴に積む (snapshot を省略すると、今の状態を積む)
-  const pushUndo = useCallback((snapshot: SkinLayers = cloneLayers(layersRef.current)) => {
-    undoStack.current.push(snapshot);
-
-    // 履歴が上限を超えたら古いものを削除
-    if (undoStack.current.length > MAX_HISTORY) undoStack.current.shift();
-
-    // 新しく描くとredoStackを空に
-    redoStack.current = [];
-    // ボタンの状態を更新
-    setCanUndo(true);
-    setCanRedo(false);
+  // Undo/Redo ボタンの状態を履歴に合わせる
+  const syncHistoryButtons = useCallback(() => {
+    setCanUndo(history.current.canUndo);
+    setCanRedo(history.current.canRedo);
   }, []);
 
-  // Undo履歴を使って1つ前に戻る
+  // 変更する前に呼ぶ: 履歴に積む (snapshot を省略すると、今の状態を積む)
+  const pushUndo = useCallback((snapshot: SkinLayers = cloneLayers(layersRef.current)) => {
+    history.current.push(snapshot);
+    syncHistoryButtons();
+  }, [syncHistoryButtons]);
+
+  // 1つ前に戻る
   const handleUndo = useCallback(() => {
-    // undoStackが空なら何もしない
-    if (undoStack.current.length === 0) return;
-
-    // 現在の状態をredoStackに積み、1つ前の状態に入れ替える
-    redoStack.current.push(layersRef.current);
-    layersRef.current = undoStack.current.pop()!;
+    const previous = history.current.undo(layersRef.current);
+    if (!previous) return;
+    layersRef.current = previous;
     render();
-
-    // ボタンの状態を更新
-    // まだundoStackに履歴があればtrueのまま、なければfalse
-    setCanUndo(undoStack.current.length > 0);
-    setCanRedo(true);
+    syncHistoryButtons();
     notifyUpdate();
-  }, [render, notifyUpdate]);
+  }, [render, syncHistoryButtons, notifyUpdate]);
 
-  // Redo履歴を使って1つ先に進む
+  // 1つ先に進む
   const handleRedo = useCallback(() => {
-    if (redoStack.current.length === 0) return;
-
-    undoStack.current.push(layersRef.current);
-    layersRef.current = redoStack.current.pop()!;
+    const next = history.current.redo(layersRef.current);
+    if (!next) return;
+    layersRef.current = next;
     render();
-
-    setCanUndo(true);
-    setCanRedo(redoStack.current.length > 0);
+    syncHistoryButtons();
     notifyUpdate();
-  }, [render, notifyUpdate]);
+  }, [render, syncHistoryButtons, notifyUpdate]);
 
   // --- 最近使った色 ---
 
