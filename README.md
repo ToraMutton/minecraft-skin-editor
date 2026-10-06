@@ -1,73 +1,100 @@
-# React + TypeScript + Vite
+# Vextra - Minecraft Skin Editor
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+ブラウザ上で、3Dモデルに直接ペイントしてMinecraftのスキンを作れるエディタです。
 
-Currently, two official plugins are available:
+## 特徴
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- **3Dモデルに直接描画** — 展開図(UV)を意識せず、モデルの表面をクリック・ドラッグして描けます
+- **素肌と上着(オーバーレイ)の2層に対応** — パーツごとに表示を切り替えて、描きたい層だけを編集できます
+- **ミラー描画** — 左右対称の位置に同時に描けます
+- **オートフォーカス** — 表示中のパーツに合わせてカメラが自動でズームします
+- **自動保存** — 描いた内容はブラウザに自動保存され、次に開いたときに復元されます
+- **PNGの読み込み・書き出し** — 既存のスキンを読み込んで編集し、PNGとして保存できます
 
-## React Compiler
+## 機能一覧
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+| カテゴリ | 機能 |
+|---|---|
+| ツール | ペン / 消しゴム / バケツ(塗りつぶし) / スポイト |
+| ブラシ | サイズ 1〜3px |
+| カラー | カラーピッカー / HEX入力 / プリセット / 最近使った色 |
+| 編集 | Undo / Redo(最大30回) / ミラー描画 / 全消し |
+| 表示 | パーツごとの素肌・上着の切り替え / ガイド(グリッド)表示 / 鑑賞モード(手足が動くアニメーション) |
+| ファイル | 新規作成 / PNG読み込み(64×64) / PNG書き出し / 自動保存 |
 
-## Expanding the ESLint configuration
+## 操作方法
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+### マウス
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+| 操作 | 動作 |
+|---|---|
+| モデル上で左ドラッグ | 描画 |
+| 背景で左ドラッグ | 視点の回転 |
+| ホイール | ズーム |
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+### キーボードショートカット
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+| キー | 動作 |
+|---|---|
+| `W` | ペン |
+| `E` | 消しゴム |
+| `F` | バケツ |
+| `S` | スポイト |
+| `1` / `2` / `3` | ブラシサイズ |
+| `Ctrl` + `Z` | Undo |
+| `Ctrl` + `Shift` + `Z` / `Ctrl` + `Y` | Redo |
+
+macOSでは `Ctrl` の代わりに `Cmd` を使えます。
+
+## 仕組み
+
+64×64の `<canvas>` をスキン画像そのものとして扱い、Three.jsの `CanvasTexture` として3Dモデルに貼り付けています。
+
+1. モデルをクリックすると、Raycasterでクリック位置のUV座標を求める
+2. UV座標を64×64のピクセル座標に変換し、`<canvas>` に描く
+3. テクスチャが更新され、3Dモデルに反映される
+
+```
+src/
+├─ App.tsx           ルートコンポーネント
+├─ CanvasEditor.tsx  3D表示・Raycast・UI
+├─ useSkinLogic.ts   描画ツール・Undo/Redo・自動保存・読み込み/書き出し
+└─ skinUtils.ts      UVマッピング定義・ミラー対応表・色変換
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## 技術スタック
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+- React 19 / TypeScript
+- Vite
+- Three.js — 3Dプレビューと、Raycasterによるモデルへの直接描画
+- GSAP — カメラのアニメーション
+- react-colorful — カラーピッカー
+- lucide-react — アイコン
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## 開発
+
+```bash
+npm install
+npm run dev      # 開発サーバーを起動
+npm run build    # 本番用にビルド
+npm run lint     # ESLintでチェック
+npm run preview  # ビルド結果をローカルで確認
 ```
+
+## 現在の制限
+
+- Classicモデル(腕の太さ4px)のみ対応しています。Slimモデル(3px)には未対応です
+- 読み込めるのは64×64のPNGのみです。64×32の旧形式スキンには未対応です
+- 自動保存はブラウザごとの保存(localStorage)のため、別のブラウザや端末とは共有されません
+
+## 今後の予定
+
+- エディタ内部の整理(コンポーネントの分割)
+- 生成した下地と手描きを分けて保持する、非破壊編集のためのレイヤー構造
+- IndexedDBによるプロジェクト保存
+- Slimモデル対応
+- 質問に答えるだけでスキンを自動生成する「Quick Design」
+
+## ライセンス
+
+[MIT](LICENSE)
