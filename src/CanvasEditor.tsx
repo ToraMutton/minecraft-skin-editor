@@ -6,9 +6,9 @@ import { HexColorPicker } from 'react-colorful';
 
 // 外部ファイル化したものをインポート
 import type { Tool, BrushSize } from './editor/canvas/tools';
-import { SKIN_UV, SKIN_UV_OVER } from './editor/skin/uv';
-import { applyPartUV } from './editor/three/applyPartUV';
-import { createGridTexture } from './editor/three/gridTexture';
+import { createSkinModel } from './editor/three/createSkinModel';
+import type { SkinPart, PartName } from './editor/three/createSkinModel';
+import { pickTexel } from './editor/three/raycast';
 import { useSkinLogic } from './useSkinLogic';
 
 import {
@@ -59,7 +59,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const threeCtx = useRef<{ camera: THREE.PerspectiveCamera; parts: THREE.Mesh[], controls: OrbitControls } | null>(null);
+  const threeCtx = useRef<{ camera: THREE.PerspectiveCamera; parts: SkinPart[], controls: OrbitControls } | null>(null);
   const prevActiveCount = useRef(6);
 
   // --- 3Dキャンバスの初期化と描画ループ ---
@@ -96,69 +96,13 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     texture.minFilter = THREE.NearestFilter;
     texture.colorSpace = THREE.SRGBColorSpace;
 
-    const baseMaterial = new THREE.MeshLambertMaterial({ map: texture, transparent: false, side: THREE.FrontSide });
-    const overlayMaterial = new THREE.MeshLambertMaterial({ map: texture, transparent: true, alphaTest: 0.1, side: THREE.FrontSide });
+    const model = createSkinModel(texture);
+    model.parts.forEach(part => scene.add(part.mesh));
+    threeCtx.current = { camera, parts: model.parts, controls };
 
-    const baseGridTex = createGridTexture('rgba(129, 212, 250, 0.4)');
-    const overGridTex = createGridTexture('rgba(255, 255, 255, 0.5)');
-
-    const baseGridMaterial = new THREE.MeshBasicMaterial({ map: baseGridTex, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
-    const overGridMaterial = new THREE.MeshBasicMaterial({ map: overGridTex, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
-
-    const createPart = (name: string, geo: THREE.BoxGeometry, overGeo: THREE.BoxGeometry, pos: THREE.Vector3) => {
-      const mesh = new THREE.Mesh(geo, baseMaterial.clone());
-      mesh.name = name;
-      mesh.position.copy(pos);
-      scene.add(mesh);
-
-      const overMesh = new THREE.Mesh(overGeo, overlayMaterial.clone());
-      overMesh.name = name + 'Over';
-      mesh.add(overMesh);
-      return mesh;
-    };
-
-    const headGeo = new THREE.BoxGeometry(8, 8, 8); applyPartUV(headGeo, SKIN_UV.head); headGeo.translate(0, 4, 0);
-    const headOverGeo = new THREE.BoxGeometry(9, 9, 9); applyPartUV(headOverGeo, SKIN_UV_OVER.head); headOverGeo.translate(0, 4, 0);
-    const head = createPart('head', headGeo, headOverGeo, new THREE.Vector3(0, 24, 0));
-
-    const bodyGeo = new THREE.BoxGeometry(8, 12, 4); applyPartUV(bodyGeo, SKIN_UV.body);
-    const bodyOverGeo = new THREE.BoxGeometry(8.5, 12.5, 4.5); applyPartUV(bodyOverGeo, SKIN_UV_OVER.body);
-    const body = createPart('body', bodyGeo, bodyOverGeo, new THREE.Vector3(0, 18, 0));
-
-    const armGeo = new THREE.BoxGeometry(4, 12, 4); armGeo.translate(0, -6, 0);
-    const armOverGeo = new THREE.BoxGeometry(4.5, 12.5, 4.5); armOverGeo.translate(0, -6, 0);
-
-    const rArmGeo = armGeo.clone(); applyPartUV(rArmGeo, SKIN_UV.rightArm);
-    const rArmOverGeo = armOverGeo.clone(); applyPartUV(rArmOverGeo, SKIN_UV_OVER.rightArm);
-    const rArm = createPart('rightArm', rArmGeo, rArmOverGeo, new THREE.Vector3(-6, 24, 0));
-
-    const lArmGeo = armGeo.clone(); applyPartUV(lArmGeo, SKIN_UV.leftArm);
-    const lArmOverGeo = armOverGeo.clone(); applyPartUV(lArmOverGeo, SKIN_UV_OVER.leftArm);
-    const lArm = createPart('leftArm', lArmGeo, lArmOverGeo, new THREE.Vector3(6, 24, 0));
-
-    const rLegGeo = armGeo.clone(); applyPartUV(rLegGeo, SKIN_UV.rightLeg);
-    const rLegOverGeo = armOverGeo.clone(); applyPartUV(rLegOverGeo, SKIN_UV_OVER.rightLeg);
-    const rLeg = createPart('rightLeg', rLegGeo, rLegOverGeo, new THREE.Vector3(-2, 12, 0));
-
-    const lLegGeo = armGeo.clone(); applyPartUV(lLegGeo, SKIN_UV.leftLeg);
-    const lLegOverGeo = armOverGeo.clone(); applyPartUV(lLegOverGeo, SKIN_UV_OVER.leftLeg);
-    const lLeg = createPart('leftLeg', lLegGeo, lLegOverGeo, new THREE.Vector3(2, 12, 0));
-
-    const parts = [head, body, rArm, lArm, rLeg, lLeg];
-    threeCtx.current = { camera, parts, controls };
-
-    parts.forEach(part => {
-      const baseGrid = new THREE.Mesh(part.geometry, baseGridMaterial);
-      baseGrid.name = part.name + 'BaseGrid';
-      part.add(baseGrid);
-
-      const overMesh = part.children.find(c => c.name === part.name + 'Over') as THREE.Mesh;
-      if (overMesh) {
-        const overGrid = new THREE.Mesh(overMesh.geometry, overGridMaterial);
-        overGrid.name = part.name + 'OverGrid';
-        overMesh.add(overGrid);
-      }
-    });
+    // 鑑賞モードで手足を振るために取り出しておく
+    const limb = (name: PartName) => model.parts.find(p => p.name === name)!.mesh;
+    const rArm = limb('rightArm'), lArm = limb('leftArm'), rLeg = limb('rightLeg'), lLeg = limb('leftLeg');
 
     const handleResize = () => {
       if (!container) return;
@@ -195,73 +139,47 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
       cancelAnimationFrame(animId);
       renderer.dispose();
       window.removeEventListener('resize', handleResize);
-      scene.traverse((object) => {
-        if (object instanceof THREE.Mesh) {
-          object.geometry?.dispose();
-          if (object.material instanceof THREE.Material) object.material.dispose();
-        }
-      });
-      baseMaterial.dispose(); overlayMaterial.dispose(); baseGridMaterial.dispose(); overGridMaterial.dispose(); baseGridTex.dispose(); overGridTex.dispose(); texture.dispose();
+      model.dispose();
+      texture.dispose();
       if (container.contains(renderer.domElement)) container.removeChild(renderer.domElement);
     };
   }, [canvasRef]);
 
   // --- 3D直接ペイント処理 (Raycaster) ---
+
+  // 塗れる対象: 表示中のパーツのうち、上着が表示されていれば上着、そうでなければ素の層
+  const paintTargets = (parts: SkinPart[]) =>
+    parts.filter(part => visibleParts[part.name]).map(part => visibleOverlay[part.name] ? part.overlay : part.mesh);
+
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (mode === 'pose') return;
 
     if (e.button !== 0 || !threeCtx.current) return;
 
     const { camera, parts, controls } = threeCtx.current;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-    const y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    const texel = pickTexel(e.clientX, e.clientY, e.currentTarget.getBoundingClientRect(), camera, paintTargets(parts));
 
-    const raycaster = new THREE.Raycaster();
-    raycaster.setFromCamera(new THREE.Vector2(x, y), camera);
-
-    const targetMeshes: THREE.Mesh[] = [];
-    parts.forEach(part => {
-      const partKey = part.name as keyof typeof visibleParts;
-      const isBaseVisible = visibleParts[partKey];
-      const isOverVisible = visibleOverlay[partKey];
-
-      if (isBaseVisible) {
-        if (isOverVisible) {
-          const overMesh = part.children.find(c => c.name === part.name + 'Over');
-          if (overMesh) targetMeshes.push(overMesh as THREE.Mesh);
-        } else {
-          targetMeshes.push(part);
-        }
-      }
-    });
-
-    const intersects = raycaster.intersectObjects(targetMeshes, false);
-
-    if (intersects.length > 0) {
-      controls.enabled = false;
-
-      const hit = intersects[0];
-      if (!hit.uv) return;
-
-      const texX = Math.floor(hit.uv.x * 64);
-      const texY = Math.floor((1 - hit.uv.y) * 64);
-
-      if (tool === 'picker') {
-        pickColor(texX, texY); // 色を読むだけなので履歴には積まない
-      } else if (tool === 'bucket') {
-        floodFill(texX, texY, color); // 履歴への保存はfloodFill内で行う
-        addRecentColor(color);
-      } else {
-        pushUndo();
-        setIsDrawing(true);
-        applyTool(texX, texY);
-        if (tool === 'pen') addRecentColor(color);
-      }
-      notifyUpdate();
-    } else {
+    // モデルに当たらなければ、ドラッグは視点の回転に使う
+    if (!texel) {
       controls.enabled = true;
+      return;
     }
+
+    controls.enabled = false;
+    const [texX, texY] = texel;
+
+    if (tool === 'picker') {
+      pickColor(texX, texY); // 色を読むだけなので履歴には積まない
+    } else if (tool === 'bucket') {
+      floodFill(texX, texY, color); // 履歴への保存はfloodFill内で行う
+      addRecentColor(color);
+    } else {
+      pushUndo();
+      setIsDrawing(true);
+      applyTool(texX, texY);
+      if (tool === 'pen') addRecentColor(color);
+    }
+    notifyUpdate();
   };
 
   // --- 表示切替と自動カメラズーム処理 ---
@@ -273,23 +191,16 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     let activeCount = 0;
 
     parts.forEach(part => {
-      const partKey = part.name as keyof typeof visibleParts;
-      const isActive = visibleParts[partKey];
-      const isOverActive = visibleOverlay[partKey];
+      const isActive = visibleParts[part.name];
+      const isOverActive = visibleOverlay[part.name];
 
-      part.visible = isActive;
-      const baseGrid = part.children.find(c => c.name === part.name + 'BaseGrid');
-      const overMesh = part.children.find(c => c.name === part.name + 'Over');
-
-      if (overMesh) {
-        overMesh.visible = isOverActive;
-        const overGrid = overMesh.children.find(c => c.name === part.name + 'OverGrid');
-        if (overGrid) overGrid.visible = showGuide && isOverActive;
-        if (baseGrid) baseGrid.visible = showGuide && !isOverActive;
-      }
+      part.mesh.visible = isActive;
+      part.overlay.visible = isOverActive;
+      part.overlayGrid.visible = showGuide && isOverActive;
+      part.baseGrid.visible = showGuide && !isOverActive;
 
       if (isActive) {
-        activeMeshes.push(part);
+        activeMeshes.push(part.mesh);
         activeCount++;
       }
     });
@@ -335,37 +246,11 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     if (mode === 'pose' || !isDrawing || !threeCtx.current) return;
 
     const { camera, parts } = threeCtx.current;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-    const y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    const texel = pickTexel(e.clientX, e.clientY, e.currentTarget.getBoundingClientRect(), camera, paintTargets(parts));
+    if (!texel) return;
 
-    const raycaster = new THREE.Raycaster();
-    raycaster.setFromCamera(new THREE.Vector2(x, y), camera);
-
-    const targetMeshes: THREE.Mesh[] = [];
-    parts.forEach(part => {
-      const partKey = part.name as keyof typeof visibleParts;
-      if (visibleParts[partKey]) {
-        if (visibleOverlay[partKey]) {
-          const overMesh = part.children.find(c => c.name === part.name + 'Over');
-          if (overMesh) targetMeshes.push(overMesh as THREE.Mesh);
-        } else {
-          targetMeshes.push(part);
-        }
-      }
-    });
-
-    const intersects = raycaster.intersectObjects(targetMeshes, false);
-
-    if (intersects.length > 0) {
-      const hit = intersects[0];
-      if (!hit.uv) return;
-      const texX = Math.floor(hit.uv.x * 64);
-      const texY = Math.floor((1 - hit.uv.y) * 64);
-
-      applyTool(texX, texY);
-      notifyUpdate();
-    }
+    applyTool(texel[0], texel[1]);
+    notifyUpdate();
   };
 
   const handlePointerUp = () => {
