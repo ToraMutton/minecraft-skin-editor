@@ -58,6 +58,10 @@ export function SkinViewer({ canvasRef, visibleParts, visibleOverlay, showGuide,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     controls.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: null as any };
 
+    // ユーザーが回転・ズームを始めたら、オートフォーカスのアニメーションは止める (操作を優先する)
+    const stopCameraTween = () => gsap.killTweensOf([camera.position, controls.target]);
+    controls.addEventListener('start', stopCameraTween);
+
     // Three.js r155以降はライトの強さが物理単位になり、昔の書き方の値(0.7など)だと約1/πの暗さになる
     // 環境光 + 正面からの光 = π にして、カメラに正対する面がテクスチャ本来の色で表示されるようにする
     scene.add(new THREE.AmbientLight(0xffffff, Math.PI * 0.6));
@@ -110,6 +114,9 @@ export function SkinViewer({ canvasRef, visibleParts, visibleOverlay, showGuide,
 
     return () => {
       cancelAnimationFrame(animId);
+      stopCameraTween();
+      controls.removeEventListener('start', stopCameraTween);
+      controls.dispose();
       renderer.dispose();
       window.removeEventListener('resize', handleResize);
       model.dispose();
@@ -118,33 +125,32 @@ export function SkinViewer({ canvasRef, visibleParts, visibleOverlay, showGuide,
     };
   }, [canvasRef]);
 
-  // --- 表示切替と自動カメラズーム処理 ---
+  // --- 表示の切り替え (パーツ・上着・ガイド線) ---
+  useEffect(() => {
+    if (!threeCtx.current) return;
+
+    threeCtx.current.parts.forEach(part => {
+      const isOverActive = visibleOverlay[part.name];
+      part.mesh.visible = visibleParts[part.name];
+      part.overlay.visible = isOverActive;
+      part.overlayGrid.visible = showGuide && isOverActive;
+      part.baseGrid.visible = showGuide && !isOverActive;
+    });
+  }, [visibleParts, visibleOverlay, showGuide]);
+
+  // --- オートフォーカス: 表示するパーツが変わったときだけカメラを動かす ---
+  // (ガイドや上着の切り替えでは動かさない。動かすとその間のドラッグが引き戻されるため)
   useEffect(() => {
     if (!threeCtx.current) return;
     const { camera, parts, controls } = threeCtx.current;
 
-    const activeMeshes: THREE.Mesh[] = [];
-    let activeCount = 0;
-
-    parts.forEach(part => {
-      const isActive = visibleParts[part.name];
-      const isOverActive = visibleOverlay[part.name];
-
-      part.mesh.visible = isActive;
-      part.overlay.visible = isOverActive;
-      part.overlayGrid.visible = showGuide && isOverActive;
-      part.baseGrid.visible = showGuide && !isOverActive;
-
-      if (isActive) {
-        activeMeshes.push(part.mesh);
-        activeCount++;
-      }
-    });
-
-    if (!isAutoFocus) return;
+    const activeMeshes = parts.filter(part => visibleParts[part.name]).map(part => part.mesh);
+    const activeCount = activeMeshes.length;
 
     const isAddingPart = activeCount > prevActiveCount.current;
     prevActiveCount.current = activeCount;
+
+    if (!isAutoFocus) return;
 
     // 今の向きのまま、注視点と距離だけを変えてカメラを動かす
     const moveCamera = (center: THREE.Vector3, distance: number) => {
@@ -165,7 +171,7 @@ export function SkinViewer({ canvasRef, visibleParts, visibleOverlay, showGuide,
     const { center, distance } = focusOn(activeMeshes);
     moveCamera(center, distance);
 
-  }, [visibleParts, visibleOverlay, isAutoFocus, showGuide]);
+  }, [visibleParts, isAutoFocus]);
 
   // --- 3D直接ペイント処理 (Raycaster) ---
 
