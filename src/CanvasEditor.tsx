@@ -83,9 +83,10 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     controls.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: null as any };
 
-    scene.add(new THREE.AmbientLight(0xffffff, 0.7));
-    const dir = new THREE.DirectionalLight(0xffffff, 0.8);
-    dir.position.set(5, 10, 7);
+    // Three.js r155以降はライトの強さが物理単位になり、昔の書き方の値(0.7など)だと約1/πの暗さになる
+    // 環境光 + 正面からの光 = π にして、カメラに正対する面がテクスチャ本来の色で表示されるようにする
+    scene.add(new THREE.AmbientLight(0xffffff, Math.PI * 0.6));
+    const dir = new THREE.DirectionalLight(0xffffff, Math.PI * 0.4); // 向きは描画ループでカメラに合わせる
     scene.add(dir);
 
     const texture = new THREE.CanvasTexture(canvasRef.current!);
@@ -173,6 +174,9 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
       animId = requestAnimationFrame(animate);
       controls.update();
       texture.needsUpdate = true;
+
+      // ヘッドライト: 常にカメラの方向から照らし、今見ている面を本来の色で表示する
+      dir.position.subVectors(camera.position, controls.target);
 
       if (modeRef.current === 'pose') {
         const time = Date.now() * 0.005;
@@ -544,6 +548,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
       {/* --- メインエディタ領域 --- */}
       <div style={{
         display: 'grid', gridTemplateColumns: '280px 1fr 280px', flex: 1,
+        minHeight: 0, // これが無いと中身(左サイドバー)の高さまで伸びて、画面の下にはみ出す
         backgroundColor: '#f8fafc', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif'
       }}>
 
