@@ -56,11 +56,19 @@ macOSでは `Ctrl` の代わりに `Cmd` を使えます。
 
 ```
 src/
-├─ App.tsx           ルートコンポーネント
-├─ CanvasEditor.tsx  3D表示・Raycast・UI
-├─ useSkinLogic.ts   描画ツール・Undo/Redo・自動保存・読み込み/書き出し
-└─ skinUtils.ts      UVマッピング定義・ミラー対応表・色変換
+├─ App.tsx
+├─ editor/
+│  ├─ EditorLayout.tsx         画面全体。状態を持ち、各パネルと3D表示に配る
+│  ├─ useKeyboardShortcuts.ts  キーボードショートカット
+│  ├─ viewTypes.ts             表示の型 (パーツの表示/非表示・モード)
+│  ├─ canvas/                  64×64の画像への描画・Undo/Redo・自動保存・読み込み/書き出し
+│  ├─ skin/                    スキンの形式そのもの (UVマッピング・ミラー対応表)
+│  ├─ three/                   3D表示 (モデル生成・Raycast・カメラ)
+│  └─ components/              ボタンや各パネルのUI
+└─ shared/                     汎用処理 (色の変換)
 ```
+
+`*.test.ts` は Vitest のテストです (`npm test` で実行)。
 
 ## 技術スタック
 
@@ -78,6 +86,7 @@ npm install
 npm run dev      # 開発サーバーを起動
 npm run build    # 本番用にビルド
 npm run lint     # ESLintでチェック
+npm test         # テストを実行
 npm run preview  # ビルド結果をローカルで確認
 ```
 
@@ -89,7 +98,6 @@ npm run preview  # ビルド結果をローカルで確認
 
 ## 今後の予定
 
-- エディタ内部の整理(コンポーネントの分割)
 - 生成した下地と手描きを分けて保持する、非破壊編集のためのレイヤー構造
 - IndexedDBによるプロジェクト保存
 - Slimモデル対応

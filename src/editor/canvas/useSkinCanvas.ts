@@ -1,13 +1,12 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import type { Tool, BrushSize } from './editor/canvas/tools';
-import { MAX_HISTORY, MAX_RECENT_COLORS, AUTOSAVE_KEY, AUTOSAVE_DELAY } from './editor/canvas/constants';
-import { getMirrorCoord } from './editor/skin/mirror';
-import { hexToRgba, rgbaToHex } from './shared/color';
+import type { Tool, BrushSize } from './tools';
+import { MAX_HISTORY, MAX_RECENT_COLORS, AUTOSAVE_KEY, AUTOSAVE_DELAY } from './constants';
+import { getMirrorCoord } from '../skin/mirror';
+import { hexToRgba, rgbaToHex } from '../../shared/color';
 
-export function useSkinLogic(
-  canvasRef: React.RefObject<HTMLCanvasElement | null>,
-  onTextureUpdate?: () => void
-) {
+// 64×64のスキン画像(<canvas>)への描画・Undo/Redo・自動保存・読み込み/書き出しをまとめたhook
+// (3D表示は描画ループで毎フレーム canvas を読み直しているので、変更を通知する必要はない)
+export function useSkinCanvas(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
   // 描画ツール系
   const [color, setColor] = useState('#000000') // 現在の色
   const [tool, setTool] = useState<Tool>('pen') // 現在のツール
@@ -27,11 +26,8 @@ export function useSkinLogic(
   const redoStack = useRef<ImageData[]>([]) // Redo履歴
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null) // 自動保存タイマー
 
-  // 3Dプレビューにテクスチャ変更を通知 + 自動保存
+  // 描いた後に呼ぶ: 自動保存を予約する
   const notifyUpdate = useCallback(() => {
-    // 親コンポーネントに変更を通知
-    onTextureUpdate?.();
-
     // 自動保存(デバウンス)
     if (autosaveTimer.current) {
       clearTimeout(autosaveTimer.current); // 前回のタイマーをキャンセル
@@ -49,7 +45,7 @@ export function useSkinLogic(
         }
       }
     }, AUTOSAVE_DELAY);
-  }, [onTextureUpdate, canvasRef]);
+  }, [canvasRef]);
 
   // 起動時にlocalStorageからキャンバスを復元
   useEffect(() => {
@@ -68,10 +64,9 @@ export function useSkinLogic(
     img.onload = () => {
       ctx.clearRect(0, 0, 64, 64);
       ctx.drawImage(img, 0, 0, 64, 64);
-      onTextureUpdate?.();
     };
     img.src = saved;
-  }, [onTextureUpdate, canvasRef]);
+  }, [canvasRef]);
 
   // --- 履歴操作 ---
 

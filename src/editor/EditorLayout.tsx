@@ -1,32 +1,31 @@
-import { useState, useEffect } from 'react';
+import { useRef, useState } from 'react';
 
-// 外部ファイル化したものをインポート
-import type { PartName } from './editor/skin/uv';
-import type { PartVisibility, ViewMode } from './editor/viewTypes';
-import { SkinViewer } from './editor/three/SkinViewer';
-import { EditorHeader } from './editor/components/EditorHeader';
-import { ToolPanel } from './editor/components/ToolPanel';
-import { ColorPanel } from './editor/components/ColorPanel';
-import { ViewToggles } from './editor/components/ViewToggles';
-import { PartPanel } from './editor/components/PartPanel';
-import { useSkinLogic } from './useSkinLogic';
+import type { PartName } from './skin/uv';
+import type { PartVisibility, ViewMode } from './viewTypes';
+import { useSkinCanvas } from './canvas/useSkinCanvas';
+import { useKeyboardShortcuts } from './useKeyboardShortcuts';
+import { SkinViewer } from './three/SkinViewer';
+import { EditorHeader } from './components/EditorHeader';
+import { ToolPanel } from './components/ToolPanel';
+import { ColorPanel } from './components/ColorPanel';
+import { ViewToggles } from './components/ViewToggles';
+import { PartPanel } from './components/PartPanel';
 
 const ALL_VISIBLE: PartVisibility = {
   head: true, body: true, rightArm: true, leftArm: true, rightLeg: true, leftLeg: true,
 };
 
-interface Props {
-  onTextureUpdate?: () => void;
-  canvasRef: React.RefObject<HTMLCanvasElement | null>;
-}
+// エディタ画面全体: 状態を持ち、各パネルと3D表示に配る
+export function EditorLayout() {
+  // スキン画像の本体 (64×64)。画面には出さず、3D表示のテクスチャとして使う
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
-export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
   const {
     color, setColor, tool, setTool, brushSize, setBrushSize, mirror, setMirror,
     isDrawing, setIsDrawing, canUndo, canRedo, recentColors, addRecentColor,
     notifyUpdate, pushUndo, handleUndo, handleRedo, floodFill, pickColor, applyTool,
     clearCanvas, newCanvas, downloadImage, handleImport
-  } = useSkinLogic(canvasRef, onTextureUpdate);
+  } = useSkinCanvas(canvasRef);
 
   // 表示設定系
   const [visibleParts, setVisibleParts] = useState<PartVisibility>(ALL_VISIBLE);
@@ -71,47 +70,10 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
   };
 
   // --- キーボードショートカット ---
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // input要素などに入力中の場合は無視
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-
-      // Undo / Redo (Ctrl+Z or Cmd+Z)
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
-        e.preventDefault();
-        if (e.shiftKey) {
-          if (canRedo) handleRedo(); // Cmd+Shift+Z
-        } else {
-          if (canUndo) handleUndo(); // Cmd+Z
-        }
-      }
-
-      // Redo (Ctrl+Y or Cmd+Y)
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
-        e.preventDefault();
-        if (canRedo) handleRedo();
-      }
-
-      // Ctrl/Cmd/Altと一緒に押された場合はブラウザのショートカット(Ctrl+Sなど)なので、ツールは切り替えない
-      if (e.ctrlKey || e.metaKey || e.altKey) return;
-
-      // ツール切り替え
-      switch (e.key.toLowerCase()) {
-        case 'w': setTool('pen'); break;
-        case 'e': setTool('eraser'); break;
-        case 'f': setTool('bucket'); break;
-        case 's': setTool('picker'); break;
-        // ブラシサイズ変更 (1, 2, 3)
-        case '1': setBrushSize(1); break;
-        case '2': setBrushSize(2); break;
-        case '3': setBrushSize(3); break;
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [setTool, setBrushSize, canUndo, canRedo, handleUndo, handleRedo]);
-
+  useKeyboardShortcuts({
+    canUndo, canRedo, onUndo: handleUndo, onRedo: handleRedo,
+    onToolChange: setTool, onBrushSizeChange: setBrushSize,
+  });
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%' }}>
