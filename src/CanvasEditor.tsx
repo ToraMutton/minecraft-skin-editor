@@ -31,7 +31,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     color, setColor, tool, setTool, brushSize, setBrushSize, mirror, setMirror,
     isDrawing, setIsDrawing, canUndo, canRedo, recentColors, addRecentColor,
     notifyUpdate, pushUndo, handleUndo, handleRedo, floodFill, pickColor, applyTool,
-    clearCanvas, newCanvas, downloadImage
+    clearCanvas, newCanvas, downloadImage, handleImport
   } = useSkinLogic(canvasRef, onTextureUpdate);
 
   // 表示設定系
@@ -241,13 +241,13 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
       const texX = Math.floor(hit.uv.x * 64);
       const texY = Math.floor((1 - hit.uv.y) * 64);
 
-      pushUndo();
       if (tool === 'picker') {
-        pickColor(texX, texY);
+        pickColor(texX, texY); // 色を読むだけなので履歴には積まない
       } else if (tool === 'bucket') {
-        floodFill(texX, texY, color);
+        floodFill(texX, texY, color); // 履歴への保存はfloodFill内で行う
         addRecentColor(color);
       } else {
+        pushUndo();
         setIsDrawing(true);
         applyTool(texX, texY);
         if (tool === 'pen') addRecentColor(color);
@@ -467,18 +467,6 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
       // input要素などに入力中の場合は無視
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
 
-      // ツール切り替え
-      switch (e.key.toLowerCase()) {
-        case 'w': setTool('pen'); break;
-        case 'e': setTool('eraser'); break;
-        case 'f': setTool('bucket'); break;
-        case 's': setTool('picker'); break;
-        // ブラシサイズ変更 (1, 2, 3)
-        case '1': setBrushSize(1); break;
-        case '2': setBrushSize(2); break;
-        case '3': setBrushSize(3); break;
-      }
-
       // Undo / Redo (Ctrl+Z or Cmd+Z)
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
         e.preventDefault();
@@ -493,6 +481,21 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
         e.preventDefault();
         if (canRedo) handleRedo();
+      }
+
+      // Ctrl/Cmd/Altと一緒に押された場合はブラウザのショートカット(Ctrl+Sなど)なので、ツールは切り替えない
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+      // ツール切り替え
+      switch (e.key.toLowerCase()) {
+        case 'w': setTool('pen'); break;
+        case 'e': setTool('eraser'); break;
+        case 'f': setTool('bucket'); break;
+        case 's': setTool('picker'); break;
+        // ブラシサイズ変更 (1, 2, 3)
+        case '1': setBrushSize(1); break;
+        case '2': setBrushSize(2); break;
+        case '3': setBrushSize(3); break;
       }
     };
 
@@ -528,7 +531,7 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
           >
             <FolderOpen size={16} /> 読込
           </button>
-          {/* inputは省略 */}
+          <input ref={fileInputRef} type="file" accept="image/png" onChange={handleImport} style={{ display: 'none' }} />
           <button onClick={downloadImage}
             className="btn-sink btn-primary"
             style={btnBase}

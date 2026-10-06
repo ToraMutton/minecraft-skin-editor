@@ -169,6 +169,9 @@ export function useSkinLogic(
     // クリックした色と塗りたい色が同じなら何もしない
     if (tR === fill.r && tG === fill.g && tB === fill.b && tA === fill.a) return;
 
+    // 実際に色が変わるときだけ履歴に保存する
+    pushUndo();
+
     // ---
 
     // キューにクリックした座標をいれて開始
@@ -206,7 +209,7 @@ export function useSkinLogic(
       queue.push([cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1]);
     }
     ctx.putImageData(imageData, 0, 0);
-  }, [canvasRef]);
+  }, [canvasRef, pushUndo]);
 
   // --- スポイト ---
 
@@ -328,12 +331,28 @@ export function useSkinLogic(
 
   const handleImport = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]; // 選ばれたファイルが複数の場合でも最初の1枚を対象にする
+    e.target.value = ''; // 同じファイルを再度選べるようにリセット
     if (!file) return; // ファイルがなければ終了
 
+    // PNG以外は受け付けない
+    if (file.type !== 'image/png') {
+      alert('PNG画像を選んでください');
+      return;
+    }
+
+    const url = URL.createObjectURL(file);
     const img = new Image(); // ブラウザ組み込みの画像オブジェクトを作成
 
     // 画像読み込みが完了したら実行
     img.onload = () => {
+      URL.revokeObjectURL(url);
+
+      // 64×64以外は引き伸ばさずに拒否する
+      if (img.naturalWidth !== 64 || img.naturalHeight !== 64) {
+        alert(`64×64のスキン画像を選んでください (選択した画像: ${img.naturalWidth}×${img.naturalHeight})`);
+        return;
+      }
+
       const canvas = canvasRef.current;
       if (!canvas) return;
       const ctx = canvas.getContext('2d');
@@ -341,12 +360,17 @@ export function useSkinLogic(
 
       pushUndo();
       ctx.clearRect(0, 0, 64, 64);
-      ctx.drawImage(img, 0, 0, 64, 64);
+      ctx.drawImage(img, 0, 0);
       notifyUpdate();
-      URL.revokeObjectURL(img.src);
     };
-    img.src = URL.createObjectURL(file);
-    e.target.value = ''; // 同じファイルを再度選べるようにリセット
+
+    // 壊れたファイルなどで画像として読めなかった場合
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      alert('画像を読み込めませんでした');
+    };
+
+    img.src = url;
   }, [canvasRef, pushUndo, notifyUpdate]);
 
   return {
