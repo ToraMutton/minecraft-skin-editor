@@ -5,8 +5,10 @@ import gsap from 'gsap';
 import { HexColorPicker } from 'react-colorful';
 
 // 外部ファイル化したものをインポート
-import type { Tool, BrushSize } from './skinUtils';
-import { SKIN_UV, SKIN_UV_OVER, applyPartUV, createGridTexture } from './skinUtils';
+import type { Tool, BrushSize } from './editor/canvas/tools';
+import { SKIN_UV, SKIN_UV_OVER } from './editor/skin/uv';
+import { applyPartUV } from './editor/three/applyPartUV';
+import { createGridTexture } from './editor/three/gridTexture';
 import { useSkinLogic } from './useSkinLogic';
 
 import {

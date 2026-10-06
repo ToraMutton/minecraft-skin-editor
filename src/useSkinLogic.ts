@@ -1,9 +1,8 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import type { Tool, BrushSize } from './skinUtils';
-import {
-  MAX_HISTORY, MAX_RECENT_COLORS, AUTOSAVE_KEY, AUTOSAVE_DELAY,
-  hexToRgba, rgbaToHex, getMirrorCoord
-} from './skinUtils';
+import type { Tool, BrushSize } from './editor/canvas/tools';
+import { MAX_HISTORY, MAX_RECENT_COLORS, AUTOSAVE_KEY, AUTOSAVE_DELAY } from './editor/canvas/constants';
+import { getMirrorCoord } from './editor/skin/mirror';
+import { hexToRgba, rgbaToHex } from './shared/color';
 
 export function useSkinLogic(
   canvasRef: React.RefObject<HTMLCanvasElement | null>,
