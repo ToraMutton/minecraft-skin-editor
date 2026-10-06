@@ -1,4 +1,6 @@
 import { useRef, useState } from 'react';
+import '@fontsource/dotgothic16'; // ドット絵風フォント (OFLライセンス。npmから入れて自分のサイトから配信する)
+import './theme.css';
 
 import type { PartName } from './skin/uv';
 import type { PartVisibility, ViewMode } from './viewTypes';
@@ -76,7 +78,7 @@ export function EditorLayout() {
   });
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%' }}>
+    <div className="vx-app">
 
       <EditorHeader
         canUndo={canUndo} canRedo={canRedo} onUndo={handleUndo} onRedo={handleRedo}
@@ -85,20 +87,11 @@ export function EditorLayout() {
         onDownload={downloadImage}
       />
 
-      {/* --- メインエディタ領域 --- */}
-      <div style={{
-        display: 'grid', gridTemplateColumns: '280px 1fr 280px', flex: 1,
-        minHeight: 0, // これが無いと中身(左サイドバー)の高さまで伸びて、画面の下にはみ出す
-        backgroundColor: '#f8fafc', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif'
-      }}>
+      {/* --- メインエディタ領域 (左 | 3D | 右) --- */}
+      <div className="vx-workspace">
 
-        {/* --- 左サイドバー --- */}
-        <aside style={{
-          minWidth: '220px', maxWidth: '280px', // 幅を固定
-          backgroundColor: '#ffffff', borderRight: '1px solid #e2e8f0', padding: '16px 20px',
-          display: 'flex', flexDirection: 'column', gap: '20px', overflowY: 'auto'
-        }}>
-          {/* ツールはよく使うので上に置く */}
+        {/* --- 左サイドバー: ツールはよく使うので上に置く --- */}
+        <aside className="vx-sidebar">
           <ToolPanel
             tool={tool} onToolChange={setTool}
             brushSize={brushSize} onBrushSizeChange={setBrushSize}
@@ -112,14 +105,8 @@ export function EditorLayout() {
           />
         </aside>
 
-        {/* 中央エリア */}
-        <main style={{
-          position: 'relative',
-          width: '100%',
-          height: '100%',
-          overflow: 'hidden',
-          backgroundColor: '#1e1e1e'
-        }}>
+        {/* --- 中央: 3D表示 --- */}
+        <main className="vx-viewport">
           <ViewToggles
             isAutoFocus={isAutoFocus} onAutoFocusChange={setIsAutoFocus}
             showGuide={showGuide} onShowGuideChange={setShowGuide}
@@ -137,11 +124,7 @@ export function EditorLayout() {
         </main>
 
         {/* --- 右サイドバー --- */}
-        <aside style={{
-          borderLeft: '1px solid #e2e8f0', padding: '24px',
-          display: 'flex', flexDirection: 'column', alignItems: 'center',
-          backgroundColor: '#ffffff', overflowY: 'auto'
-        }}>
+        <aside className="vx-sidebar">
           <PartPanel
             visibleParts={visibleParts} visibleOverlay={visibleOverlay}
             onTogglePart={togglePart} onToggleOverlay={toggleOverlay} onToggleAllOverlay={toggleAllOverlay}

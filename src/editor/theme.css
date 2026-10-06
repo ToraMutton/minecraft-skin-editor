@@ -1,0 +1,169 @@
+/* =========================================================
+   Vextra のデザイン (統合版風)
+   色やサイズは :root の変数にまとめ、部品はクラス名で見た目を決める
+   ========================================================= */
+:root {
+  --vx-bg: #1e1e1f;          /* 一番奥の背景 */
+  --vx-surface: #313233;     /* ヘッダー・サイドバー */
+  --vx-panel: #48494a;       /* パネル */
+  --vx-line: #1e1e1f;        /* 輪郭線 */
+  --vx-highlight: #5a5b5c;   /* パネル上端のハイライト */
+  --vx-text: #ffffff;
+  --vx-text-sub: #b1b2b5;
+  --vx-green: #3c8527;
+  --vx-pixel-font: 'DotGothic16', sans-serif;
+  --vx-ui-font: system-ui, -apple-system, 'Segoe UI', 'Hiragino Sans', 'Noto Sans JP', sans-serif;
+}
+
+/* ---------- 画面全体 ---------- */
+.vx-app {
+  display: flex; flex-direction: column; width: 100%; height: 100%;
+  background: var(--vx-bg); color: var(--vx-text); font-family: var(--vx-ui-font);
+}
+
+.vx-header {
+  display: flex; justify-content: space-between; align-items: center; gap: 16px;
+  padding: 10px 20px 4px; flex-shrink: 0;
+  background: var(--vx-surface); border-bottom: 2px solid var(--vx-line);
+}
+.vx-header-group { display: flex; align-items: center; gap: 10px; }
+.vx-logo { display: flex; align-items: baseline; gap: 12px; margin: 0 12px 6px 0; font-weight: normal; }
+.vx-logo-main { font: 32px var(--vx-pixel-font); letter-spacing: 3px; line-height: 1; }
+.vx-logo-sub { font: 16px var(--vx-pixel-font); color: var(--vx-text-sub); }
+
+/* 左 280px | 3D表示 | 右 280px。min-height: 0 が無いと中身の高さまで伸びて画面からはみ出す */
+.vx-workspace { flex: 1; min-height: 0; display: grid; grid-template-columns: 280px 1fr 280px; }
+.vx-sidebar {
+  display: flex; flex-direction: column; gap: 12px; padding: 12px;
+  overflow-y: auto; background: var(--vx-surface);
+}
+.vx-viewport {
+  position: relative; overflow: hidden;
+  background: radial-gradient(ellipse at 50% 38%, #4a4c50 0%, #26272a 65%, #1a1a1b 100%);
+}
+
+/* ---------- パネル ---------- */
+.vx-panel {
+  display: flex; flex-direction: column; gap: 10px; padding: 12px;
+  background: var(--vx-panel); border: 2px solid var(--vx-line);
+  box-shadow: inset 0 2px 0 var(--vx-highlight);
+}
+.vx-panel-title { display: flex; align-items: center; gap: 6px; margin: 0; font: 16px var(--vx-pixel-font); line-height: 1; }
+.vx-label { font: 16px var(--vx-pixel-font); color: var(--vx-text-sub); }
+
+/* lucide のアイコンを角張らせて、ドット絵の世界観に寄せる */
+.vx-app svg { stroke-linecap: square; stroke-linejoin: miter; }
+
+/* ---------- ボタン ----------
+   表面(button本体) + 下にはみ出す「厚み」(::after) でできている。
+   押すと表面が transform で3px沈み、厚みが3px薄くなる。
+   transform は見た目だけを動かすので、周りのボタンの位置や大きさは変わらない */
+.vx-btn {
+  --face: #d0d1d4; --face-hover: #e3e5e8; --highlight: #ecedee; --band: #58585a; --text: #1e1e1f;
+  position: relative;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  height: 34px; padding: 0 12px;
+  margin-bottom: 6px; /* 下にはみ出す厚みのぶん、場所を空けておく */
+  font: 700 14px var(--vx-ui-font); color: var(--text); white-space: nowrap;
+  background: var(--face); border: 2px solid var(--vx-line); border-bottom: none;
+  box-shadow: inset 0 2px 0 var(--highlight);
+  cursor: pointer; user-select: none;
+}
+.vx-btn::after {
+  content: ''; position: absolute; left: -2px; right: -2px; top: 100%;
+  height: 4px; background: var(--band); border: 2px solid var(--vx-line); border-top: none;
+}
+.vx-btn:hover:not(:disabled) { background: var(--face-hover); }
+.vx-btn:active:not(:disabled) { transform: translateY(3px); }
+.vx-btn:active:not(:disabled)::after { height: 1px; }
+.vx-btn:disabled { opacity: 0.4; cursor: default; }
+.vx-btn:focus-visible { outline: 2px solid var(--vx-text); outline-offset: 3px; }
+
+/* 決定(保存)・選択中は緑、取り消せない操作は赤、非表示中は暗い灰色 */
+.vx-btn--primary, .vx-btn--selected {
+  --face: #3c8527; --face-hover: #469b2e; --highlight: #52a535; --band: #1d4d13; --text: #ffffff;
+}
+.vx-btn--danger { --face: #c33636; --face-hover: #d14141; --highlight: #e05555; --band: #6e1717; --text: #ffffff; }
+.vx-btn--off { --face: #6a6b6e; --face-hover: #77787b; --highlight: #7d7e81; --band: #3a3b3c; --text: #b1b2b5; }
+
+/* 厚みのない小さいボタン (パーツの上着バッジ) は、押すと少し縮む */
+.vx-btn--flat { margin-bottom: 0; border-bottom: 2px solid var(--vx-line); }
+.vx-btn--flat::after { display: none; }
+.vx-btn--flat:active:not(:disabled) { transform: scale(0.88); }
+
+/* ---------- スイッチ (ON/OFF) ---------- */
+.vx-switch {
+  display: flex; align-items: center; gap: 8px; width: 100%; padding: 4px 2px;
+  background: none; border: none; color: var(--vx-text); text-align: left;
+  font: 700 14px var(--vx-ui-font); cursor: pointer;
+}
+.vx-switch-track {
+  position: relative; flex-shrink: 0; margin-left: auto;
+  width: 46px; height: 24px; background: #8c8d90; border: 2px solid var(--vx-line);
+  transition: background-color 0.1s;
+}
+.vx-switch-track::after {
+  content: ''; position: absolute; top: 1px; left: 1px; width: 18px; height: 18px;
+  background: #ffffff; box-shadow: inset 0 -3px 0 #b1b2b5;
+  transition: left 0.1s, width 0.1s;
+}
+.vx-switch[aria-checked="true"] .vx-switch-track { background: var(--vx-green); }
+.vx-switch[aria-checked="true"] .vx-switch-track::after { left: 23px; }
+/* 押している間、つまみが横に伸びる (ぐっと押し込む感触) */
+.vx-switch:active .vx-switch-track::after { width: 23px; }
+.vx-switch[aria-checked="true"]:active .vx-switch-track::after { left: 18px; }
+.vx-switch:focus-visible { outline: 2px solid var(--vx-text); outline-offset: 2px; }
+
+/* ---------- ツール ---------- */
+.vx-tools { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.vx-tools > .vx-btn { height: 40px; padding: 0; }
+.vx-size-row { display: flex; align-items: center; justify-content: space-between; }
+.vx-sizes { display: flex; gap: 6px; }
+.vx-sizes > .vx-btn { width: 36px; padding: 0; }
+.vx-size-dot { display: block; background: currentColor; }
+
+/* ---------- 色 ---------- */
+.vx-picker .react-colorful { width: 100%; height: 130px; gap: 0; }
+.vx-picker .react-colorful__saturation { border-radius: 0; border: 2px solid var(--vx-line); border-bottom: none; }
+.vx-picker .react-colorful__hue { height: 16px; border-radius: 0; border: 2px solid var(--vx-line); }
+.vx-picker .react-colorful__pointer { /* つまみもドット絵風の四角に */
+  width: 18px; height: 18px; border-radius: 0; border: 3px solid #ffffff; box-shadow: 0 0 0 2px var(--vx-line);
+}
+.vx-picker--disabled { opacity: 0.4; pointer-events: none; }
+
+.vx-hex-row { display: flex; align-items: center; gap: 8px; }
+.vx-color-preview { width: 30px; height: 30px; flex-shrink: 0; border: 2px solid var(--vx-line); }
+.vx-input {
+  flex: 1; min-width: 0; height: 30px; padding: 0 8px;
+  background: var(--vx-bg); color: var(--vx-text); border: 2px solid #8c8d90;
+  font: 14px monospace; outline: none;
+}
+.vx-input:focus { border-color: var(--vx-text); }
+.vx-input:disabled { opacity: 0.4; }
+
+.vx-swatches { padding: 6px; background: var(--vx-surface); border: 2px solid var(--vx-line); }
+.vx-swatches--recent { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; min-height: 36px; }
+.vx-swatches--presets { display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px; }
+.vx-swatch { aspect-ratio: 1; padding: 0; border: 2px solid var(--vx-line); cursor: pointer; transition: transform 0.05s; }
+.vx-swatches--recent .vx-swatch { width: 20px; }
+.vx-swatch:hover { outline: 2px solid var(--vx-text-sub); }
+.vx-swatch:active { transform: scale(0.8); }
+.vx-swatch--selected, .vx-swatch--selected:hover { position: relative; outline: 2px solid #ffffff; outline-offset: 1px; }
+.vx-empty { font-size: 12px; color: var(--vx-text-sub); }
+
+/* ---------- 3D表示の上に浮かせる設定 ---------- */
+.vx-floating {
+  position: absolute; top: 16px; left: 16px; z-index: 10; min-width: 200px; white-space: nowrap;
+  display: flex; flex-direction: column; gap: 4px; padding: 8px 10px 4px;
+  background: rgba(49, 50, 51, 0.92); border: 2px solid var(--vx-line);
+  box-shadow: inset 0 2px 0 var(--vx-highlight);
+}
+.vx-floating > .vx-btn { margin-top: 4px; }
+
+/* ---------- パーツの表示切り替え ---------- */
+.vx-body-map { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 14px 0 4px; }
+.vx-body-row { display: flex; gap: 4px; }
+.vx-part { position: relative; }
+.vx-part > .vx-btn:first-child { width: 100%; height: 100%; padding: 0; }
+.vx-part > .vx-part-badge { position: absolute; top: -9px; right: -9px; width: 24px; height: 24px; padding: 0; }
+.vx-push-bottom { margin-top: auto; }

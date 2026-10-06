@@ -1,16 +1,15 @@
 import { Pencil, Eraser, PaintBucket, Pipette, FlipHorizontal } from 'lucide-react';
 import type { Tool, BrushSize } from '../canvas/tools';
 import { Button } from './Button';
-import { sectionTitle } from './styles';
+import { Switch } from './Switch';
 
 const TOOLS: { tool: Tool; icon: React.ReactNode; title: string }[] = [
-  { tool: 'pen', icon: <Pencil size={18} />, title: 'ペン (W)' },
-  { tool: 'eraser', icon: <Eraser size={18} />, title: '消しゴム (E)' },
-  { tool: 'bucket', icon: <PaintBucket size={18} />, title: 'バケツ (F)' },
-  { tool: 'picker', icon: <Pipette size={18} />, title: 'スポイト (S)' },
+  { tool: 'pen', icon: <Pencil size={20} />, title: 'ペン (W)' },
+  { tool: 'eraser', icon: <Eraser size={20} />, title: '消しゴム (E)' },
+  { tool: 'bucket', icon: <PaintBucket size={20} />, title: 'バケツ (F)' },
+  { tool: 'picker', icon: <Pipette size={20} />, title: 'スポイト (S)' },
 ];
 
-// 太さボタンの中の丸 (サイズ1〜3 → 直径4/8/12px)
 const SIZES: BrushSize[] = [1, 2, 3];
 
 interface Props {
@@ -24,26 +23,27 @@ interface Props {
 
 export function ToolPanel({ tool, onToolChange, brushSize, onBrushSizeChange, mirror, onMirrorChange }: Props) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-      <div style={sectionTitle}>ツール</div>
-      <div style={{ display: 'flex', gap: '8px' }}>
+    <section className="vx-panel">
+      <h2 className="vx-panel-title">ツール</h2>
+      <div className="vx-tools">
         {TOOLS.map(t => (
-          <Button key={t.tool} selected={tool === t.tool} onClick={() => onToolChange(t.tool)} title={t.title} style={{ padding: '8px', flex: 1 }}>
+          <Button key={t.tool} selected={tool === t.tool} onClick={() => onToolChange(t.tool)} title={t.title} aria-label={t.title}>
             {t.icon}
           </Button>
         ))}
       </div>
-      <div style={{ display: 'flex', gap: '8px', alignItems: 'center', backgroundColor: '#f1f5f9', padding: '8px', borderRadius: '8px' }}>
-        <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 'bold', marginLeft: '4px' }}>太さ</span>
-        <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end', gap: '6px' }}>
+      <div className="vx-size-row">
+        <span className="vx-label">太さ</span>
+        <div className="vx-sizes">
           {SIZES.map(s => (
-            <Button key={s} selected={brushSize === s} onClick={() => onBrushSizeChange(s)} title={`サイズ ${s}`} style={{ padding: '4px', width: '32px', height: '32px' }}>
-              <div style={{ width: `${s * 4}px`, height: `${s * 4}px`, borderRadius: '50%', backgroundColor: 'currentColor' }} />
+            <Button key={s} selected={brushSize === s} onClick={() => onBrushSizeChange(s)} title={`サイズ ${s}`} aria-label={`サイズ ${s}`}>
+              {/* 太さ1〜3 → 一辺4/8/12pxの四角 */}
+              <span className="vx-size-dot" style={{ width: s * 4, height: s * 4 }} />
             </Button>
           ))}
         </div>
       </div>
-      <Button pressed={mirror} onClick={() => onMirrorChange(!mirror)}><FlipHorizontal size={16} /> ミラー描画</Button>
-    </div>
+      <Switch checked={mirror} onChange={onMirrorChange} icon={<FlipHorizontal size={16} />}>ミラー描画</Switch>
+    </section>
   );
 }

@@ -16,34 +16,23 @@ export function EditorHeader({ canUndo, canRedo, onUndo, onRedo, onNew, onImport
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   return (
-    <header style={{
-      backgroundColor: '#1e293b', color: '#ffffff', padding: '12px 24px',
-      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-      boxShadow: '0 2px 4px rgba(0,0,0,0.1)', zIndex: 20
-    }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
-        <h1 style={{ margin: 0, fontSize: '20px', fontWeight: 'bold', letterSpacing: '1px' }}>
-          Vextra - Minecraft Skin Editor
+    <header className="vx-header">
+      <div className="vx-header-group">
+        <h1 className="vx-logo">
+          <span className="vx-logo-main">VEXTRA</span>
+          <span className="vx-logo-sub">Minecraft Skin Editor</span>
         </h1>
         {/* Undo / Redo はどの画面サイズでも見えるようにヘッダーに置く */}
-        <div style={{ display: 'flex', gap: '8px', borderLeft: '1px solid #334155', paddingLeft: '24px' }}>
-          <Button variant="dark" onClick={onUndo} disabled={!canUndo} title="元に戻す (Ctrl+Z)" style={{ opacity: canUndo ? 1 : 0.4 }}><Undo2 size={16} /> Undo</Button>
-          <Button variant="dark" onClick={onRedo} disabled={!canRedo} title="やり直す (Ctrl+Shift+Z)" style={{ opacity: canRedo ? 1 : 0.4 }}><Redo2 size={16} /> Redo</Button>
-        </div>
+        <Button onClick={onUndo} disabled={!canUndo} title="元に戻す (Ctrl+Z)"><Undo2 size={16} /> Undo</Button>
+        <Button onClick={onRedo} disabled={!canRedo} title="やり直す (Ctrl+Shift+Z)"><Redo2 size={16} /> Redo</Button>
       </div>
-      <div style={{ display: 'flex', gap: '12px', borderLeft: '1px solid #334155', paddingLeft: '12px' }}>
-        {/* ファイル操作をグループ化 */}
-        <Button variant="dark" onClick={onNew}>
-          <PlusSquare size={16} /> 新規
-        </Button>
 
-        <Button variant="dark" onClick={() => fileInputRef.current?.click()}>
-          <FolderOpen size={16} /> 読込
-        </Button>
+      {/* ファイル操作。目立たせるのは「保存」だけ */}
+      <div className="vx-header-group">
+        <Button onClick={onNew}><PlusSquare size={16} /> 新規</Button>
+        <Button onClick={() => fileInputRef.current?.click()}><FolderOpen size={16} /> 読込</Button>
         <input ref={fileInputRef} type="file" accept="image/png" onChange={onImport} style={{ display: 'none' }} />
-        <Button variant="primary" onClick={onDownload}>
-          <Download size={16} /> 保存
-        </Button>
+        <Button variant="primary" onClick={onDownload}><Download size={16} /> 保存</Button>
       </div>
     </header>
   );
