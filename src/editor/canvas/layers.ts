@@ -7,9 +7,13 @@
 export const SKIN_SIZE = 64;
 export const PIXEL_COUNT = SKIN_SIZE * SKIN_SIZE;
 
+// RGBAの配列 (1ピクセル4バイト)。<ArrayBuffer> は「スレッド間共有メモリではない普通の配列」という意味で、
+// ImageData などブラウザのAPIに渡すにはこの指定が要る
+export type Pixels = Uint8ClampedArray<ArrayBuffer>;
+
 export interface SkinLayers {
-  base: Uint8ClampedArray; // RGBA × 64 × 64
-  paint: Uint8ClampedArray; // RGBA × 64 × 64
+  base: Pixels; // RGBA × 64 × 64
+  paint: Pixels; // RGBA × 64 × 64
   erased: Uint8Array; // 1ピクセル1バイト × 64 × 64
 }
 
@@ -50,7 +54,7 @@ export function compositePixel(layers: SkinLayers, x: number, y: number): RGBA {
 }
 
 // 全体の見た目。out を渡すとそこに書き込む (毎回配列を作らずに済む)
-export function composite(layers: SkinLayers, out = new Uint8ClampedArray(PIXEL_COUNT * 4)): Uint8ClampedArray {
+export function composite(layers: SkinLayers, out: Pixels = new Uint8ClampedArray(PIXEL_COUNT * 4)): Pixels {
   for (let p = 0; p < PIXEL_COUNT; p++) {
     const i = p * 4;
     if (layers.erased[p]) {

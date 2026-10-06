@@ -1,11 +1,17 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import type { Tool, BrushSize } from './tools';
 import { MAX_HISTORY, MAX_RECENT_COLORS, AUTOSAVE_KEY, AUTOSAVE_DELAY } from './constants';
-import { getMirrorCoord } from '../skin/mirror';
+import { createLayers, cloneLayers } from './layers';
+import type { SkinLayers } from './layers';
+import { paintPixel, erasePixel, brushPixels, floodFill as floodFillLayers, pickColor as pickLayerColor } from './operations';
+import { imageToPixels, renderToCanvas } from './image';
 import { hexToRgba, rgbaToHex } from '../../shared/color';
 
-// 64×64のスキン画像(<canvas>)への描画・Undo/Redo・自動保存・読み込み/書き出しをまとめたhook
-// (3D表示は描画ループで毎フレーム canvas を読み直しているので、変更を通知する必要はない)
+// スキン画像の編集・Undo/Redo・自動保存・読み込み/書き出しをまとめたhook
+//
+// データの本体は layersRef の3つの層 (下地・手描き・消去マスク)。
+// canvasRef の <canvas> は、層を重ねた見た目を書き込む「表示先」で、
+// 3D表示のテクスチャ・PNG書き出し・自動保存はこの canvas を使う
 export function useSkinCanvas(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
   // 描画ツール系
   const [color, setColor] = useState('#000000') // 現在の色
@@ -22,9 +28,16 @@ export function useSkinCanvas(canvasRef: React.RefObject<HTMLCanvasElement | nul
   const [recentColors, setRecentColors] = useState<string[]>([]) //最近の色
 
   // 裏のメモ帳
-  const undoStack = useRef<ImageData[]>([]) // Undo履歴
-  const redoStack = useRef<ImageData[]>([]) // Redo履歴
+  const layersRef = useRef<SkinLayers>(createLayers()) // スキンのデータ本体
+  const undoStack = useRef<SkinLayers[]>([]) // Undo履歴 (層の複製)
+  const redoStack = useRef<SkinLayers[]>([]) // Redo履歴
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null) // 自動保存タイマー
+
+  // 層を書き換えたら呼ぶ: 見た目を canvas に反映する
+  const render = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (canvas) renderToCanvas(canvas, layersRef.current);
+  }, [canvasRef]);
 
   // 描いた後に呼ぶ: 自動保存を予約する
   const notifyUpdate = useCallback(() => {
@@ -38,7 +51,7 @@ export function useSkinCanvas(canvasRef: React.RefObject<HTMLCanvasElement | nul
       const canvas = canvasRef.current;
       if (canvas) {
         try {
-          // キャンバスの内容を画像としてブラウザに保存
+          // 見た目(合成結果)を画像としてブラウザに保存
           localStorage.setItem(AUTOSAVE_KEY, canvas.toDataURL('image/png'));
         } catch {
           /* localStorageが満杯の場合は無視 */
@@ -47,42 +60,26 @@ export function useSkinCanvas(canvasRef: React.RefObject<HTMLCanvasElement | nul
     }, AUTOSAVE_DELAY);
   }, [canvasRef]);
 
-  // 起動時にlocalStorageからキャンバスを復元
+  // 起動時にlocalStorageから復元する (保存されている画像を下地にする)
   useEffect(() => {
-    // localStorageをチェック
     const saved = localStorage.getItem(AUTOSAVE_KEY);
     if (!saved) return;
 
-    // キャンバスを準備
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    // 画像を読み込む
-    const img = new Image(); // 空の画像オブジェクトを作成
+    const img = new Image();
     img.onload = () => {
-      ctx.clearRect(0, 0, 64, 64);
-      ctx.drawImage(img, 0, 0, 64, 64);
+      layersRef.current = createLayers(imageToPixels(img));
+      render();
     };
     img.src = saved;
-  }, [canvasRef]);
+  }, [render]);
 
   // --- 履歴操作 ---
 
-  // 現在の状態をUndo履歴に保存する関数
-  const pushUndo = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+  // 履歴に積む (snapshot を省略すると、今の状態を積む)
+  const pushUndo = useCallback((snapshot: SkinLayers = cloneLayers(layersRef.current)) => {
+    undoStack.current.push(snapshot);
 
-    // 状態を履歴に積む
-    undoStack.current.push(
-      ctx.getImageData(0, 0, canvas.width, canvas.height)
-    );
-
-    // 履歴が30件を超えたら古いものを削除
+    // 履歴が上限を超えたら古いものを削除
     if (undoStack.current.length > MAX_HISTORY) undoStack.current.shift();
 
     // 新しく描くとredoStackを空に
@@ -90,47 +87,37 @@ export function useSkinCanvas(canvasRef: React.RefObject<HTMLCanvasElement | nul
     // ボタンの状態を更新
     setCanUndo(true);
     setCanRedo(false);
-  }, [canvasRef]);
+  }, []);
 
   // Undo履歴を使って1つ前に戻る
   const handleUndo = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
     // undoStackが空なら何もしない
     if (undoStack.current.length === 0) return;
 
-    // 現在の状態をredoStackに積む
-    redoStack.current.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
-
-    // undoStackから1つ取り出してcanvasに反映
-    ctx.putImageData(undoStack.current.pop()!, 0, 0);
+    // 現在の状態をredoStackに積み、1つ前の状態に入れ替える
+    redoStack.current.push(layersRef.current);
+    layersRef.current = undoStack.current.pop()!;
+    render();
 
     // ボタンの状態を更新
     // まだundoStackに履歴があればtrueのまま、なければfalse
     setCanUndo(undoStack.current.length > 0);
     setCanRedo(true);
     notifyUpdate();
-  }, [canvasRef, notifyUpdate]);
+  }, [render, notifyUpdate]);
 
   // Redo履歴を使って1つ先に進む
   const handleRedo = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
     if (redoStack.current.length === 0) return;
 
-    undoStack.current.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
-    ctx.putImageData(redoStack.current.pop()!, 0, 0);
+    undoStack.current.push(layersRef.current);
+    layersRef.current = redoStack.current.pop()!;
+    render();
 
     setCanUndo(true);
     setCanRedo(redoStack.current.length > 0);
     notifyUpdate();
-  }, [canvasRef, notifyUpdate]);
+  }, [render, notifyUpdate]);
 
   // --- 最近使った色 ---
 
@@ -146,78 +133,21 @@ export function useSkinCanvas(canvasRef: React.RefObject<HTMLCanvasElement | nul
   // --- バケツ ---
 
   const floodFill = useCallback((startX: number, startY: number, fillColor: string) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    const { width, height } = canvas;
-    const imageData = ctx.getImageData(0, 0, width, height); // putImageDataで再利用するため
-    const data = imageData.data; // ピクセルの読み書き用
-    const fill = hexToRgba(fillColor);
-
-    // クリックした座標からdata配列のインデックスを計算
-    const idx = (startY * width + startX) * 4;
-    // クリックした座標の色を取得
-    const tR = data[idx], tG = data[idx + 1], tB = data[idx + 2], tA = data[idx + 3];
-    // クリックした色と塗りたい色が同じなら何もしない
-    if (tR === fill.r && tG === fill.g && tB === fill.b && tA === fill.a) return;
-
-    // 実際に色が変わるときだけ履歴に保存する
-    pushUndo();
-
-    // ---
-
-    // キューにクリックした座標をいれて開始
-    const queue: [number, number][] = [[startX, startY]];
-
-    // 64 × 64 = 4096個の0が並んだ配列
-    // 0 → まだ訪れていない
-    // 1 → 既に訪れた
-    const visited = new Uint8Array(width * height);
-
-    // キューが空になるまで繰り返す
-    while (queue.length > 0) {
-      // 先端の座標を取り出す
-      const [cx, cy] = queue.pop()!;
-
-      // キャンバス範囲外チェック
-      if (cx < 0 || cx >= 64 || cy < 0 || cy >= 64) continue;
-      // 訪問済みチェック
-      const pos = cy * width + cx; // visited配列用に2次元座標を1次元インデックスに変換
-      if (visited[pos]) continue; // 0 → Falsy, 1 → Truthy
-      visited[pos] = 1; // 訪れた印をつける(1を代入)
-
-      // 色チェック
-      const i = pos * 4;
-      // クリックした色と違う色なら次のループへ
-      if (data[i] !== tR || data[i + 1] !== tG || data[i + 2] !== tB || data[i + 3] !== tA) continue;
-
-      // 塗る
-      data[i] = fill.r
-      data[i + 1] = fill.g
-      data[i + 2] = fill.b
-      data[i + 3] = fill.a
-
-      // 右、左、下、上をキューに追加して次のループで処理
-      queue.push([cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1]);
+    const before = cloneLayers(layersRef.current);
+    // 実際に色が変わったときだけ履歴に保存する
+    if (floodFillLayers(layersRef.current, startX, startY, hexToRgba(fillColor))) {
+      pushUndo(before);
+      render();
     }
-    ctx.putImageData(imageData, 0, 0);
-  }, [canvasRef, pushUndo]);
+  }, [pushUndo, render]);
 
   // --- スポイト ---
 
   const pickColor = (x: number, y: number) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    // 1ピクセルだけ取得
-    const pixel = ctx.getImageData(x, y, 1, 1).data;
     // 透明なら無視
-    if (pixel[3] === 0) return;
-    const hex = rgbaToHex(pixel[0], pixel[1], pixel[2]);
+    const picked = pickLayerColor(layersRef.current, x, y);
+    if (!picked) return;
+    const hex = rgbaToHex(picked.r, picked.g, picked.b);
 
     // 状態を更新
     setColor(hex); // 現在の色を変更
@@ -227,86 +157,34 @@ export function useSkinCanvas(canvasRef: React.RefObject<HTMLCanvasElement | nul
 
   // --- 描画(ブラシサイズ＆ミラー対応) ---
 
-  // 1点を中心にブラスサイズ分のピクセルを塗る
-  const applyToolAt = useCallback((x: number, y: number, ctx: CanvasRenderingContext2D) => {
-    // ブラシサイズの半径
-    const half = Math.floor(brushSize / 2);
-
-    for (let dy = -half; dy < brushSize - half; dy++) {
-      for (let dx = -half; dx < brushSize - half; dx++) {
-        const px = x + dx, py = y + dy;
-        // キャンバス外なら次のループへ
-        if (px < 0 || px >= 64 || py < 0 || py >= 64) continue;
-
-        if (tool === 'eraser') {
-          ctx.clearRect(px, py, 1, 1); // 消しゴム: 透明にする
-        } else {
-          ctx.fillStyle = color;
-          ctx.fillRect(px, py, 1, 1); // 1×1ピクセルを塗る
-        }
-      }
-    }
-  }, [tool, color, brushSize]);
-
-  // ミラーも考慮して塗るver
   const applyTool = useCallback((x: number, y: number) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    applyToolAt(x, y, ctx);
-
-    // ミラー描画
-    if (mirror) {
-      const half = Math.floor(brushSize / 2);
-
-      for (let dy = -half; dy < brushSize - half; dy++) {
-        for (let dx = -half; dx < brushSize - half; dx++) {
-          const px = x + dx, py = y + dy;
-          // ミラー先座標を取得
-          const mc = getMirrorCoord(px, py);
-
-          // ミラー先座標が存在する場合だけ
-          if (mc) {
-            if (tool === 'eraser') {
-              ctx.clearRect(mc[0], mc[1], 1, 1);
-            } else {
-              ctx.fillStyle = color;
-              ctx.fillRect(mc[0], mc[1], 1, 1);
-            }
-          }
-        }
-      }
+    const layers = layersRef.current;
+    const rgba = hexToRgba(color);
+    for (const [px, py] of brushPixels(x, y, brushSize, mirror)) {
+      if (tool === 'eraser') erasePixel(layers, px, py); // 消しゴム: 透明にする
+      else paintPixel(layers, px, py, rgba);
     }
-  }, [canvasRef, applyToolAt, mirror, brushSize, tool, color]);
+    render();
+  }, [tool, color, brushSize, mirror, render]);
 
   // --- 全消し ---
 
   const clearCanvas = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
     pushUndo(); // 消す前の状態を履歴に保存
-    ctx.clearRect(0, 0, 64, 64); // キャンバス全体を透明に
-    notifyUpdate(); // 3Dプレビューに通知
-  }, [canvasRef, pushUndo, notifyUpdate]);
+    layersRef.current = createLayers(); // 全体を透明に
+    render();
+    notifyUpdate();
+  }, [pushUndo, render, notifyUpdate]);
 
   // --- 新規作成 ---
 
   const newCanvas = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
     pushUndo();
-    ctx.clearRect(0, 0, 64, 64);
+    layersRef.current = createLayers();
+    render();
     localStorage.removeItem(AUTOSAVE_KEY); // オートセーブのデータも削除
     notifyUpdate();
-  }, [canvasRef, pushUndo, notifyUpdate]);
+  }, [pushUndo, render, notifyUpdate]);
 
   // --- PNG保存 ---
 
@@ -347,14 +225,10 @@ export function useSkinCanvas(canvasRef: React.RefObject<HTMLCanvasElement | nul
         return;
       }
 
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
-
+      // 読み込んだスキンは下地にする
       pushUndo();
-      ctx.clearRect(0, 0, 64, 64);
-      ctx.drawImage(img, 0, 0);
+      layersRef.current = createLayers(imageToPixels(img));
+      render();
       notifyUpdate();
     };
 
@@ -365,7 +239,7 @@ export function useSkinCanvas(canvasRef: React.RefObject<HTMLCanvasElement | nul
     };
 
     img.src = url;
-  }, [canvasRef, pushUndo, notifyUpdate]);
+  }, [pushUndo, render, notifyUpdate]);
 
   return {
     color, setColor, tool, setTool, brushSize, setBrushSize, mirror, setMirror,
