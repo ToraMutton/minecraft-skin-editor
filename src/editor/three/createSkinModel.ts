@@ -1,9 +1,10 @@
 import * as THREE from 'three';
 import { SKIN_UV, SKIN_UV_OVER } from '../skin/uv';
+import type { PartName } from '../skin/uv';
 import { applyPartUV } from './applyPartUV';
 import { createGridTexture } from './gridTexture';
 
-export type PartName = 'head' | 'body' | 'rightArm' | 'leftArm' | 'rightLeg' | 'leftLeg';
+export type { PartName };
 
 // 1つのパーツの形 (素の層と上着の層の箱) と、置く位置
 export interface PartGeometry {

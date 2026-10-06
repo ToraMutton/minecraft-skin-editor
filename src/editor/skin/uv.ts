@@ -1,5 +1,7 @@
 // Minecraftスキン(64×64)の展開図で、各パーツの各面がどこにあるかの定義
 
+export type PartName = 'head' | 'body' | 'rightArm' | 'leftArm' | 'rightLeg' | 'leftLeg';
+
 // Minecraftスキンの各パーツのUV座標定義
 export interface UVFace {
   u: number; v: number; w: number; h: number;
