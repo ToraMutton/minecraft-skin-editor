@@ -1,8 +1,7 @@
 import { User, Layers, Trash2 } from 'lucide-react';
 import type { PartName } from '../skin/uv';
+import type { PartVisibility } from '../viewTypes';
 import { Button } from './Button';
-
-export type PartVisibility = Record<PartName, boolean>;
 
 interface Props {
   visibleParts: PartVisibility; // 素の層の表示

@@ -1,8 +1,7 @@
 import { Focus, Grid, PenTool, Eye } from 'lucide-react';
 import { Button } from './Button';
 import { pillStyle } from './styles';
-
-export type ViewMode = 'edit' | 'pose';
+import type { ViewMode } from '../viewTypes';
 
 interface Props {
   isAutoFocus: boolean;
