@@ -406,6 +406,11 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
     color: brushSize === s ? '#1d4ed8' : '#334155',
   });
 
+  // 3D表示の上に浮かせる丸いボタン
+  const pillStyle: React.CSSProperties = {
+    borderRadius: '20px', padding: '8px 16px', boxShadow: '0 4px 6px rgba(0,0,0,0.3)'
+  };
+
   const sectionTitle = {
     fontSize: '10px',
     fontWeight: '700' as const,
@@ -517,9 +522,16 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
         boxShadow: '0 2px 4px rgba(0,0,0,0.1)', zIndex: 20
       }}>
-        <h1 style={{ margin: 0, fontSize: '20px', fontWeight: 'bold', letterSpacing: '1px' }}>
-          Vextra - Minecraft Skin Editor
-        </h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
+          <h1 style={{ margin: 0, fontSize: '20px', fontWeight: 'bold', letterSpacing: '1px' }}>
+            Vextra - Minecraft Skin Editor
+          </h1>
+          {/* Undo / Redo はどの画面サイズでも見えるようにヘッダーに置く */}
+          <div style={{ display: 'flex', gap: '8px', borderLeft: '1px solid #334155', paddingLeft: '24px' }}>
+            <button onClick={handleUndo} disabled={!canUndo} title="元に戻す (Ctrl+Z)" className="btn-sink btn-dark" style={{ ...btnBase, opacity: canUndo ? 1 : 0.4 }}><Undo2 size={16} /> Undo</button>
+            <button onClick={handleRedo} disabled={!canRedo} title="やり直す (Ctrl+Shift+Z)" className="btn-sink btn-dark" style={{ ...btnBase, opacity: canRedo ? 1 : 0.4 }}><Redo2 size={16} /> Redo</button>
+          </div>
+        </div>
         <div style={{ display: 'flex', gap: '12px', borderLeft: '1px solid #334155', paddingLeft: '12px' }}>
           {/* ファイル操作をグループ化 */}
           <button onClick={() => { if (window.confirm('キャンバスをリセットして新規作成しますか？')) newCanvas(); }}
@@ -555,16 +567,53 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
         {/* --- 左サイドバー --- */}
         <aside style={{
           minWidth: '220px', maxWidth: '280px', // 幅を固定
-          backgroundColor: '#ffffff', borderRight: '1px solid #e2e8f0', padding: '24px',
-          display: 'flex', flexDirection: 'column', gap: '28px', overflowY: 'auto'
+          backgroundColor: '#ffffff', borderRight: '1px solid #e2e8f0', padding: '16px 20px',
+          display: 'flex', flexDirection: 'column', gap: '20px', overflowY: 'auto'
         }}>
 
-          {/* セクション1: カラーパレット */}
+          {/* セクション1: ツール (よく使うので上に置く) */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div style={sectionTitle}>ツール</div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              {(['pen', 'eraser', 'bucket', 'picker'] as Tool[]).map((t) => {
+                const icons = { pen: <Pencil size={18} />, eraser: <Eraser size={18} />, bucket: <PaintBucket size={18} />, picker: <Pipette size={18} /> };
+                const titles = { pen: 'ペン (W)', eraser: '消しゴム (E)', bucket: 'バケツ (F)', picker: 'スポイト (S)' };
+                return (
+                  <button key={t}
+                    className="btn-sink"
+                    onClick={() => setTool(t)} style={toolBtn(t)} title={titles[t]}
+                  >
+                    {icons[t]}
+                  </button>
+                )
+              })}
+            </div>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', backgroundColor: '#f1f5f9', padding: '8px', borderRadius: '8px' }}>
+              <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 'bold', marginLeft: '4px' }}>太さ</span>
+              <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end', gap: '6px' }}>
+                {([1, 2, 3] as BrushSize[]).map(s => {
+                  const sizeVisuals = {
+                    1: <div style={{ width: '4px', height: '4px', borderRadius: '50%', backgroundColor: 'currentColor' }} />,
+                    2: <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: 'currentColor' }} />,
+                    3: <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: 'currentColor' }} />,
+                  };
+                  return (
+                    <button key={s} onClick={() => setBrushSize(s)} style={sizeBtn(s)} title={`サイズ ${s}`} className="btn-sink">
+                      {sizeVisuals[s]}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+            <button onClick={() => setMirror(!mirror)} style={toggleBtn(mirror)} className="btn-sink"><FlipHorizontal size={16} /> ミラー描画</button>
+          </div>
+
+          {/* セクション2: カラーパレット */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <div style={sectionTitle}>カラー</div>
 
             <div onPointerUp={() => addRecentColor(color)} style={{ opacity: colorDisabled ? 0.5 : 1, pointerEvents: colorDisabled ? 'none' : 'auto' }}>
-              <HexColorPicker color={color} onChange={setColor} style={{ width: '100%' }} />
+              <HexColorPicker color={color} onChange={setColor} style={{ width: '100%', height: '130px' }} />
             </div>
 
             <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -610,8 +659,8 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
               )}
             </div>
 
-            {/* 大型パレット */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '6px', padding: '12px', backgroundColor: '#f1f5f9', borderRadius: '8px' }}>
+            {/* プリセットパレット (10色×2行) */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)', gap: '4px', padding: '8px', backgroundColor: '#f1f5f9', borderRadius: '8px' }}>
               {PRESET_COLORS.map((c) => (
                 <button key={c} onClick={() => { setColor(c); setTool('pen'); }} title={c}
                   className="btn-sink"
@@ -619,74 +668,6 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
                 />
               ))}
             </div>
-          </div>
-
-          {/* セクション2: ツール */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <div style={sectionTitle}>ツール</div>
-            <div style={{ display: 'flex', gap: '8px' }}>
-              {(['pen', 'eraser', 'bucket', 'picker'] as Tool[]).map((t) => {
-                const icons = { pen: <Pencil size={18} />, eraser: <Eraser size={18} />, bucket: <PaintBucket size={18} />, picker: <Pipette size={18} /> };
-                const titles = { pen: 'ペン (W)', eraser: '消しゴム (E)', bucket: 'バケツ (F)', picker: 'スポイト (S)' };
-                return (
-                  <button key={t}
-                    className="btn-sink"
-                    onClick={() => setTool(t)} style={toolBtn(t)} title={titles[t]}
-                  >
-                    {icons[t]}
-                  </button>
-                )
-              })}
-            </div>
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', backgroundColor: '#f1f5f9', padding: '8px', borderRadius: '8px' }}>
-              <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 'bold', marginLeft: '4px' }}>太さ</span>
-              <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end', gap: '6px' }}>
-                {([1, 2, 3] as BrushSize[]).map(s => {
-                  const sizeVisuals = {
-                    1: <div style={{ width: '4px', height: '4px', borderRadius: '50%', backgroundColor: 'currentColor' }} />,
-                    2: <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: 'currentColor' }} />,
-                    3: <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: 'currentColor' }} />,
-                  };
-                  return (
-                    <button key={s} onClick={() => setBrushSize(s)} style={sizeBtn(s)} title={`サイズ ${s}`} className="btn-sink">
-                      {sizeVisuals[s]}
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-          </div>
-
-          {/* セクション3: 操作 & 設定 */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', borderTop: '1px solid #e2e8f0', paddingTop: '24px' }}>
-            <div style={sectionTitle}>設定</div>
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <button onClick={handleUndo} disabled={!canUndo} style={{ ...btnBase, opacity: canUndo ? 1 : 0.4, flex: 1 }} className="btn-sink"><Undo2 size={16} /> Undo</button>
-              <button onClick={handleRedo} disabled={!canRedo} style={{ ...btnBase, opacity: canRedo ? 1 : 0.4, flex: 1 }} className="btn-sink"><Redo2 size={16} /> Redo</button>
-            </div>
-
-            <button onClick={() => setMirror(!mirror)} style={toggleBtn(mirror)} className="btn-sink"><FlipHorizontal size={16} /> ミラー描画</button>
-            <button onClick={() => setShowGuide(!showGuide)} style={toggleBtn(showGuide)} className="btn-sink"><Grid size={16} /> ガイド表示</button>
-
-            <button
-              onClick={() => setMode(mode === 'edit' ? 'pose' : 'edit')}
-              className="btn-sink"
-              style={{
-                ...btnBase,
-                backgroundColor: mode === 'pose' ? '#f1f5f9' : '#eff6ff',
-                color: mode === 'pose' ? '#64748b' : '#1d4ed8',
-                border: mode === 'pose' ? '1px solid #cbd5e1' : '1px solid #3b82f6',
-              }}
-            >
-              {mode === 'edit' ? <><PenTool size={16} /> 編集モード</> : <><Eye size={16} /> 鑑賞モード</>}
-            </button>
-
-            <button onClick={() => { if (window.confirm('本当にキャンバスを全消ししますか？')) clearCanvas(); }}
-              className="btn-sink btn-hover"
-              style={{ ...btnBase, color: '#ef4444', borderColor: '#fca5a5', backgroundColor: '#fef2f2', marginTop: '12px' }}
-            >
-              <Trash2 size={16} /> キャンバスを全消し
-            </button>
           </div>
         </aside>
 
@@ -698,18 +679,33 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
           overflow: 'hidden',
           backgroundColor: '#1e1e1e'
         }}>
-          {/* 中央揃えのtransformがボタンのscaleと競合しないように */}
-          <div style={{ position: 'absolute', top: '24px', left: '50%', transform: 'translateX(-50%)', zIndex: 10 }}>
+          {/* 見え方の設定は3D表示の左上にまとめる (中央上だとモデルの頭に重なって塗りにくい) */}
+          <div style={{ position: 'absolute', top: '16px', left: '16px', zIndex: 10, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '8px', whiteSpace: 'nowrap' }}>
             <button
               onClick={() => setIsAutoFocus(!isAutoFocus)}
               className="btn-sink"
-              style={{
-                ...toggleBtn(isAutoFocus, '#ffe0b2'),
-                borderRadius: '20px', padding: '8px 16px', boxShadow: '0 4px 6px rgba(0,0,0,0.3)'
-              }}
+              style={{ ...toggleBtn(isAutoFocus, '#ffe0b2'), ...pillStyle }}
             >
               <Focus size={16} />
               {isAutoFocus ? 'オートフォーカス: ON' : 'オートフォーカス: OFF'}
+            </button>
+
+            <button onClick={() => setShowGuide(!showGuide)} className="btn-sink" style={{ ...toggleBtn(showGuide), ...pillStyle }}>
+              <Grid size={16} /> ガイド表示
+            </button>
+
+            <button
+              onClick={() => setMode(mode === 'edit' ? 'pose' : 'edit')}
+              className="btn-sink"
+              style={{
+                ...btnBase,
+                backgroundColor: mode === 'pose' ? '#f1f5f9' : '#eff6ff',
+                color: mode === 'pose' ? '#64748b' : '#1d4ed8',
+                border: mode === 'pose' ? '1px solid #cbd5e1' : '1px solid #3b82f6',
+                ...pillStyle
+              }}
+            >
+              {mode === 'edit' ? <><PenTool size={16} /> 編集モード</> : <><Eye size={16} /> 鑑賞モード</>}
             </button>
           </div>
 
@@ -767,6 +763,16 @@ export default function CanvasEditor({ onTextureUpdate, canvasRef }: Props) {
               style={{ ...btnBase, justifyContent: 'center', backgroundColor: '#f1f5f9' }}
             >
               <Layers size={16} /> 上着をすべて切り替え
+            </button>
+          </div>
+
+          {/* 全消しは誤って押さないよう、ほかのボタンから離して一番下に置く */}
+          <div style={{ marginTop: 'auto', paddingTop: '24px', width: '100%', display: 'flex', flexDirection: 'column' }}>
+            <button onClick={() => { if (window.confirm('本当にキャンバスを全消ししますか？')) clearCanvas(); }}
+              className="btn-sink btn-hover"
+              style={{ ...btnBase, color: '#ef4444', borderColor: '#fca5a5', backgroundColor: '#fef2f2' }}
+            >
+              <Trash2 size={16} /> キャンバスを全消し
             </button>
           </div>
         </aside>
