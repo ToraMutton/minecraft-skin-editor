@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10">
+  <!-- Vextra のアイコン: 緑のタイル(下の濃い帯はUIのボタンの「厚み」と同じ) + 8×8 のスキンの顔 -->
+  <defs>
+    <clipPath id="tile"><rect width="10" height="10" rx="1.6"/></clipPath>
+  </defs>
+  <g clip-path="url(#tile)">
+    <rect width="10" height="10" fill="#3c8527"/>
+    <rect y="9.2" width="10" height="0.8" fill="#1d4d13"/>
+  </g>
+  <g transform="translate(1 0.8)" shape-rendering="crispEdges">
+    <!-- 肌 -->
+    <rect width="8" height="8" fill="#e8b98f"/>
+    <rect y="7" width="8" height="1" fill="#d39f74"/>
+    <!-- 髪 -->
+    <rect width="8" height="2" fill="#5a3a22"/>
+    <rect x="1" y="1" width="1" height="1" fill="#7a5233"/>
+    <rect x="5" y="1" width="1" height="1" fill="#7a5233"/>
+    <rect y="2" width="1" height="1" fill="#5a3a22"/>
+    <rect x="7" y="2" width="1" height="1" fill="#5a3a22"/>
+    <!-- 目 (白目 + 黒目) -->
+    <rect x="1" y="4" width="1" height="1" fill="#ffffff"/>
+    <rect x="2" y="4" width="1" height="1" fill="#2f5fd0"/>
+    <rect x="5" y="4" width="1" height="1" fill="#2f5fd0"/>
+    <rect x="6" y="4" width="1" height="1" fill="#ffffff"/>
+    <!-- 口 -->
+    <rect x="3" y="6" width="2" height="1" fill="#b07a55"/>
+  </g>
+</svg>
