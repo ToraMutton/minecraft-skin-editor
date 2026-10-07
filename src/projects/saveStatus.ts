@@ -15,7 +15,8 @@ export type SaveEvent =
   | { type: 'edited' } // 描いた・変更した
   | { type: 'saveStarted' } // 保存を始めた
   | { type: 'saveSucceeded' }
-  | { type: 'saveFailed'; message: string };
+  | { type: 'saveFailed'; message: string }
+  | { type: 'reset' }; // 別の作品に切り替えた (新しい作品は、まだ何も変更していない状態)
 
 export const INITIAL_STATUS: SaveStatus = { kind: 'saved' };
 
@@ -36,6 +37,9 @@ export function nextStatus(status: SaveStatus, event: SaveEvent): SaveStatus {
 
     case 'saveFailed':
       return status.kind === 'saving' ? { kind: 'error', message: event.message } : status;
+
+    case 'reset':
+      return INITIAL_STATUS;
   }
 }
 

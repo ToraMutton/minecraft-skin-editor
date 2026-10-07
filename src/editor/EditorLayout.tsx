@@ -6,12 +6,14 @@ import type { PartName } from './skin/uv';
 import type { PartVisibility, ViewMode } from './viewTypes';
 import { useSkinCanvas } from './canvas/useSkinCanvas';
 import { useKeyboardShortcuts } from './useKeyboardShortcuts';
+import { useProjectManager } from './useProjectManager';
 import { SkinViewer } from './three/SkinViewer';
 import { EditorHeader } from './components/EditorHeader';
 import { ToolPanel } from './components/ToolPanel';
 import { ColorPanel } from './components/ColorPanel';
 import { ViewToggles } from './components/ViewToggles';
 import { PartPanel } from './components/PartPanel';
+import { ProjectsModal } from './components/ProjectsModal';
 
 const ALL_VISIBLE: PartVisibility = {
   head: true, body: true, rightArm: true, leftArm: true, rightLeg: true, leftLeg: true,
@@ -27,8 +29,13 @@ export function EditorLayout() {
     isDrawing, setIsDrawing, canUndo, canRedo, recentColors, addRecentColor,
     notifyUpdate, pushUndo, handleUndo, handleRedo, floodFill, pickColor, applyTool,
     clearCanvas, newCanvas, downloadImage, handleImport,
-    saveStatus, saveNow, startupWarning
+    saveStatus, saveNow, startupWarning,
+    projectInfo, setProjectInfo, projectRef, loadProject, flush, discardPending, resetStatus, markEdited, repository
   } = useSkinCanvas(canvasRef);
+
+  // マイスキン (作品の一覧)
+  const [showProjects, setShowProjects] = useState(false);
+  const projects = useProjectManager({ repository, projectRef, setProjectInfo, loadProject, flush, discardPending, resetStatus, markEdited });
 
   // 表示設定系
   const [visibleParts, setVisibleParts] = useState<PartVisibility>(ALL_VISIBLE);
@@ -73,7 +80,9 @@ export function EditorLayout() {
   };
 
   // --- キーボードショートカット ---
+  // マイスキンを開いている間は、キー操作で絵やツールが変わらないようにする
   useKeyboardShortcuts({
+    enabled: !showProjects,
     canUndo, canRedo, onUndo: handleUndo, onRedo: handleRedo,
     onToolChange: setTool, onBrushSizeChange: setBrushSize,
   });
@@ -83,12 +92,21 @@ export function EditorLayout() {
 
       <EditorHeader
         canUndo={canUndo} canRedo={canRedo} onUndo={handleUndo} onRedo={handleRedo}
-        onNew={() => { if (window.confirm('新しいスキンを作りますか？ (今のスキンは保存されたまま残ります)')) void newCanvas(); }}
+        onNew={() => { if (window.confirm('新しいスキンを作りますか？ (今のスキンは保存されたまま残ります)')) void newCanvas().then(ok => { if (!ok) window.alert('今のスキンを保存できなかったため、新しいスキンを作れません'); }); }}
+        onOpenProjects={() => setShowProjects(true)}
         onImport={handleImport}
         onDownload={downloadImage}
         saveStatus={saveStatus} onRetrySave={saveNow}
       />
       {startupWarning && <div className="vx-banner" role="alert">⚠ {startupWarning}</div>}
+
+      {showProjects && (
+        <ProjectsModal
+          repository={repository} currentId={projectInfo.id} onClose={() => setShowProjects(false)}
+          beforeLoad={projects.syncCurrent}
+          onOpen={projects.open} onRename={projects.rename} onDuplicate={projects.duplicate} onDelete={projects.remove}
+        />
+      )}
 
       {/* --- メインエディタ領域 (左 | 3D | 右) --- */}
       <div className="vx-workspace">

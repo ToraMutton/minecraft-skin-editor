@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import type { Tool, BrushSize } from './canvas/tools';
 
 interface Options {
+  enabled?: boolean; // false の間は、ショートカットを無効にする (ダイアログを開いている間など)
   canUndo: boolean;
   canRedo: boolean;
   onUndo: () => void;
@@ -12,8 +13,9 @@ interface Options {
 
 // キーボードショートカット
 // W/E/F/S: ツール, 1/2/3: 太さ, Ctrl+Z: Undo, Ctrl+Shift+Z・Ctrl+Y: Redo (macOSはCmdでも可)
-export function useKeyboardShortcuts({ canUndo, canRedo, onUndo, onRedo, onToolChange, onBrushSizeChange }: Options) {
+export function useKeyboardShortcuts({ enabled = true, canUndo, canRedo, onUndo, onRedo, onToolChange, onBrushSizeChange }: Options) {
   useEffect(() => {
+    if (!enabled) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       // input要素などに入力中の場合は無視
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
@@ -52,5 +54,5 @@ export function useKeyboardShortcuts({ canUndo, canRedo, onUndo, onRedo, onToolC
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onToolChange, onBrushSizeChange, canUndo, canRedo, onUndo, onRedo]);
+  }, [enabled, onToolChange, onBrushSizeChange, canUndo, canRedo, onUndo, onRedo]);
 }

@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import {
   AUTOSAVE_KEY, UNREADABLE_BACKUP_KEY,
-  openWithSkin, makeSkinDataUrl, viewerCenter, paintedPixels, button, drag, clearStorage,
+  openWithSkin, makeSkinDataUrl, viewerCenter, paintedPixels, button, drag, clearStorage, settledViewerShot, sameView,
 } from './helpers';
 
 test.describe('描画と Undo / Redo', () => {
@@ -142,18 +142,17 @@ test.describe('3D表示', () => {
     const rotateAfter = async (wait: number) => {
       await openWithSkin(page);
       const { box } = await viewerCenter(page);
+      const before = await settledViewerShot(page); // 押す前に撮る (押した後に待つと、カメラのアニメーションが終わってしまい、「直後」にならない)
       await button(page, 'ガイド表示').click();
       await page.waitForTimeout(wait);
-      const before = await page.getByTestId('skin-viewer').screenshot();
       const sx = box.x + box.width - 20, sy = box.y + box.height - 15;
       await drag(page, [[sx, sy], [sx - box.height / 4, sy]], 10);
-      await page.waitForTimeout(1000);
-      return { before, after: await page.getByTestId('skin-viewer').screenshot() };
+      return { before, after: await settledViewerShot(page) };
     };
     const afterWait = await rotateAfter(1000);
     const immediately = await rotateAfter(0);
-    expect(afterWait.after.equals(afterWait.before)).toBe(false); // ドラッグでちゃんと回っている (同じ画面同士の比較で、うっかり合格しないように)
-    expect(immediately.after.equals(afterWait.after)).toBe(true);
+    expect(await sameView(page, afterWait.after, afterWait.before)).toBe(false); // ドラッグでちゃんと回っている (同じ画面同士の比較で、うっかり合格しないように)
+    expect(await sameView(page, immediately.after, afterWait.after)).toBe(true);
   });
 });
 
@@ -313,5 +312,206 @@ test.describe('作品の保存 (IndexedDB)', () => {
     const { x, y } = await viewerCenter(page);
     await page.mouse.click(x, y);
     expect(await paintedPixels(page)).not.toHaveLength(0);
+  });
+});
+
+test.describe('マイスキン (作品の一覧)', () => {
+  type Page = import('@playwright/test').Page;
+  const openProjects = async (page: Page) => {
+    await button(page, 'マイスキン').click();
+    await expect(page.getByRole('dialog', { name: 'マイスキン' })).toBeVisible();
+  };
+  const cards = (page: Page) => page.getByTestId('project-card');
+  const cardOf = (page: Page, name: string) => cards(page).filter({ has: page.getByRole('heading', { name, exact: true }) });
+  const waitSaved = (page: Page) => expect(page.locator('.vx-save--saved')).toBeVisible({ timeout: 5000 });
+
+  // 作品を2つ用意する: 1つ目はペンで1点描いた作品、2つ目は「新規」で作った素体の作品
+  async function twoProjects(page: Page) {
+    await openWithSkin(page, await makeSkinDataUrl(page, 'pattern'));
+    await waitSaved(page);
+    page.once('dialog', d => void d.accept()); // 「新規」の確認ダイアログ
+    await button(page, '新規').click();
+    await expect.poll(async () => (await paintedPixels(page)).length).toBeGreaterThan(1000);
+    await waitSaved(page);
+  }
+
+  test('開くと、作品が新しく更新した順に並び、今の作品に「編集中」と出る', async ({ page }) => {
+    await twoProjects(page);
+    await openProjects(page);
+    await expect(cards(page)).toHaveCount(2);
+    await expect(cards(page).first()).toContainText('編集中'); // 新しく作った素体の作品が先頭
+    await expect(cards(page).first().getByRole('heading')).toHaveText('無題のスキン');
+    await expect(cards(page).nth(1).getByRole('heading')).toHaveText('以前のスキン');
+  });
+
+  test('別の作品を開くと絵が切り替わり、Undo履歴は作品ごとに分かれる。リロードしても、その作品が開く', async ({ page }) => {
+    await twoProjects(page);
+    const starter = await paintedPixels(page);
+    await openProjects(page);
+    await cardOf(page, '以前のスキン').getByRole('button', { name: '開く' }).click();
+    await expect(page.getByRole('dialog')).toBeHidden();
+    await expect.poll(async () => (await paintedPixels(page)).length).toBe(4096); // 模様の作品 (全面)
+    await expect(button(page, 'Undo')).toBeDisabled();
+
+    await page.reload(); // 最後に開いた作品 (更新は古い方) が開く
+    await expect.poll(async () => (await paintedPixels(page)).length).toBe(4096);
+    expect(await paintedPixels(page)).not.toEqual(starter);
+  });
+
+  test('開く前に描いた絵は、切り替えても失われず、戻ると残っている', async ({ page }) => {
+    await twoProjects(page);
+    const { x, y } = await viewerCenter(page);
+    await page.mouse.click(x, y); // 素体の作品に1点描く (保存を待たずにすぐ切り替える)
+    const drawn = await paintedPixels(page);
+    await openProjects(page);
+    await cardOf(page, '以前のスキン').getByRole('button', { name: '開く' }).click();
+    await expect.poll(async () => (await paintedPixels(page)).length).toBe(4096);
+
+    await openProjects(page);
+    await cardOf(page, '無題のスキン').getByRole('button', { name: '開く' }).click();
+    await expect.poll(() => paintedPixels(page)).toEqual(drawn);
+  });
+
+  test('名前を変更できる。空の名前は断られ、開いている作品でも反映される', async ({ page }) => {
+    await twoProjects(page);
+    await openProjects(page);
+    // 開いている作品 (無題のスキン) の名前を変える
+    await cardOf(page, '無題のスキン').getByRole('button', { name: /名前を変更/ }).click();
+    await page.getByLabel('作品の名前').fill('   ');
+    await page.getByLabel('作品の名前').press('Enter');
+    await expect(page.getByRole('alert')).toContainText('名前を入力');
+    await page.getByLabel('作品の名前').fill('  青い服  のスキン ');
+    await page.getByLabel('作品の名前').press('Enter');
+    await expect(cardOf(page, '青い服 のスキン')).toHaveCount(1);
+    await expect(cardOf(page, '青い服 のスキン')).toContainText('編集中');
+
+    // 開いていない作品の名前を変える
+    await cardOf(page, '以前のスキン').getByRole('button', { name: /名前を変更/ }).click();
+    await page.getByLabel('作品の名前').fill('旧スキン');
+    await page.getByRole('button', { name: '決定' }).click();
+    await expect(cardOf(page, '旧スキン')).toHaveCount(1);
+
+    // 閉じて開き直しても、リロードしても、名前は残る
+    await page.reload();
+    await openProjects(page);
+    await expect(cards(page).getByRole('heading').allTextContents()).resolves.toEqual(['青い服 のスキン', '旧スキン']);
+  });
+
+  test('名前の変更は、Escで取り消せる (ダイアログは閉じない)', async ({ page }) => {
+    await twoProjects(page);
+    await openProjects(page);
+    await cardOf(page, '無題のスキン').getByRole('button', { name: /名前を変更/ }).click();
+    await page.getByLabel('作品の名前').fill('消えるはずの名前');
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('dialog')).toBeVisible();
+    await expect(cardOf(page, '無題のスキン')).toHaveCount(1);
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('dialog')).toBeHidden();
+  });
+
+  test('複製すると、同じ絵の「のコピー」ができ、元の作品はそのまま。複製は何度でもできる', async ({ page }) => {
+    await twoProjects(page);
+    await openProjects(page);
+    await cardOf(page, '以前のスキン').getByRole('button', { name: /を複製/ }).click();
+    await expect(cardOf(page, '以前のスキン のコピー')).toHaveCount(1);
+    await cardOf(page, '以前のスキン').getByRole('button', { name: /を複製/ }).click();
+    await expect(cardOf(page, '以前のスキン のコピー 2')).toHaveCount(1);
+    await expect(cards(page)).toHaveCount(4);
+    // 開いている作品は変わらない
+    await expect(cardOf(page, '無題のスキン')).toContainText('編集中');
+
+    await cardOf(page, '以前のスキン のコピー').getByRole('button', { name: '開く' }).click();
+    await expect.poll(async () => (await paintedPixels(page)).length).toBe(4096); // 元と同じ模様
+  });
+
+  test('削除は確認ダイアログが出て、「キャンセル」なら消えない。「OK」で消える', async ({ page }) => {
+    await twoProjects(page);
+    await openProjects(page);
+
+    page.once('dialog', d => { expect(d.message()).toContain('以前のスキン'); void d.dismiss(); });
+    await cardOf(page, '以前のスキン').getByRole('button', { name: /を削除/ }).click();
+    await expect(cards(page)).toHaveCount(2); // キャンセルしたので残っている
+
+    page.once('dialog', d => void d.accept());
+    await cardOf(page, '以前のスキン').getByRole('button', { name: /を削除/ }).click();
+    await expect(cards(page)).toHaveCount(1);
+  });
+
+  test('開いている作品を削除すると、残っている作品に切り替わり、消した作品が保存で復活しない', async ({ page }) => {
+    await twoProjects(page);
+    const { x, y } = await viewerCenter(page);
+    await page.mouse.click(x, y); // 保存の予約を残した状態にする (これが復活の原因になりやすい)
+    await openProjects(page);
+
+    page.once('dialog', d => void d.accept());
+    await cardOf(page, '無題のスキン').getByRole('button', { name: /を削除/ }).click();
+    await expect(cards(page)).toHaveCount(1);
+    await expect(cards(page).first()).toContainText('編集中');
+    await expect(cards(page).first().getByRole('heading')).toHaveText('以前のスキン');
+
+    await page.waitForTimeout(2500); // 保存の予約が走るはずの時間を待つ
+    await page.reload();
+    await openProjects(page);
+    await expect(cards(page)).toHaveCount(1); // 消した作品は復活していない
+  });
+
+  test('今の作品を保存できないときは、別の作品に切り替えず、理由を出す (保存できていない絵を失わない)', async ({ page }) => {
+    await twoProjects(page);
+    const { x, y } = await viewerCenter(page);
+    await page.mouse.click(x, y); // 未保存の絵を作る
+    const drawn = await paintedPixels(page);
+    await page.evaluate(() => { IDBObjectStore.prototype.put = function () { throw new DOMException('full', 'QuotaExceededError'); }; }); // 以降の保存が失敗する
+
+    await button(page, 'マイスキン').click();
+    // 保存に失敗しているので、一覧を開いても反映できないが、画面は開く
+    await expect(page.getByRole('dialog', { name: 'マイスキン' })).toBeVisible();
+    await cardOf(page, '以前のスキン').getByRole('button', { name: '開く' }).click();
+    await expect(page.getByRole('alert')).toContainText('切り替えられません');
+    await expect(page.getByRole('dialog')).toBeVisible(); // 閉じない
+    await page.keyboard.press('Escape');
+    expect(await paintedPixels(page)).toEqual(drawn); // 描いた絵は、そのまま画面にある
+    await expect(page.locator('.vx-save--error')).toBeVisible();
+  });
+
+  test('最後の1つを削除すると、新しい素体の作品が自動で作られる', async ({ page }) => {
+    await openWithSkin(page, await makeSkinDataUrl(page, 'pattern'));
+    await waitSaved(page);
+    await openProjects(page);
+    page.once('dialog', d => void d.accept());
+    await cards(page).first().getByRole('button', { name: /を削除/ }).click();
+    await expect(cards(page)).toHaveCount(1);
+    await expect(cards(page).first().getByRole('heading')).toHaveText('無題のスキン');
+    expect((await paintedPixels(page)).length).toBeGreaterThan(1000);
+    expect((await paintedPixels(page)).length).not.toBe(4096); // 素体になっている (模様ではない)
+  });
+
+  test('マイスキンを開いている間は、キーボードのショートカットが効かない。閉じると効く', async ({ page }) => {
+    await openWithSkin(page);
+    await openProjects(page);
+    await page.keyboard.press('e'); // 消しゴム
+    await expect(page.locator('.vx-tools .vx-btn--selected')).toHaveAttribute('title', 'ペン (W)');
+    await page.keyboard.press('Escape');
+    await page.keyboard.press('e');
+    await expect(page.locator('.vx-tools .vx-btn--selected')).toHaveAttribute('title', '消しゴム (E)');
+  });
+
+  test('Tab キーのフォーカスが、ダイアログの外に出ない', async ({ page }) => {
+    await openWithSkin(page);
+    await openProjects(page);
+    for (let i = 0; i < 30; i++) {
+      await page.keyboard.press('Tab');
+      expect(await page.evaluate(() => !!document.activeElement?.closest('[role=dialog]'))).toBe(true);
+    }
+  });
+
+  test('サムネイルに、作品の絵(正面)が描かれている', async ({ page }) => {
+    await twoProjects(page);
+    await openProjects(page);
+    const filled = await cards(page).first().locator('canvas').evaluate((c: HTMLCanvasElement) => {
+      const d = c.getContext('2d')!.getImageData(0, 0, 16, 32).data;
+      let n = 0; for (let i = 3; i < d.length; i += 4) if (d[i]) n++;
+      return n;
+    });
+    expect(filled).toBeGreaterThan(200); // 素体の正面は、16×32のうち約 (8×8 + 16×12 + 8×12) ピクセル
   });
 });

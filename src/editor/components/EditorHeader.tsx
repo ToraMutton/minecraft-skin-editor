@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { Undo2, Redo2, FolderOpen, Download, PlusSquare } from 'lucide-react';
+import { Undo2, Redo2, FolderOpen, Download, PlusSquare, LayoutGrid } from 'lucide-react';
 import { Button } from './Button';
 import { SaveStatusBadge } from './SaveStatusBadge';
 import type { SaveStatus } from '../../projects/saveStatus';
@@ -10,13 +10,14 @@ interface Props {
   onUndo: () => void;
   onRedo: () => void;
   onNew: () => void;
+  onOpenProjects: () => void;
   onImport: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onDownload: () => void;
   saveStatus: SaveStatus;
   onRetrySave: () => void;
 }
 
-export function EditorHeader({ canUndo, canRedo, onUndo, onRedo, onNew, onImport, onDownload, saveStatus, onRetrySave }: Props) {
+export function EditorHeader({ canUndo, canRedo, onUndo, onRedo, onNew, onOpenProjects, onImport, onDownload, saveStatus, onRetrySave }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   return (
@@ -34,6 +35,7 @@ export function EditorHeader({ canUndo, canRedo, onUndo, onRedo, onNew, onImport
       {/* ファイル操作。目立たせるのは「保存」だけ */}
       <div className="vx-header-group">
         <SaveStatusBadge status={saveStatus} onRetry={onRetrySave} />
+        <Button onClick={onOpenProjects}><LayoutGrid size={16} /> マイスキン</Button>
         <Button onClick={onNew}><PlusSquare size={16} /> 新規</Button>
         <Button onClick={() => fileInputRef.current?.click()}><FolderOpen size={16} /> 読込</Button>
         <input ref={fileInputRef} type="file" accept="image/png" onChange={onImport} style={{ display: 'none' }} />

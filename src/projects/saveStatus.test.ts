@@ -51,6 +51,13 @@ describe('保存状態の移り変わり', () => {
     expect(run([edited, ok])).toEqual({ kind: 'dirty' });
   });
 
+  it('別の作品に切り替えたら、どの状態からでも保存済みに戻る', () => {
+    const reset: SaveEvent = { type: 'reset' };
+    for (const from of [run([edited]), run([edited, started]), run([edited, started, failed])]) {
+      expect(run([reset], from)).toEqual({ kind: 'saved' });
+    }
+  });
+
   it('保存済み以外は「未保存の内容あり」', () => {
     expect(hasUnsavedChanges({ kind: 'saved' })).toBe(false);
     for (const s of [run([edited]), run([edited, started]), run([edited, started, failed])]) expect(hasUnsavedChanges(s)).toBe(true);

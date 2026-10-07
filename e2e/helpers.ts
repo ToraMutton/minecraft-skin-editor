@@ -76,3 +76,44 @@ export async function drag(page: Page, points: [number, number][], steps: number
   for (const p of points.slice(1)) await page.mouse.move(...p, { steps });
   await page.mouse.up();
 }
+
+// 2枚のスクリーンショットが「ほぼ同じ」か (3D描画には、色が1段階違う画素が数個出る程度のゆらぎがある)
+async function nearlySame(page: Page, a: Buffer, b: Buffer, tolerancePixels = 50): Promise<boolean> {
+  if (a.equals(b)) return true;
+  const differing = await page.evaluate(async ([x, y]) => {
+    const load = async (s: string) => { const i = new Image(); i.src = 'data:image/png;base64,' + s; await i.decode(); return i; };
+    const [ia, ib] = [await load(x), await load(y)];
+    if (ia.width !== ib.width || ia.height !== ib.height) return Infinity;
+    const read = (img: HTMLImageElement) => {
+      const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
+      const g = c.getContext('2d')!; g.drawImage(img, 0, 0); return g.getImageData(0, 0, c.width, c.height).data;
+    };
+    const [da, db] = [read(ia), read(ib)];
+    let n = 0;
+    for (let i = 0; i < da.length; i += 4) {
+      if (Math.max(Math.abs(da[i] - db[i]), Math.abs(da[i + 1] - db[i + 1]), Math.abs(da[i + 2] - db[i + 2])) > 8) n++; // 色差8以下は同じとみなす
+    }
+    return n;
+  }, [a.toString('base64'), b.toString('base64')]);
+  return differing <= tolerancePixels;
+}
+
+// 3D表示が落ち着く(アニメーションが終わる)まで待ってから、その画面を返す
+// 固定の時間で待つと、PCが忙しいときにアニメーションの途中を撮ってしまうので、連続した2枚がほぼ同じになるまで待つ
+export async function settledViewerShot(page: Page, timeoutMs = 8000): Promise<Buffer> {
+  const viewer = page.getByTestId('skin-viewer');
+  const deadline = Date.now() + timeoutMs;
+  let previous = await viewer.screenshot();
+  while (Date.now() < deadline) {
+    await page.waitForTimeout(250);
+    const current = await viewer.screenshot();
+    if (await nearlySame(page, current, previous)) return current;
+    previous = current;
+  }
+  return previous;
+}
+
+// 2つの3D表示のスクリーンショットが「ほぼ同じ」か
+export function sameView(page: Page, a: Buffer, b: Buffer) {
+  return nearlySame(page, a, b);
+}

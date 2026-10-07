@@ -41,6 +41,30 @@ describe('起動時にどの作品を開くか', () => {
     expect(result.project.name).toBe('最近');
   });
 
+  it('最後に開いた作品の記録があれば、更新が古くてもそれを開く', async () => {
+    const old = createProject({ name: '古い', now: new Date('2026-01-01') });
+    const recent = createProject({ name: '最近', now: new Date('2026-10-01') });
+    const { repo } = memoryRepo([old, recent]);
+    const result = await loadInitialProject({ ...deps({ repo }), readLastOpenedId: () => old.id });
+    expect(result.project.name).toBe('古い');
+  });
+
+  it('記録された作品がもう無ければ(削除済みなど)、最後に更新した作品を開く', async () => {
+    const recent = createProject({ name: '最近', now: new Date('2026-10-01') });
+    const { repo } = memoryRepo([recent]);
+    const result = await loadInitialProject({ ...deps({ repo }), readLastOpenedId: () => 'deleted-id' });
+    expect(result.project.name).toBe('最近');
+  });
+
+  it('1つの作品が壊れていて読めなくても、次の作品を開く (起動が止まらない)', async () => {
+    const good = createProject({ name: '無事', now: new Date('2026-01-01') });
+    const bad = createProject({ name: '壊れ', now: new Date('2026-10-01') });
+    const { repo } = memoryRepo([good, bad]);
+    const flaky: ProjectRepository = { ...repo, async get(id) { if (id === bad.id) throw new Error('壊れ'); return repo.get(id); } };
+    const result = await loadInitialProject(deps({ repo: flaky }));
+    expect(result.project.name).toBe('無事');
+  });
+
   it('作品があるときは、古い localStorage のデータは見ない (二重に取り込まない)', async () => {
     const { repo, store } = memoryRepo([createProject({ name: '既存' })]);
     let read = false;

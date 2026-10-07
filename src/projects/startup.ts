@@ -1,6 +1,6 @@
 // 起動したときに、どの作品を開くかを決める
 //
-//   1. IndexedDB に作品がある → 最後に更新した作品
+//   1. IndexedDB に作品がある → 最後に開いた作品 (記録が無い・もう無ければ、最後に更新した作品)
 //   2. 無い & localStorage に昔の自動保存データがある → それを最初の作品として保存して開く (V1・1B からの移行)
 //   3. どちらも無い、または読めない → 素体の新しい作品
 //
@@ -23,17 +23,25 @@ export interface StartupResult {
 export interface StartupDeps {
   repository: ProjectRepository;
   readLegacy: () => string | null; // localStorage の古い自動保存データ
+  readLastOpenedId?: () => string | null; // 最後に開いた作品の id (無ければ、最後に更新した作品を開く)
   backupUnreadable: (data: string) => void; // 読めなかった古いデータを退避する
   decode: ImageDecoder;
 }
 
-export async function loadInitialProject({ repository, readLegacy, backupUnreadable, decode }: StartupDeps): Promise<StartupResult> {
+export async function loadInitialProject({ repository, readLegacy, readLastOpenedId, backupUnreadable, decode }: StartupDeps): Promise<StartupResult> {
   // 1. IndexedDB に作品があれば、最後に更新したものを開く
   try {
-    const [latest] = await repository.list(); // 新しい順
-    if (latest) {
-      const project = await repository.get(latest.id);
-      if (project) return { project, source: 'indexeddb' };
+    const summaries = await repository.list(); // 新しい順
+    const lastId = readLastOpenedId?.() ?? null;
+    // 最後に開いた作品を優先する。それが無ければ、新しい順に、開けるものを探す
+    const candidates = [...summaries].sort((a, b) => Number(b.id === lastId) - Number(a.id === lastId));
+    for (const candidate of candidates) {
+      try {
+        const project = await repository.get(candidate.id);
+        if (project) return { project, source: 'indexeddb' };
+      } catch {
+        // この作品だけ読めなかった (壊れているなど)。次の候補を試す
+      }
     }
   } catch {
     // IndexedDB が使えない・読めない場合は、保存なしで素体から始める (編集は続けられる)
