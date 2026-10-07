@@ -1,14 +1,17 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import type { Tool, BrushSize } from './tools';
-import { MAX_HISTORY, MAX_RECENT_COLORS, AUTOSAVE_KEY, AUTOSAVE_DELAY, UNREADABLE_BACKUP_KEY } from './constants';
+import { MAX_HISTORY, MAX_RECENT_COLORS, AUTOSAVE_KEY, UNREADABLE_BACKUP_KEY } from './constants';
 import { createLayers, cloneLayers } from './layers';
 import type { SkinLayers } from './layers';
 import { paintPixel, erasePixel, brushPixels, floodFill as floodFillLayers, pickColor as pickLayerColor } from './operations';
 import { imageToPixels, decodeImage, renderToCanvas } from './image';
-import { loadAutosave } from './autosave';
 import { History } from './history';
 import { strokePoints } from './line';
-import { createStarterPixels } from '../skin/starter';
+import { createProject } from '../../projects/project';
+import type { SkinProject } from '../../projects/project';
+import { appRepository } from '../../projects/localRepository';
+import { loadInitialProjectOnce } from '../../projects/startup';
+import { useAutosave } from '../../projects/useAutosave';
 import { hexToRgba, rgbaToHex } from '../../shared/color';
 
 // スキン画像の編集・Undo/Redo・自動保存・読み込み/書き出しをまとめたhook
@@ -32,9 +35,14 @@ export function useSkinCanvas(canvasRef: React.RefObject<HTMLCanvasElement | nul
   const [recentColors, setRecentColors] = useState<string[]>([]) //最近の色
 
   // 裏のメモ帳
-  const layersRef = useRef<SkinLayers>(createLayers(createStarterPixels())) // スキンのデータ本体 (最初は素体)
+  const repository = appRepository // 作品の保存先 (IndexedDB。アプリで1つを共有する)
+  const projectRef = useRef<SkinProject>(createProject()) // 今開いている作品 (最初は素体。起動時に保存済みの作品に置き換わる)
+  const layersRef = useRef<SkinLayers>(projectRef.current.layers) // スキンのデータ本体 (= 作品の3層)
   const history = useRef(new History<SkinLayers>(MAX_HISTORY)) // Undo/Redo履歴 (層の複製を積む)
-  const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null) // 自動保存タイマー
+  const [startupWarning, setStartupWarning] = useState<string | null>(null) // 起動時の問題 (保存先が開けないなど)
+
+  // 作品の自動保存。保存する瞬間に、最新の層を作品に入れて渡す
+  const { status: saveStatus, markEdited, saveNow } = useAutosave(repository, () => ({ ...projectRef.current, layers: layersRef.current }))
   const lastPoint = useRef<[number, number] | null>(null) // なぞり描きで前回塗った点
 
   // 層を書き換えたら呼ぶ: 見た目を canvas に反映する
@@ -44,51 +52,36 @@ export function useSkinCanvas(canvasRef: React.RefObject<HTMLCanvasElement | nul
   }, [canvasRef]);
 
   // 描いた後に呼ぶ: 自動保存を予約する
-  const notifyUpdate = useCallback(() => {
-    // 自動保存(デバウンス)
-    if (autosaveTimer.current) {
-      clearTimeout(autosaveTimer.current); // 前回のタイマーをキャンセル
-    }
+  const notifyUpdate = markEdited;
 
-    // 新しくタイマーをセット(1000ミリ秒後に実行)
-    autosaveTimer.current = setTimeout(() => {
-      const canvas = canvasRef.current;
-      if (canvas) {
-        try {
-          // 見た目(合成結果)を画像としてブラウザに保存
-          localStorage.setItem(AUTOSAVE_KEY, canvas.toDataURL('image/png'));
-        } catch {
-          /* localStorageが満杯の場合は無視 */
-        }
-      }
-    }, AUTOSAVE_DELAY);
-  }, [canvasRef]);
+  // 層を丸ごと入れ替える (Undo・全消し・読み込みなど)。作品と画面の両方を、必ず同じ層にそろえる
+  const replaceLayers = useCallback((layers: SkinLayers) => {
+    layersRef.current = layers;
+    projectRef.current = { ...projectRef.current, layers };
+    render();
+  }, [render]);
 
-  // 起動時にlocalStorageから復元する (保存されている画像を下地にする。V1の保存データもこれで読める)
+  // 起動時に、開く作品を決める (IndexedDB → 昔の自動保存データの移行 → 素体)
   useEffect(() => {
-    render(); // まず素体を表示する (保存データがあれば、読み込み後に置き換わる)
-
-    let saved: string | null = null;
-    try {
-      saved = localStorage.getItem(AUTOSAVE_KEY);
-    } catch {
-      return; // localStorage が使えない環境 (プライベートモードの一部など) では、素体のまま始める
-    }
-
     let cancelled = false; // 読み込み中に画面が閉じられたら、結果を使わない
-    loadAutosave(saved, decodeImage).then(result => {
+    render(); // まず素体を表示する (保存済みの作品があれば、読み込み後に置き換わる)
+
+    loadInitialProjectOnce({
+      repository,
+      readLegacy: () => { try { return localStorage.getItem(AUTOSAVE_KEY); } catch { return null; } },
+      backupUnreadable: data => { try { localStorage.setItem(UNREADABLE_BACKUP_KEY, data); } catch { /* 退避できなくても起動は続ける */ } },
+      decode: decodeImage,
+    }).then(result => {
       if (cancelled) return;
-      if (result.status === 'loaded') {
-        layersRef.current = createLayers(result.pixels);
-        render();
-      } else if (result.status === 'unreadable' && saved) {
-        // 読めなかったデータは、次の自動保存で上書きされて消えないよう退避しておく (作品を失わないため)
-        console.warn(`自動保存データを読み込めませんでした: ${result.reason}`);
-        try { localStorage.setItem(UNREADABLE_BACKUP_KEY, saved); } catch { /* 退避できなくても起動は続ける */ }
-      }
+      projectRef.current = result.project;
+      layersRef.current = result.project.layers;
+      history.current = new History<SkinLayers>(MAX_HISTORY);
+      setCanUndo(false); setCanRedo(false);
+      setStartupWarning(result.warning ?? null);
+      render();
     });
     return () => { cancelled = true; };
-  }, [render]);
+  }, [render, repository]);
 
   // --- 履歴操作 ---
 
@@ -108,21 +101,19 @@ export function useSkinCanvas(canvasRef: React.RefObject<HTMLCanvasElement | nul
   const handleUndo = useCallback(() => {
     const previous = history.current.undo(layersRef.current);
     if (!previous) return;
-    layersRef.current = previous;
-    render();
+    replaceLayers(previous);
     syncHistoryButtons();
     notifyUpdate();
-  }, [render, syncHistoryButtons, notifyUpdate]);
+  }, [replaceLayers, syncHistoryButtons, notifyUpdate]);
 
   // 1つ先に進む
   const handleRedo = useCallback(() => {
     const next = history.current.redo(layersRef.current);
     if (!next) return;
-    layersRef.current = next;
-    render();
+    replaceLayers(next);
     syncHistoryButtons();
     notifyUpdate();
-  }, [render, syncHistoryButtons, notifyUpdate]);
+  }, [replaceLayers, syncHistoryButtons, notifyUpdate]);
 
   // --- 最近使った色 ---
 
@@ -181,20 +172,23 @@ export function useSkinCanvas(canvasRef: React.RefObject<HTMLCanvasElement | nul
 
   const clearCanvas = useCallback(() => {
     pushUndo(); // 消す前の状態を履歴に保存
-    layersRef.current = createLayers(); // 全体を透明に
-    render();
+    replaceLayers(createLayers()); // 全体を透明に
     notifyUpdate();
-  }, [pushUndo, render, notifyUpdate]);
+  }, [pushUndo, replaceLayers, notifyUpdate]);
 
   // --- 新規作成 ---
 
-  const newCanvas = useCallback(() => {
-    pushUndo();
-    layersRef.current = createLayers(createStarterPixels()); // 新規は素体から始める (全消しは完全に透明)
+  // 新しい作品を、素体から作って切り替える。今の作品は保存済みなのでそのまま残る (全消しは完全に透明にするだけ)
+  const newCanvas = useCallback(async () => {
+    await saveNow(); // 切り替える前に、今の作品を保存する
+    const project = createProject();
+    projectRef.current = project;
+    layersRef.current = project.layers;
+    history.current = new History<SkinLayers>(MAX_HISTORY); // 作品が変わるので、Undo履歴もリセット
+    syncHistoryButtons();
     render();
-    localStorage.removeItem(AUTOSAVE_KEY); // オートセーブのデータも削除
-    notifyUpdate();
-  }, [pushUndo, render, notifyUpdate]);
+    notifyUpdate(); // 新しい作品も保存する
+  }, [saveNow, syncHistoryButtons, render, notifyUpdate]);
 
   // --- PNG保存 ---
 
@@ -237,8 +231,7 @@ export function useSkinCanvas(canvasRef: React.RefObject<HTMLCanvasElement | nul
 
       // 読み込んだスキンは下地にする
       pushUndo();
-      layersRef.current = createLayers(imageToPixels(img));
-      render();
+      replaceLayers(createLayers(imageToPixels(img)));
       notifyUpdate();
     };
 
@@ -249,12 +242,13 @@ export function useSkinCanvas(canvasRef: React.RefObject<HTMLCanvasElement | nul
     };
 
     img.src = url;
-  }, [pushUndo, render, notifyUpdate]);
+  }, [pushUndo, replaceLayers, notifyUpdate]);
 
   return {
     color, setColor, tool, setTool, brushSize, setBrushSize, mirror, setMirror,
     isDrawing, setIsDrawing, canUndo, canRedo, recentColors, addRecentColor,
     notifyUpdate, pushUndo, handleUndo, handleRedo, floodFill, pickColor, applyTool,
-    clearCanvas, newCanvas, downloadImage, handleImport
+    clearCanvas, newCanvas, downloadImage, handleImport,
+    saveStatus, saveNow, startupWarning
   };
 }

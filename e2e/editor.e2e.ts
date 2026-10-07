@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import {
   AUTOSAVE_KEY, UNREADABLE_BACKUP_KEY,
-  openWithSkin, makeSkinDataUrl, viewerCenter, paintedPixels, button, drag,
+  openWithSkin, makeSkinDataUrl, viewerCenter, paintedPixels, button, drag, clearStorage,
 } from './helpers';
 
 test.describe('描画と Undo / Redo', () => {
@@ -107,7 +107,8 @@ test.describe('読み込みと自動保存', () => {
       page.on('pageerror', e => errors.push(e.message));
 
       await page.goto('/');
-      await page.evaluate(([key, value]) => { localStorage.clear(); localStorage.setItem(key, value); }, [AUTOSAVE_KEY, broken]);
+      await clearStorage(page); // 前のデータで作られた作品が残っていると、昔のデータを見に行かないので毎回消す
+      await page.evaluate(([key, value]) => localStorage.setItem(key, value), [AUTOSAVE_KEY, broken]);
       await page.reload();
       await page.waitForTimeout(900);
 
@@ -159,7 +160,7 @@ test.describe('3D表示', () => {
 test.describe('素体スキン', () => {
   test('初めて起動したときは、素体が表示される (保存データなし)', async ({ page }) => {
     await page.goto('/');
-    await page.evaluate(() => localStorage.clear());
+    await clearStorage(page);
     await page.reload();
     await page.waitForTimeout(900);
 
@@ -174,34 +175,34 @@ test.describe('素体スキン', () => {
 
   test('壊れた保存データで始めたときも、素体が表示される', async ({ page }) => {
     await page.goto('/');
-    await page.evaluate(([key]) => { localStorage.clear(); localStorage.setItem(key, 'こんにちは'); }, [AUTOSAVE_KEY]);
+    await clearStorage(page);
+    await page.evaluate(([key]) => localStorage.setItem(key, 'こんにちは'), [AUTOSAVE_KEY]);
     await page.reload();
     await page.waitForTimeout(900);
     expect((await paintedPixels(page)).length).toBeGreaterThan(1000);
   });
 
-  test('「新規」で素体に戻り、「全消し」は完全に透明になる。どちらも Undo で戻せる', async ({ page }) => {
+  test('「新規」は新しい素体の作品を作り、「全消し」は完全に透明にする。全消しは Undo で戻せる', async ({ page }) => {
     await openWithSkin(page, await makeSkinDataUrl(page, 'pattern'));
     page.on('dialog', d => d.accept());
     const patternCount = (await paintedPixels(page)).length;
 
     await button(page, '新規').click();
+    await expect.poll(async () => (await paintedPixels(page)).length).not.toBe(patternCount);
     const starter = await paintedPixels(page);
     expect(starter.length).toBeGreaterThan(1000);
-    expect(starter.length).not.toBe(patternCount);
 
     await button(page, 'キャンバスを全消し').click();
     expect(await paintedPixels(page)).toHaveLength(0);
-
     await button(page, 'Undo').click(); // 全消し → 素体
     expect(await paintedPixels(page)).toEqual(starter);
-    await button(page, 'Undo').click(); // 素体 → 元の模様
-    expect(await paintedPixels(page)).toHaveLength(patternCount);
+    // 新しい作品なので、元の模様の作品の Undo 履歴には戻らない (作品ごとに履歴が分かれる)
+    await expect(button(page, 'Undo')).toBeDisabled();
   });
 
   test('素体の上に描いても、Undo すれば素体のまま (素体は下地として守られる)', async ({ page }) => {
     await page.goto('/');
-    await page.evaluate(() => localStorage.clear());
+    await clearStorage(page);
     await page.reload();
     await page.waitForTimeout(900);
     const before = await paintedPixels(page);
@@ -210,5 +211,107 @@ test.describe('素体スキン', () => {
     await page.mouse.click(x, y);
     await button(page, 'Undo').click();
     expect(await paintedPixels(page)).toEqual(before);
+  });
+});
+
+test.describe('作品の保存 (IndexedDB)', () => {
+  // IndexedDB に入っている作品の数と、いちばん新しい作品の名前
+  const storedProjects = (page: import('@playwright/test').Page) => page.evaluate(() => new Promise<{ count: number; names: string[] }>(resolve => {
+    const open = indexedDB.open('vextra');
+    open.onerror = () => resolve({ count: 0, names: [] });
+    open.onupgradeneeded = () => { open.transaction!.abort(); resolve({ count: 0, names: [] }); }; // まだ無い
+    open.onsuccess = () => {
+      const db = open.result;
+      if (!db.objectStoreNames.contains('projects')) { db.close(); resolve({ count: 0, names: [] }); return; }
+      const all = db.transaction('projects').objectStore('projects').getAll();
+      all.onsuccess = () => { db.close(); resolve({ count: all.result.length, names: all.result.map(p => p.name) }); };
+    };
+  }));
+
+  test('描くと IndexedDB に保存され、localStorage の昔のデータが書き換えられない', async ({ page }) => {
+    await openWithSkin(page);
+    const legacyBefore = await page.evaluate(key => localStorage.getItem(key), AUTOSAVE_KEY);
+    const { x, y } = await viewerCenter(page);
+    await page.mouse.click(x, y);
+    await expect(page.locator('.vx-save--saved')).toBeVisible({ timeout: 5000 });
+
+    expect((await storedProjects(page)).count).toBe(1);
+    // 昔のデータは読むだけで、書き換えも削除もしない (作品を失わないため)
+    expect(await page.evaluate(key => localStorage.getItem(key), AUTOSAVE_KEY)).toBe(legacyBefore);
+  });
+
+  test('リロードすると、IndexedDB から復元される (昔のデータを消しても同じ絵が戻る)', async ({ page }) => {
+    await openWithSkin(page);
+    const { x, y } = await viewerCenter(page);
+    await page.keyboard.press('3');
+    await page.mouse.click(x, y);
+    await expect(page.locator('.vx-save--saved')).toBeVisible({ timeout: 5000 });
+    const drawn = await paintedPixels(page);
+
+    await page.evaluate(() => localStorage.clear()); // 昔のデータを消しても、IndexedDB から戻るはず
+    await page.reload();
+    await expect.poll(() => paintedPixels(page)).toEqual(drawn);
+  });
+
+  test('昔のデータは、最初の1回だけ作品として取り込まれる (リロードしても作品が増えない)', async ({ page }) => {
+    await openWithSkin(page, await makeSkinDataUrl(page, 'pattern'));
+    await expect.poll(async () => (await storedProjects(page)).count).toBe(1);
+    await page.reload();
+    await page.reload();
+    await page.waitForTimeout(1200);
+    const stored = await storedProjects(page);
+    expect(stored.count).toBe(1);
+    expect(stored.names).toEqual(['以前のスキン']);
+  });
+
+  test('「新規」で作品が増え、元の作品は残る。リロードすると新しい作品が開く', async ({ page }) => {
+    await openWithSkin(page, await makeSkinDataUrl(page, 'pattern'));
+    page.on('dialog', d => d.accept());
+    await button(page, '新規').click();
+    await expect.poll(async () => (await storedProjects(page)).count).toBe(2);
+    await expect(page.locator('.vx-save--saved')).toBeVisible({ timeout: 5000 });
+    const starter = await paintedPixels(page);
+
+    await page.reload();
+    await expect.poll(() => paintedPixels(page)).toEqual(starter); // 最後に更新した = 新しい素体の作品が開く
+    expect((await storedProjects(page)).count).toBe(2);
+  });
+
+  test('保存状態の表示が、描くと「保存中」を経て「保存済み」になる', async ({ page }) => {
+    await openWithSkin(page);
+    await expect(page.locator('.vx-save--saved')).toBeVisible();
+    const { x, y } = await viewerCenter(page);
+    await page.mouse.click(x, y);
+    await expect(page.locator('.vx-save--saving')).toBeVisible(); // 描いた直後は保存中の見た目
+    await expect(page.locator('.vx-save--saved')).toBeVisible({ timeout: 5000 });
+  });
+
+  test('保存に失敗したら、失敗の表示が出る。押すと再試行して保存済みになる', async ({ page }) => {
+    await openWithSkin(page);
+    await expect(page.locator('.vx-save--saved')).toBeVisible();
+    // 保存(put)を一時的に失敗させる: IndexedDB の書き込みを容量不足にする
+    await page.evaluate(() => {
+      const original = IDBObjectStore.prototype.put;
+      (window as unknown as { __restorePut: () => void }).__restorePut = () => { IDBObjectStore.prototype.put = original; };
+      IDBObjectStore.prototype.put = function () { throw new DOMException('full', 'QuotaExceededError'); };
+    });
+    const { x, y } = await viewerCenter(page);
+    await page.mouse.click(x, y);
+    await expect(page.locator('.vx-save--error')).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('.vx-save--error')).toContainText('容量');
+
+    await page.evaluate(() => (window as unknown as { __restorePut: () => void }).__restorePut()); // 直った
+    await page.locator('.vx-save--error').click();
+    await expect(page.locator('.vx-save--saved')).toBeVisible({ timeout: 5000 });
+  });
+
+  test('保存先が開けなくても、編集はできる (警告が出る)', async ({ page }) => {
+    await page.addInitScript(() => { Object.defineProperty(window, 'indexedDB', { value: undefined, configurable: true }); }); // IndexedDBが使えないブラウザ
+    await page.goto('/');
+    await page.waitForTimeout(900);
+    await expect(page.locator('.vx-banner')).toContainText('保存');
+    const { x, y } = await viewerCenter(page);
+    await page.mouse.click(x, y);
+    expect(await paintedPixels(page)).not.toHaveLength(0);
   });
 });

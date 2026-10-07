@@ -26,7 +26,8 @@ export function EditorLayout() {
     color, setColor, tool, setTool, brushSize, setBrushSize, mirror, setMirror,
     isDrawing, setIsDrawing, canUndo, canRedo, recentColors, addRecentColor,
     notifyUpdate, pushUndo, handleUndo, handleRedo, floodFill, pickColor, applyTool,
-    clearCanvas, newCanvas, downloadImage, handleImport
+    clearCanvas, newCanvas, downloadImage, handleImport,
+    saveStatus, saveNow, startupWarning
   } = useSkinCanvas(canvasRef);
 
   // 表示設定系
@@ -82,10 +83,12 @@ export function EditorLayout() {
 
       <EditorHeader
         canUndo={canUndo} canRedo={canRedo} onUndo={handleUndo} onRedo={handleRedo}
-        onNew={() => { if (window.confirm('キャンバスをリセットして新規作成しますか？')) newCanvas(); }}
+        onNew={() => { if (window.confirm('新しいスキンを作りますか？ (今のスキンは保存されたまま残ります)')) void newCanvas(); }}
         onImport={handleImport}
         onDownload={downloadImage}
+        saveStatus={saveStatus} onRetrySave={saveNow}
       />
+      {startupWarning && <div className="vx-banner" role="alert">⚠ {startupWarning}</div>}
 
       {/* --- メインエディタ領域 (左 | 3D | 右) --- */}
       <div className="vx-workspace">

@@ -106,3 +106,6 @@ export class LocalProjectRepository implements ProjectRepository {
     }
   }
 }
+
+// アプリ全体で共有する保存先 (窓口が複数あると、起動処理の1回だけの保護が効かなくなるため、1つにする)
+export const appRepository = new LocalProjectRepository();

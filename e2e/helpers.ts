@@ -24,12 +24,25 @@ export async function makeSkinDataUrl(page: Page, paint?: 'pattern'): Promise<st
   }, paint);
 }
 
-// 指定したスキン(データURL)が自動保存されている状態でアプリを開く。省略すると透明なスキン
-// (初期状態に左右されず、テストごとに同じ状態から始めるため)
+// ブラウザに保存されているものを全部消す (localStorage と IndexedDB)
+// 前のテストで保存された作品が、次のテストに影響しないようにするため
+export async function clearStorage(page: Page) {
+  await page.evaluate(async () => {
+    localStorage.clear();
+    await new Promise<void>(resolve => {
+      const request = indexedDB.deleteDatabase('vextra');
+      request.onsuccess = request.onerror = request.onblocked = () => resolve();
+    });
+  });
+}
+
+// 指定したスキン(データURL)が「昔の自動保存」として残っている状態でアプリを開く。省略すると透明なスキン
+// (起動時にそれが最初の作品として取り込まれる。テストごとに同じ状態から始めるため)
 export async function openWithSkin(page: Page, dataUrl?: string) {
   await page.goto('/');
   const skin = dataUrl ?? await makeSkinDataUrl(page);
-  await page.evaluate(([key, value]) => { localStorage.clear(); localStorage.setItem(key, value); }, [AUTOSAVE_KEY, skin]);
+  await clearStorage(page);
+  await page.evaluate(([key, value]) => localStorage.setItem(key, value), [AUTOSAVE_KEY, skin]);
   await page.reload();
   await page.evaluate(() => document.fonts.ready);
   await page.waitForTimeout(900); // 起動時のカメラのアニメーション(0.6秒)が終わるのを待つ
