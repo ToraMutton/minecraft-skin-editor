@@ -8,6 +8,7 @@ import { imageToPixels, decodeImage, renderToCanvas } from './image';
 import { loadAutosave } from './autosave';
 import { History } from './history';
 import { strokePoints } from './line';
+import { createStarterPixels } from '../skin/starter';
 import { hexToRgba, rgbaToHex } from '../../shared/color';
 
 // スキン画像の編集・Undo/Redo・自動保存・読み込み/書き出しをまとめたhook
@@ -31,7 +32,7 @@ export function useSkinCanvas(canvasRef: React.RefObject<HTMLCanvasElement | nul
   const [recentColors, setRecentColors] = useState<string[]>([]) //最近の色
 
   // 裏のメモ帳
-  const layersRef = useRef<SkinLayers>(createLayers()) // スキンのデータ本体
+  const layersRef = useRef<SkinLayers>(createLayers(createStarterPixels())) // スキンのデータ本体 (最初は素体)
   const history = useRef(new History<SkinLayers>(MAX_HISTORY)) // Undo/Redo履歴 (層の複製を積む)
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null) // 自動保存タイマー
   const lastPoint = useRef<[number, number] | null>(null) // なぞり描きで前回塗った点
@@ -65,11 +66,13 @@ export function useSkinCanvas(canvasRef: React.RefObject<HTMLCanvasElement | nul
 
   // 起動時にlocalStorageから復元する (保存されている画像を下地にする。V1の保存データもこれで読める)
   useEffect(() => {
+    render(); // まず素体を表示する (保存データがあれば、読み込み後に置き換わる)
+
     let saved: string | null = null;
     try {
       saved = localStorage.getItem(AUTOSAVE_KEY);
     } catch {
-      return; // localStorage が使えない環境 (プライベートモードの一部など) では、空の状態で始める
+      return; // localStorage が使えない環境 (プライベートモードの一部など) では、素体のまま始める
     }
 
     let cancelled = false; // 読み込み中に画面が閉じられたら、結果を使わない
@@ -187,7 +190,7 @@ export function useSkinCanvas(canvasRef: React.RefObject<HTMLCanvasElement | nul
 
   const newCanvas = useCallback(() => {
     pushUndo();
-    layersRef.current = createLayers();
+    layersRef.current = createLayers(createStarterPixels()); // 新規は素体から始める (全消しは完全に透明)
     render();
     localStorage.removeItem(AUTOSAVE_KEY); // オートセーブのデータも削除
     notifyUpdate();

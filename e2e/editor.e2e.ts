@@ -155,3 +155,60 @@ test.describe('3D表示', () => {
     expect(immediately.after.equals(afterWait.after)).toBe(true);
   });
 });
+
+test.describe('素体スキン', () => {
+  test('初めて起動したときは、素体が表示される (保存データなし)', async ({ page }) => {
+    await page.goto('/');
+    await page.evaluate(() => localStorage.clear());
+    await page.reload();
+    await page.waitForTimeout(900);
+
+    const painted = await paintedPixels(page);
+    // 素の層は全面が塗られている (上着の層は空)。素の層の面積は 64×64 のうち使われている部分
+    expect(painted.length).toBeGreaterThan(1000);
+    // 頭の正面 (8〜15, 8〜15) の目の位置が青い
+    const iris = await page.getByTestId('skin-canvas').evaluate((c: HTMLCanvasElement) =>
+      [...c.getContext('2d')!.getImageData(10, 12, 1, 1).data]);
+    expect(iris).toEqual([47, 95, 208, 255]);
+  });
+
+  test('壊れた保存データで始めたときも、素体が表示される', async ({ page }) => {
+    await page.goto('/');
+    await page.evaluate(([key]) => { localStorage.clear(); localStorage.setItem(key, 'こんにちは'); }, [AUTOSAVE_KEY]);
+    await page.reload();
+    await page.waitForTimeout(900);
+    expect((await paintedPixels(page)).length).toBeGreaterThan(1000);
+  });
+
+  test('「新規」で素体に戻り、「全消し」は完全に透明になる。どちらも Undo で戻せる', async ({ page }) => {
+    await openWithSkin(page, await makeSkinDataUrl(page, 'pattern'));
+    page.on('dialog', d => d.accept());
+    const patternCount = (await paintedPixels(page)).length;
+
+    await button(page, '新規').click();
+    const starter = await paintedPixels(page);
+    expect(starter.length).toBeGreaterThan(1000);
+    expect(starter.length).not.toBe(patternCount);
+
+    await button(page, 'キャンバスを全消し').click();
+    expect(await paintedPixels(page)).toHaveLength(0);
+
+    await button(page, 'Undo').click(); // 全消し → 素体
+    expect(await paintedPixels(page)).toEqual(starter);
+    await button(page, 'Undo').click(); // 素体 → 元の模様
+    expect(await paintedPixels(page)).toHaveLength(patternCount);
+  });
+
+  test('素体の上に描いても、Undo すれば素体のまま (素体は下地として守られる)', async ({ page }) => {
+    await page.goto('/');
+    await page.evaluate(() => localStorage.clear());
+    await page.reload();
+    await page.waitForTimeout(900);
+    const before = await paintedPixels(page);
+
+    const { x, y } = await viewerCenter(page);
+    await page.mouse.click(x, y);
+    await button(page, 'Undo').click();
+    expect(await paintedPixels(page)).toEqual(before);
+  });
+});
