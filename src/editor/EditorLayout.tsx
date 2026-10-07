@@ -28,10 +28,17 @@ export function EditorLayout() {
     color, setColor, tool, setTool, brushSize, setBrushSize, mirror, setMirror,
     isDrawing, setIsDrawing, canUndo, canRedo, recentColors, addRecentColor,
     notifyUpdate, pushUndo, handleUndo, handleRedo, floodFill, pickColor, applyTool,
-    clearCanvas, newCanvas, downloadImage, handleImport,
+    clearCanvas, newProject, newProjectFromFile, downloadImage, handleImport,
     saveStatus, saveNow, startupWarning,
     projectInfo, setProjectInfo, projectRef, loadProject, flush, discardPending, resetStatus, markEdited, repository
   } = useSkinCanvas(canvasRef);
+
+  // 新しい作品を作る。失敗したら、理由を知らせる (今の作品が保存できない、PNGが使えない、など)
+  const createNew = async (create: () => Promise<boolean | { ok: true } | { ok: false; message: string }>) => {
+    const result = await create();
+    if (result === true || (typeof result === 'object' && result.ok)) return;
+    window.alert(result === false ? '今のスキンを保存できなかったため、新しいスキンを作れません' : result.message);
+  };
 
   // マイスキン (作品の一覧)
   const [showProjects, setShowProjects] = useState(false);
@@ -92,7 +99,9 @@ export function EditorLayout() {
 
       <EditorHeader
         canUndo={canUndo} canRedo={canRedo} onUndo={handleUndo} onRedo={handleRedo}
-        onNew={() => { if (window.confirm('新しいスキンを作りますか？ (今のスキンは保存されたまま残ります)')) void newCanvas().then(ok => { if (!ok) window.alert('今のスキンを保存できなかったため、新しいスキンを作れません'); }); }}
+        onNewStarter={() => void createNew(() => newProject({ start: 'starter' }))}
+        onNewBlank={() => void createNew(() => newProject({ start: 'blank' }))}
+        onNewFromFile={file => void createNew(() => newProjectFromFile(file))}
         onOpenProjects={() => setShowProjects(true)}
         onImport={handleImport}
         onDownload={downloadImage}

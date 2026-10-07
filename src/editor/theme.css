@@ -246,3 +246,20 @@
 }
 .vx-thumb canvas { display: block; width: 100%; height: 100%; image-rendering: pixelated; }
 .vx-thumb-broken { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font: 24px var(--vx-pixel-font); color: var(--vx-text-sub); }
+
+/* ---------- 「新規」メニュー ---------- */
+.vx-menu { position: relative; display: inline-flex; }
+.vx-menu-list {
+  position: absolute; top: calc(100% - 2px); right: 0; z-index: 50; min-width: 230px;
+  display: flex; flex-direction: column; padding: 4px; background: var(--vx-panel);
+  border: 2px solid var(--vx-line); box-shadow: inset 0 2px 0 var(--vx-highlight), 0 6px 0 rgba(0, 0, 0, 0.35);
+}
+.vx-menu-item {
+  display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 10px; text-align: left;
+  background: none; border: 2px solid transparent; color: var(--vx-text); font: 700 14px var(--vx-ui-font); cursor: pointer;
+}
+.vx-menu-item:hover, .vx-menu-item:focus-visible { background: var(--vx-surface); border-color: var(--vx-text-sub); outline: none; }
+.vx-menu-item:active { background: var(--vx-green); border-color: var(--vx-line); }
+.vx-menu-item[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; }
+.vx-menu-item[aria-disabled="true"]:hover { background: none; border-color: transparent; }
+.vx-menu-hint { margin-left: auto; font: 12px var(--vx-pixel-font); color: var(--vx-text-sub); }

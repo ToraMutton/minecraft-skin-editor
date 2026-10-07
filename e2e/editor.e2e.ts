@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import {
   AUTOSAVE_KEY, UNREADABLE_BACKUP_KEY,
-  openWithSkin, makeSkinDataUrl, viewerCenter, paintedPixels, button, drag, clearStorage, settledViewerShot, sameView,
+  openWithSkin, makeSkinDataUrl, viewerCenter, paintedPixels, button, drag, clearStorage, settledViewerShot, sameView, createNewProject,
 } from './helpers';
 
 test.describe('描画と Undo / Redo', () => {
@@ -72,7 +72,7 @@ test.describe('キーボードショートカット', () => {
 test.describe('読み込みと自動保存', () => {
   test('64×64 のPNGは読み込め、それ以外の大きさは理由を出して断る', async ({ page }) => {
     await openWithSkin(page);
-    const input = page.locator('header input[type=file]');
+    const input = page.getByLabel('今のスキンに読み込むPNG');
 
     const skin = Buffer.from((await makeSkinDataUrl(page, 'pattern')).split(',')[1], 'base64');
     await input.setInputFiles({ name: 'skin.png', mimeType: 'image/png', buffer: skin });
@@ -183,14 +183,14 @@ test.describe('素体スキン', () => {
 
   test('「新規」は新しい素体の作品を作り、「全消し」は完全に透明にする。全消しは Undo で戻せる', async ({ page }) => {
     await openWithSkin(page, await makeSkinDataUrl(page, 'pattern'));
-    page.on('dialog', d => d.accept());
     const patternCount = (await paintedPixels(page)).length;
 
-    await button(page, '新規').click();
+    await createNewProject(page, '素体から');
     await expect.poll(async () => (await paintedPixels(page)).length).not.toBe(patternCount);
     const starter = await paintedPixels(page);
     expect(starter.length).toBeGreaterThan(1000);
 
+    page.once('dialog', d => void d.accept()); // 「全消しますか？」の確認
     await button(page, 'キャンバスを全消し').click();
     expect(await paintedPixels(page)).toHaveLength(0);
     await button(page, 'Undo').click(); // 全消し → 素体
@@ -265,8 +265,7 @@ test.describe('作品の保存 (IndexedDB)', () => {
 
   test('「新規」で作品が増え、元の作品は残る。リロードすると新しい作品が開く', async ({ page }) => {
     await openWithSkin(page, await makeSkinDataUrl(page, 'pattern'));
-    page.on('dialog', d => d.accept());
-    await button(page, '新規').click();
+    await createNewProject(page, '素体から');
     await expect.poll(async () => (await storedProjects(page)).count).toBe(2);
     await expect(page.locator('.vx-save--saved')).toBeVisible({ timeout: 5000 });
     const starter = await paintedPixels(page);
@@ -329,8 +328,7 @@ test.describe('マイスキン (作品の一覧)', () => {
   async function twoProjects(page: Page) {
     await openWithSkin(page, await makeSkinDataUrl(page, 'pattern'));
     await waitSaved(page);
-    page.once('dialog', d => void d.accept()); // 「新規」の確認ダイアログ
-    await button(page, '新規').click();
+    await createNewProject(page, '素体から');
     await expect.poll(async () => (await paintedPixels(page)).length).toBeGreaterThan(1000);
     await waitSaved(page);
   }
@@ -513,5 +511,188 @@ test.describe('マイスキン (作品の一覧)', () => {
       return n;
     });
     expect(filled).toBeGreaterThan(200); // 素体の正面は、16×32のうち約 (8×8 + 16×12 + 8×12) ピクセル
+  });
+});
+
+test.describe('「新規」メニューと書き出し', () => {
+  type Page = import('@playwright/test').Page;
+  const waitSaved = (page: Page) => expect(page.locator('.vx-save--saved')).toBeVisible({ timeout: 5000 });
+  const projectNames = async (page: Page) => {
+    await button(page, 'マイスキン').click();
+    await expect(page.getByRole('dialog', { name: 'マイスキン' })).toBeVisible();
+    await expect(page.getByTestId('project-card').first()).toBeVisible(); // 一覧の読み込み(非同期)が終わるまで待つ。待たないと空に見える
+    const names = await page.getByTestId('project-card').getByRole('heading').allTextContents();
+    await page.keyboard.press('Escape');
+    return names;
+  };
+  const pngFile = async (page: Page, size: number, name = 'skin.png', paint = true) => ({
+    name, mimeType: 'image/png',
+    buffer: Buffer.from((await page.evaluate(([n, p]) => {
+      const c = document.createElement('canvas'); c.width = c.height = n as number;
+      if (p) { const g = c.getContext('2d')!; g.fillStyle = '#ff00aa'; g.fillRect(0, 0, n as number, n as number); }
+      return c.toDataURL('image/png');
+    }, [size, paint] as const)).split(',')[1], 'base64'),
+  });
+
+  test('「新規」を押すと、素体から / 白紙から / PNGから / Quick Design(準備中) が並ぶ', async ({ page }) => {
+    await openWithSkin(page);
+    await button(page, '新規').click();
+    await expect(page.getByRole('menuitem')).toHaveCount(4);
+    await expect(page.getByRole('menuitem', { name: /素体から/ })).toBeVisible();
+    await expect(page.getByRole('menuitem', { name: /白紙から/ })).toBeVisible();
+    await expect(page.getByRole('menuitem', { name: /PNGから/ })).toBeVisible();
+    const quick = page.getByRole('menuitem', { name: /Quick Design/ });
+    await expect(quick).toHaveAttribute('aria-disabled', 'true');
+    await expect(quick).toContainText('準備中');
+  });
+
+  test('Quick Design は押しても何も起きない (メニューも閉じず、作品も増えない)', async ({ page }) => {
+    await openWithSkin(page);
+    await waitSaved(page);
+    await button(page, '新規').click();
+    await page.getByRole('menuitem', { name: /Quick Design/ }).click({ force: true });
+    await expect(page.getByRole('menu')).toBeVisible();
+    await page.keyboard.press('Escape');
+    expect(await projectNames(page)).toHaveLength(1);
+  });
+
+  test('メニューは、外をクリックしても、Escでも閉じる。矢印キーで項目を移動でき、Escの後はボタンにフォーカスが戻る', async ({ page }) => {
+    await openWithSkin(page);
+    await button(page, '新規').click();
+    await expect(page.getByRole('menuitem', { name: /素体から/ })).toBeFocused(); // 開いたら最初の項目にフォーカス
+    await page.keyboard.press('ArrowDown');
+    await expect(page.getByRole('menuitem', { name: /白紙から/ })).toBeFocused();
+    await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('ArrowDown'); // Quick Design (使えない) を飛ばして、先頭に戻る
+    await expect(page.getByRole('menuitem', { name: /素体から/ })).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('menu')).toBeHidden();
+    await expect(button(page, '新規')).toBeFocused();
+
+    await button(page, '新規').click();
+    await page.mouse.click(700, 400); // 3D表示のあたり (メニューの外)
+    await expect(page.getByRole('menu')).toBeHidden();
+  });
+
+  test('「素体から」は、確認なしで、重ならない名前の新しい素体の作品を作る', async ({ page }) => {
+    await openWithSkin(page, await makeSkinDataUrl(page, 'pattern'));
+    await waitSaved(page);
+    let dialogs = 0;
+    page.on('dialog', d => { dialogs++; void d.accept(); });
+    await createNewProject(page, '素体から');
+    await expect.poll(async () => (await paintedPixels(page)).length).toBeGreaterThan(1000);
+    await waitSaved(page);
+    await createNewProject(page, '素体から');
+    await waitSaved(page);
+    expect(dialogs).toBe(0); // 確認ダイアログは出ない
+    expect(await projectNames(page)).toEqual(['無題のスキン 2', '無題のスキン', '以前のスキン']);
+  });
+
+  test('「白紙から」は、完全に透明な新しい作品を作り、元の作品は残る', async ({ page }) => {
+    await openWithSkin(page, await makeSkinDataUrl(page, 'pattern'));
+    await waitSaved(page);
+    await createNewProject(page, '白紙から');
+    await expect.poll(async () => (await paintedPixels(page)).length).toBe(0);
+    await waitSaved(page);
+    expect(await projectNames(page)).toEqual(['無題のスキン', '以前のスキン']);
+    // リロードしても白紙の作品が開く
+    await page.reload();
+    await page.waitForTimeout(900);
+    expect(await paintedPixels(page)).toHaveLength(0);
+  });
+
+  test('「PNGから」は、PNGを下地にした新しい作品を、ファイル名を付けて作る', async ({ page }) => {
+    await openWithSkin(page);
+    await waitSaved(page);
+    await button(page, '新規').click();
+    const chooser = page.waitForEvent('filechooser');
+    await page.getByRole('menuitem', { name: /PNGから/ }).click();
+    await (await chooser).setFiles(await pngFile(page, 64, 'ピンクの服.png'));
+    await expect.poll(async () => (await paintedPixels(page)).length).toBe(4096);
+    await waitSaved(page);
+    expect(await projectNames(page)).toEqual(['ピンクの服', '以前のスキン']);
+  });
+
+  test('「PNGから」で、64×64でない画像・PNGでないファイルは、理由を出して断り、作品は増えない', async ({ page }) => {
+    await openWithSkin(page);
+    await waitSaved(page);
+    const input = page.getByLabel('新しいスキンにするPNG');
+    const messages: string[] = [];
+    page.on('dialog', d => { messages.push(d.message()); void d.accept(); });
+
+    await input.setInputFiles(await pngFile(page, 32, 'small.png'));
+    await expect.poll(() => messages.length).toBe(1);
+    expect(messages[0]).toContain('32×32');
+    await input.setInputFiles({ name: 'photo.jpg', mimeType: 'image/jpeg', buffer: Buffer.from('not a png') });
+    await expect.poll(() => messages.length).toBe(2);
+    expect(messages[1]).toContain('PNG');
+    await input.setInputFiles({ name: 'broken.png', mimeType: 'image/png', buffer: Buffer.from('これは壊れたPNG') });
+    await expect.poll(() => messages.length).toBe(3);
+    expect(messages[2]).toContain('読み込めません');
+
+    expect(await projectNames(page)).toHaveLength(1);
+  });
+
+  test('「読込」は今の作品を置き換え (Undoで戻せる)、「新規→PNGから」と違って作品は増えない', async ({ page }) => {
+    await openWithSkin(page);
+    await waitSaved(page);
+    const before = await paintedPixels(page);
+    await page.getByLabel('今のスキンに読み込むPNG').setInputFiles(await pngFile(page, 64));
+    await expect.poll(async () => (await paintedPixels(page)).length).toBe(4096);
+    expect(await projectNames(page)).toHaveLength(1);
+    await button(page, 'Undo').click();
+    expect(await paintedPixels(page)).toEqual(before);
+  });
+
+  test('今の作品を保存できないときは、新しい作品を作らず、理由を出す', async ({ page }) => {
+    await openWithSkin(page);
+    await waitSaved(page);
+    const { x, y } = await viewerCenter(page);
+    await page.mouse.click(x, y); // 未保存の絵
+    const drawn = await paintedPixels(page);
+    await page.evaluate(() => { IDBObjectStore.prototype.put = function () { throw new DOMException('full', 'QuotaExceededError'); }; });
+    // alert が開くと、クリックの完了待ちも止まるので、ダイアログは先に受け付ける準備をしておく (閉じるのと並行して進める)
+    const shown: string[] = [];
+    page.once('dialog', d => { shown.push(d.message()); void d.accept(); });
+    await createNewProject(page, '白紙から');
+    await expect.poll(() => shown.length).toBe(1);
+    expect(shown[0]).toContain('保存できなかった');
+    expect(await paintedPixels(page)).toEqual(drawn); // 描いた絵は、そのまま
+  });
+
+  test('ヘッダーのボタンは「書き出し」で、作品の名前の PNG がダウンロードされる (中身は画面と同じ)', async ({ page }) => {
+    await openWithSkin(page, await makeSkinDataUrl(page, 'pattern'));
+    await waitSaved(page);
+    await expect(page.locator('.vx-header').getByRole('button', { name: '保存', exact: true })).toHaveCount(0); // 「保存」ボタンは無い
+    const download = page.waitForEvent('download');
+    await button(page, '書き出し').click();
+    const file = await download;
+    expect(file.suggestedFilename()).toBe('以前のスキン.png');
+
+    // ダウンロードしたPNGは、64×64 で、画面のスキンと同じピクセル
+    const bytes = (await (await import('node:fs/promises')).readFile((await file.path())!)).toString('base64');
+    const same = await page.evaluate(async b64 => {
+      const img = new Image(); img.src = 'data:image/png;base64,' + b64; await img.decode();
+      const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
+      const g = c.getContext('2d')!; g.drawImage(img, 0, 0);
+      const exported = g.getImageData(0, 0, c.width, c.height).data;
+      const screen = (document.querySelector('[data-testid=skin-canvas]') as HTMLCanvasElement).getContext('2d')!.getImageData(0, 0, 64, 64).data;
+      return img.width === 64 && img.height === 64 && exported.every((v, i) => v === screen[i]);
+    }, bytes);
+    expect(same).toBe(true);
+  });
+
+  test('作品の名前を変えると、書き出すファイル名も変わる (使えない文字は _ になる)', async ({ page }) => {
+    await openWithSkin(page);
+    await waitSaved(page);
+    await button(page, 'マイスキン').click();
+    await page.getByRole('button', { name: /名前を変更/ }).click();
+    await page.getByLabel('作品の名前').fill('a/b:c');
+    await page.getByLabel('作品の名前').press('Enter');
+    await expect(page.getByRole('heading', { name: 'a/b:c' })).toBeVisible();
+    await page.keyboard.press('Escape');
+    const download = page.waitForEvent('download');
+    await button(page, '書き出し').click();
+    expect((await download).suggestedFilename()).toBe('a_b_c.png');
   });
 });

@@ -43,8 +43,10 @@ export function readSkinFile(file: File): Promise<ImportedSkin> {
 
 // 書き出すPNGのファイル名。作品の名前から作る (ファイル名に使えない文字は _ に置き換える)
 export function exportFileName(projectName: string): string {
-  const safe = projectName
-    .replace(/[\\/:*?"<>|\u0000-\u001f]/g, '_')
+  // ファイル名に使えない記号と、制御文字 (改行など。文字コード 0〜31) を _ に置き換える
+  const safe = [...projectName]
+    .map(ch => (/[\\/:*?"<>|]/.test(ch) || ch.charCodeAt(0) < 32 ? '_' : ch))
+    .join('')
     .replace(/^\.+/, '') // 先頭のドットは隠しファイルになるので除く
     .trim();
   return `${safe === '' ? 'skin' : safe}.png`;

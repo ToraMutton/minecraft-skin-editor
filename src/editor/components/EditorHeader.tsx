@@ -1,7 +1,8 @@
 import { useRef } from 'react';
-import { Undo2, Redo2, FolderOpen, Download, PlusSquare, LayoutGrid } from 'lucide-react';
+import { Undo2, Redo2, FolderOpen, Download, LayoutGrid } from 'lucide-react';
 import { Button } from './Button';
 import { SaveStatusBadge } from './SaveStatusBadge';
+import { NewMenu } from './NewMenu';
 import type { SaveStatus } from '../../projects/saveStatus';
 
 interface Props {
@@ -9,7 +10,9 @@ interface Props {
   canRedo: boolean;
   onUndo: () => void;
   onRedo: () => void;
-  onNew: () => void;
+  onNewStarter: () => void;
+  onNewBlank: () => void;
+  onNewFromFile: (file: File) => void;
   onOpenProjects: () => void;
   onImport: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onDownload: () => void;
@@ -17,7 +20,7 @@ interface Props {
   onRetrySave: () => void;
 }
 
-export function EditorHeader({ canUndo, canRedo, onUndo, onRedo, onNew, onOpenProjects, onImport, onDownload, saveStatus, onRetrySave }: Props) {
+export function EditorHeader({ canUndo, canRedo, onUndo, onRedo, onNewStarter, onNewBlank, onNewFromFile, onOpenProjects, onImport, onDownload, saveStatus, onRetrySave }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   return (
@@ -32,14 +35,14 @@ export function EditorHeader({ canUndo, canRedo, onUndo, onRedo, onNew, onOpenPr
         <Button onClick={onRedo} disabled={!canRedo} title="やり直す (Ctrl+Shift+Z)"><Redo2 size={16} /> Redo</Button>
       </div>
 
-      {/* ファイル操作。目立たせるのは「保存」だけ */}
+      {/* ファイル操作。目立たせるのは「書き出し」だけ */}
       <div className="vx-header-group">
         <SaveStatusBadge status={saveStatus} onRetry={onRetrySave} />
         <Button onClick={onOpenProjects}><LayoutGrid size={16} /> マイスキン</Button>
-        <Button onClick={onNew}><PlusSquare size={16} /> 新規</Button>
-        <Button onClick={() => fileInputRef.current?.click()}><FolderOpen size={16} /> 読込</Button>
-        <input ref={fileInputRef} type="file" accept="image/png" onChange={onImport} style={{ display: 'none' }} />
-        <Button variant="primary" onClick={onDownload}><Download size={16} /> 保存</Button>
+        <NewMenu onNewStarter={onNewStarter} onNewBlank={onNewBlank} onNewFromFile={onNewFromFile} />
+        <Button onClick={() => fileInputRef.current?.click()} title="今のスキンに、PNGを読み込んで置き換えます (Undoで戻せます)"><FolderOpen size={16} /> 読込</Button>
+        <input ref={fileInputRef} type="file" accept="image/png" onChange={onImport} style={{ display: 'none' }} aria-label="今のスキンに読み込むPNG" />
+        <Button variant="primary" onClick={onDownload} title="PNGファイルとして書き出します (Minecraftに設定できます)"><Download size={16} /> 書き出し</Button>
       </div>
     </header>
   );

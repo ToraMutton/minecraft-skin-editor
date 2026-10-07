@@ -117,3 +117,9 @@ export async function settledViewerShot(page: Page, timeoutMs = 8000): Promise<B
 export function sameView(page: Page, a: Buffer, b: Buffer) {
   return nearlySame(page, a, b);
 }
+
+// 「新規」メニューから、新しい作品を作る (素体 / 白紙)
+export async function createNewProject(page: Page, how: '素体から' | '白紙から') {
+  await button(page, '新規').click();
+  await page.getByRole('menuitem', { name: new RegExp(how) }).click();
+}
