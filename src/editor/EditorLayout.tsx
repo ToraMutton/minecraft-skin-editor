@@ -120,7 +120,7 @@ export function EditorLayout() {
             onPaintStart={handlePaintStart} onPaintMove={handlePaintMove} onPaintEnd={handlePaintEnd}
           />
 
-          <canvas ref={canvasRef} width={64} height={64} style={{ display: 'none' }} />
+          <canvas ref={canvasRef} width={64} height={64} style={{ display: 'none' }} data-testid="skin-canvas" />
         </main>
 
         {/* --- 右サイドバー --- */}

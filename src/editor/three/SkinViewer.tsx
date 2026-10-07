@@ -234,6 +234,7 @@ export function SkinViewer({ canvasRef, visibleParts, visibleOverlay, showGuide,
   return (
     <div
       ref={containerRef}
+      data-testid="skin-viewer"
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
