@@ -160,6 +160,18 @@
 }
 .vx-floating > .vx-btn { margin-top: 4px; }
 
+/* モード切り替え: 編集中は緑、アニメーション中は紫。色だけでも今のモードが分かるように */
+.vx-mode { justify-content: flex-start; }
+.vx-mode--edit { --face: #3c8527; --face-hover: #469b2e; --highlight: #52a535; --band: #1d4d13; --text: #ffffff; }
+.vx-mode--pose { --face: #7048b8; --face-hover: #7d54c7; --highlight: #8a66d1; --band: #3a2266; --text: #ffffff; }
+.vx-mode-labels { display: grid; text-align: left; }
+.vx-mode-labels > span { grid-area: 1 / 1; } /* 同じマスに重ねる → 幅は長いほうの名前に合わせて固定 */
+.vx-mode-label--hidden { visibility: hidden; } /* 見えず、読み上げにも含まれない */
+.vx-mode-next {
+  display: inline-flex; align-items: center; margin-left: auto; padding: 2px 4px;
+  background: rgba(0, 0, 0, 0.25); opacity: 0.85;
+}
+
 /* ---------- パーツの表示切り替え ---------- */
 .vx-body-map { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 14px 0 4px; }
 .vx-body-row { display: flex; gap: 4px; }

@@ -3,6 +3,8 @@ import { SKIN_UV, SKIN_UV_OVER } from '../skin/uv';
 import type { PartName } from '../skin/uv';
 import { applyPartUV } from './applyPartUV';
 import { createGridTexture } from './gridTexture';
+import { createHoverLayer } from './hoverHighlight';
+import type { HoverLayer } from './hoverHighlight';
 
 export type { PartName };
 
@@ -21,10 +23,13 @@ export interface SkinPart {
   overlay: THREE.Mesh; // 上着の層
   baseGrid: THREE.Mesh; // 素の層のガイド線
   overlayGrid: THREE.Mesh; // 上着の層のガイド線
+  baseHover: THREE.Mesh; // 素の層の「マウスの下」の強調
+  overlayHover: THREE.Mesh; // 上着の層の「マウスの下」の強調
 }
 
 export interface SkinModel {
   parts: SkinPart[];
+  hover: HoverLayer; // マウスの下の強調 (全パーツで1枚の画像を共有)
   dispose: () => void;
 }
 
@@ -65,11 +70,15 @@ export function createSkinModel(texture: THREE.Texture): SkinModel {
   const baseMaterial = new THREE.MeshLambertMaterial({ map: texture, transparent: false, side: THREE.FrontSide });
   const overlayMaterial = new THREE.MeshLambertMaterial({ map: texture, transparent: true, alphaTest: 0.1, side: THREE.FrontSide });
 
-  const baseGridTex = createGridTexture('rgba(129, 212, 250, 0.4)');
-  const overGridTex = createGridTexture('rgba(255, 255, 255, 0.5)');
+  // いつものグリッドは薄め。マウスの下の面だけ、ホバーの層で濃く描く
+  const baseGridTex = createGridTexture('rgba(129, 212, 250, 0.2)');
+  const overGridTex = createGridTexture('rgba(255, 255, 255, 0.25)');
 
   const baseGridMaterial = new THREE.MeshBasicMaterial({ map: baseGridTex, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
   const overGridMaterial = new THREE.MeshBasicMaterial({ map: overGridTex, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
+
+  const hover = createHoverLayer();
+  const hoverMaterial = new THREE.MeshBasicMaterial({ map: hover.texture, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
 
   const meshes = createPartGeometries().map(({ name, base, over, position }) => {
     const mesh = new THREE.Mesh(base, baseMaterial.clone());
@@ -90,7 +99,18 @@ export function createSkinModel(texture: THREE.Texture): SkinModel {
     const overlayGrid = new THREE.Mesh(overlay.geometry, overGridMaterial);
     overlayGrid.name = name + 'OverGrid';
     overlay.add(overlayGrid);
-    return { name, mesh, overlay, baseGrid, overlayGrid };
+
+    // ホバーの強調は、グリッドより後に描いて上に重ねる
+    const baseHover = new THREE.Mesh(mesh.geometry, hoverMaterial);
+    baseHover.name = name + 'BaseHover';
+    baseHover.renderOrder = 1;
+    mesh.add(baseHover);
+
+    const overlayHover = new THREE.Mesh(overlay.geometry, hoverMaterial);
+    overlayHover.name = name + 'OverHover';
+    overlayHover.renderOrder = 1;
+    overlay.add(overlayHover);
+    return { name, mesh, overlay, baseGrid, overlayGrid, baseHover, overlayHover };
   });
 
   const dispose = () => {
@@ -101,7 +121,8 @@ export function createSkinModel(texture: THREE.Texture): SkinModel {
       (part.overlay.material as THREE.Material).dispose();
     }
     baseMaterial.dispose(); overlayMaterial.dispose(); baseGridMaterial.dispose(); overGridMaterial.dispose(); baseGridTex.dispose(); overGridTex.dispose();
+    hoverMaterial.dispose(); hover.dispose();
   };
 
-  return { parts, dispose };
+  return { parts, hover, dispose };
 }

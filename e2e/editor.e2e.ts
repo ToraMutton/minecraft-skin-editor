@@ -154,6 +154,66 @@ test.describe('3D表示', () => {
     expect(await sameView(page, afterWait.after, afterWait.before)).toBe(false); // ドラッグでちゃんと回っている (同じ画面同士の比較で、うっかり合格しないように)
     expect(await sameView(page, immediately.after, afterWait.after)).toBe(true);
   });
+
+  test('マウスを乗せると、その面と塗られるピクセルが強調され、外に出すと消える (描かれはしない)', async ({ page }) => {
+    await openWithSkin(page);
+    const { x, y } = await viewerCenter(page);
+    const before = await settledViewerShot(page);
+
+    await page.mouse.move(x, y);
+    const hovered = await settledViewerShot(page);
+    expect(await sameView(page, hovered, before)).toBe(false);
+    expect(await paintedPixels(page)).toHaveLength(0);
+
+    await page.mouse.move(5, 5); // 3D表示の外 (ヘッダーの左上)
+    expect(await sameView(page, await settledViewerShot(page), before)).toBe(true);
+  });
+
+  test('マウスを動かさなくても、ブラシを太くすると強調が広がる', async ({ page }) => {
+    await openWithSkin(page);
+    const { x, y } = await viewerCenter(page);
+    await page.mouse.move(x, y);
+    const size1 = await settledViewerShot(page);
+
+    await page.keyboard.press('3');
+    expect(await sameView(page, await settledViewerShot(page), size1)).toBe(false);
+  });
+
+  test('ガイド表示が off でも、塗られるピクセルの印は出る', async ({ page }) => {
+    await openWithSkin(page);
+    await button(page, 'ガイド表示').click();
+    await page.mouse.move(5, 5); // スイッチの上からマウスをどかしておく
+    const before = await settledViewerShot(page);
+
+    const { x, y } = await viewerCenter(page);
+    await page.mouse.move(x, y);
+    expect(await sameView(page, await settledViewerShot(page), before)).toBe(false);
+  });
+});
+
+test.describe('モード切り替えボタン', () => {
+  test('今のモードと、押すと切り替わる先が分かる。切り替えてもボタンの幅は変わらない', async ({ page }) => {
+    await openWithSkin(page);
+    const editButton = page.getByRole('button', { name: '編集モード', exact: true });
+    await expect(editButton).toHaveAttribute('title', 'クリックでアニメーションモードへ');
+    const width = (await editButton.boundingBox())!.width;
+
+    await editButton.click();
+    const poseButton = page.getByRole('button', { name: 'アニメーションモード', exact: true });
+    await expect(poseButton).toHaveAttribute('title', 'クリックで編集モードへ');
+    expect((await poseButton.boundingBox())!.width).toBe(width);
+
+    await poseButton.click();
+    await expect(editButton).toBeVisible();
+  });
+
+  test('アニメーションモードでは、モデルを押しても描かれない', async ({ page }) => {
+    await openWithSkin(page);
+    await page.getByRole('button', { name: '編集モード', exact: true }).click();
+    const { x, y } = await viewerCenter(page);
+    await page.mouse.click(x, y);
+    expect(await paintedPixels(page)).toHaveLength(0);
+  });
 });
 
 test.describe('素体スキン', () => {

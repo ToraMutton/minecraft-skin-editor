@@ -147,6 +147,7 @@ export function EditorLayout() {
             canvasRef={canvasRef}
             visibleParts={visibleParts} visibleOverlay={visibleOverlay}
             showGuide={showGuide} isAutoFocus={isAutoFocus} mode={mode}
+            brush={{ tool, size: brushSize, mirror }}
             onPaintStart={handlePaintStart} onPaintMove={handlePaintMove} onPaintEnd={handlePaintEnd}
           />
 

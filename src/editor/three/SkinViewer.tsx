@@ -8,6 +8,8 @@ import type { SkinPart, PartName } from './createSkinModel';
 import { pickTexel } from './raycast';
 import { focusOn, HOME_TARGET, HOME_DISTANCE } from './camera';
 import { createFrontArrow } from './frontArrow';
+import { hoverTargetInMode } from './hoverHighlight';
+import type { HoverBrush, HoverLayer } from './hoverHighlight';
 import type { PartVisibility, ViewMode } from '../viewTypes';
 
 interface Props {
@@ -17,6 +19,7 @@ interface Props {
   showGuide: boolean;
   isAutoFocus: boolean;
   mode: ViewMode;
+  brush: HoverBrush; // マウスの下に「どこが塗られるか」を出すために使う
   // モデル上のピクセル(x, y)が押された・なぞられた・離された。何を塗るかは親が決める
   onPaintStart: (x: number, y: number) => void;
   onPaintMove: (x: number, y: number, connected: boolean) => void; // connected: 前回の点から途切れずになぞっているか
@@ -24,12 +27,13 @@ interface Props {
 }
 
 // スキンを3Dで表示し、モデルの上でのクリック・ドラッグを「テクスチャ上のピクセル」として親に伝える
-export function SkinViewer({ canvasRef, visibleParts, visibleOverlay, showGuide, isAutoFocus, mode, onPaintStart, onPaintMove, onPaintEnd }: Props) {
+export function SkinViewer({ canvasRef, visibleParts, visibleOverlay, showGuide, isAutoFocus, mode, brush, onPaintStart, onPaintMove, onPaintEnd }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const threeCtx = useRef<{ camera: THREE.PerspectiveCamera; parts: SkinPart[], controls: OrbitControls, frontArrow: THREE.Mesh } | null>(null);
+  const threeCtx = useRef<{ camera: THREE.PerspectiveCamera; parts: SkinPart[], controls: OrbitControls, frontArrow: THREE.Mesh, hover: HoverLayer } | null>(null);
   const prevActiveCount = useRef(6);
   const isStroking = useRef(false); // モデルの上で押したまま動かしているか
   const lastMoveHit = useRef(false); // 前回のポインタ移動でモデルに当たっていたか (外に出たら線を切るため)
+  const hoverTexel = useRef<[number, number] | null>(null); // マウスの下のピクセル (モデルの外なら null)
 
   // 描画ループ(useEffectの外で動き続ける)から最新のモードを読めるように、refにも入れておく
   const modeRef = useRef(mode);
@@ -82,9 +86,9 @@ export function SkinViewer({ canvasRef, visibleParts, visibleOverlay, showGuide,
     const frontArrow = createFrontArrow();
     scene.add(frontArrow);
 
-    threeCtx.current = { camera, parts: model.parts, controls, frontArrow };
+    threeCtx.current = { camera, parts: model.parts, controls, frontArrow, hover: model.hover };
 
-    // 鑑賞モードで手足を振るために取り出しておく
+    // アニメーションモードで手足を振るために取り出しておく
     const limb = (name: PartName) => model.parts.find(p => p.name === name)!.mesh;
     const rArm = limb('rightArm'), lArm = limb('leftArm'), rLeg = limb('rightLeg'), lLeg = limb('leftLeg');
 
@@ -145,8 +149,30 @@ export function SkinViewer({ canvasRef, visibleParts, visibleOverlay, showGuide,
       part.overlay.visible = isOverActive;
       part.overlayGrid.visible = showGuide && isOverActive;
       part.baseGrid.visible = showGuide && !isOverActive;
+      // マウスの下の強調は、塗る対象の層にだけ出す (ガイドがoffでも、塗られるピクセルの印は出す)
+      part.overlayHover.visible = isOverActive;
+      part.baseHover.visible = !isOverActive;
     });
   }, [visibleParts, visibleOverlay, showGuide]);
+
+  // --- マウスの下の強調 (面のグリッドと、塗られるピクセル) ---
+  // モードやブラシ・ガイドの設定が変わったら、マウスが止まっていてもその場で描き直す
+  const { tool, size, mirror } = brush;
+  useEffect(() => {
+    if (!threeCtx.current) return;
+    threeCtx.current.hover.draw(hoverTargetInMode(hoverTexel.current, mode, { tool, size, mirror }), showGuide);
+  }, [mode, tool, size, mirror, showGuide]);
+
+  // 表示するパーツや層が変わると、マウスの下にあったピクセルが塗る対象でなくなることがあるので、一度消す
+  useEffect(() => {
+    hoverTexel.current = null;
+    threeCtx.current?.hover.draw(null, false);
+  }, [visibleParts, visibleOverlay]);
+
+  const updateHover = (texel: [number, number] | null) => {
+    hoverTexel.current = texel;
+    threeCtx.current?.hover.draw(hoverTargetInMode(texel, mode, brush), showGuide);
+  };
 
   // --- オートフォーカス: 表示するパーツが変わったときだけカメラを動かす ---
   // (ガイドや上着の切り替えでは動かさない。動かすとその間のドラッグが引き戻されるため)
@@ -210,10 +236,13 @@ export function SkinViewer({ canvasRef, visibleParts, visibleOverlay, showGuide,
   };
 
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (mode === 'pose' || !isStroking.current || !threeCtx.current) return;
+    if (mode === 'pose' || !threeCtx.current) return;
 
     const { camera, parts } = threeCtx.current;
     const texel = pickTexel(e.clientX, e.clientY, e.currentTarget.getBoundingClientRect(), camera, paintTargets(parts));
+    updateHover(texel); // 押していなくても、マウスの下を強調する
+
+    if (!isStroking.current) return;
     if (!texel) {
       lastMoveHit.current = false; // モデルの外に出た → 次に戻ってきたときは、そこから新しい線として描く
       return;
@@ -231,6 +260,12 @@ export function SkinViewer({ canvasRef, visibleParts, visibleOverlay, showGuide,
     }
   };
 
+  // マウスが3D表示の外に出たら、描くのをやめて強調も消す
+  const handlePointerLeave = () => {
+    handlePointerUp();
+    updateHover(null);
+  };
+
   return (
     <div
       ref={containerRef}
@@ -238,7 +273,7 @@ export function SkinViewer({ canvasRef, visibleParts, visibleOverlay, showGuide,
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
-      onPointerLeave={handlePointerUp}
+      onPointerLeave={handlePointerLeave}
       style={{
         width: '100%', height: '100%',
         touchAction: 'none',
