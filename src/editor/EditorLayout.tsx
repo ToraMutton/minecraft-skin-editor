@@ -15,6 +15,7 @@ import { ToolPanel } from './components/ToolPanel';
 import { ColorPanel } from './components/ColorPanel';
 import { ViewToggles } from './components/ViewToggles';
 import { PartPanel } from './components/PartPanel';
+import { ModelPanel } from './components/ModelPanel';
 import { ProjectsModal } from './components/ProjectsModal';
 
 const ALL_VISIBLE: PartVisibility = {
@@ -30,7 +31,7 @@ export function EditorLayout() {
     color, setColor, tool, setTool, brushSize, setBrushSize, mirror, setMirror,
     isDrawing, setIsDrawing, canUndo, canRedo, recentColors, addRecentColor,
     notifyUpdate, pushUndo, handleUndo, handleRedo, floodFill, pickColor, applyTool,
-    clearCanvas, newProject, newProjectFromFile, downloadImage, handleImport,
+    convertModel, clearCanvas, newProject, newProjectFromFile, downloadImage, handleImport,
     saveStatus, saveNow, startupWarning,
     layout, projectInfo, setProjectInfo, projectRef, loadProject, flush, discardPending, resetStatus, markEdited, repository
   } = useSkinCanvas(canvasRef);
@@ -163,6 +164,7 @@ export function EditorLayout() {
 
         {/* --- 右サイドバー --- */}
         <aside className="vx-sidebar">
+          <ModelPanel model={layout.model} onChange={convertModel} />
           <PartPanel
             visibleParts={visibleParts} visibleOverlay={visibleOverlay}
             onTogglePart={togglePart} onToggleOverlay={toggleOverlay} onToggleAllOverlay={toggleAllOverlay}

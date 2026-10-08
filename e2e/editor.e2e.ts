@@ -776,14 +776,18 @@ test.describe('Slim モデルの作品', () => {
 
   // 3D表示の中心(胴体)から左右に、腕の正面を横切ってなぞる。そのとき塗られた、腕の正面の列 (x) の一覧
   // 正面から見ると腕の正面だけが見える (側面は裏を向いている)。右腕の正面は展開図の x=44〜、左腕の正面は x=36〜
-  const armFrontColumns = async (page: Page) => {
-    const { box, x, y } = await viewerCenter(page);
-    await drag(page, [[x, y], [box.x + 5, y]], 120); // 画面の左 = キャラの右腕
-    await drag(page, [[x, y], [box.x + box.width - 5, y]], 120); // 画面の右 = キャラの左腕
+  // 今塗られている、腕の正面の列 (x) の一覧 (塗らずに読むだけ)
+  const readArmColumns = async (page: Page) => {
     const pixels = await paintedPixels(page);
     const columns = (from: number, to: number, rows: [number, number]) =>
       [...new Set(pixels.filter(([px, py]) => px >= from && px <= to && py >= rows[0] && py <= rows[1]).map(([px]) => px))].sort((a, b) => a - b);
     return { right: columns(44, 55, [20, 31]), left: columns(36, 47, [52, 63]) };
+  };
+  const armFrontColumns = async (page: Page) => {
+    const { box, x, y } = await viewerCenter(page);
+    await drag(page, [[x, y], [box.x + 5, y]], 120); // 画面の左 = キャラの右腕
+    await drag(page, [[x, y], [box.x + box.width - 5, y]], 120); // 画面の右 = キャラの左腕
+    return readArmColumns(page);
   };
 
   test('Classic の腕は幅4、Slim の作品を開くと腕が幅3になる (3Dの腕の形が切り替わる)', async ({ page }) => {
@@ -903,5 +907,75 @@ test.describe('Slim モデルの作品', () => {
     await expect(modelRadio(page, 'Slim')).toHaveAttribute('aria-checked', 'true');
     await page.keyboard.press('ArrowUp');
     await expect(modelRadio(page, 'Classic')).toBeFocused();
+  });
+
+  // --- 作品のモデルの変換 (Classic ⇄ Slim) ---
+
+  const modelButton = (page: Page, model: 'Classic' | 'Slim') => page.locator('.vx-sidebar').getByRole('button', { name: new RegExp(model) });
+
+  test('Classic → Slim: 腕の絵が移り、外側の1列が消える。Undo でモデルごと戻り、Redo でまた変換される', async ({ page }) => {
+    await openWithSkin(page);
+    await paintBaseLayer(page);
+    await expect(modelButton(page, 'Classic')).toHaveAttribute('aria-pressed', 'true');
+    expect(await armFrontColumns(page)).toEqual({ right: [44, 45, 46, 47], left: [36, 37, 38, 39] });
+
+    await modelButton(page, 'Slim').click();
+    await expect(modelButton(page, 'Slim')).toHaveAttribute('aria-pressed', 'true');
+    await expect(modelButton(page, 'Classic')).toHaveAttribute('aria-pressed', 'false');
+    // 幅4 → 幅3: 外側の1列が捨てられ、Slim の正面は x=44〜46 (x=47 は Slim では「内側の側面」で、絵が残っていない)
+    expect(await readArmColumns(page)).toEqual({ right: [44, 45, 46], left: [36, 37, 38] });
+
+    await button(page, 'Undo').click();
+    await expect(modelButton(page, 'Classic')).toHaveAttribute('aria-pressed', 'true'); // モデルも戻る
+    expect(await readArmColumns(page)).toEqual({ right: [44, 45, 46, 47], left: [36, 37, 38, 39] }); // 捨てた列も戻る
+
+    await button(page, 'Redo').click();
+    await expect(modelButton(page, 'Slim')).toHaveAttribute('aria-pressed', 'true');
+    expect(await readArmColumns(page)).toEqual({ right: [44, 45, 46], left: [36, 37, 38] });
+  });
+
+  test('Slim → Classic: 外側の列が複製されて幅4になる。Slim に戻すと、絵は元にぴったり戻る', async ({ page }) => {
+    await openWithSkin(page);
+    await paintBaseLayer(page);
+    await addProject(page, { name: 'Slimの作品', model: 'slim' });
+    await openByName(page, 'Slimの作品');
+    expect(await armFrontColumns(page)).toEqual({ right: [44, 45, 46], left: [36, 37, 38] });
+    const slimPixels = await paintedPixels(page);
+
+    await modelButton(page, 'Classic').click();
+    expect(await readArmColumns(page)).toEqual({ right: [44, 45, 46, 47], left: [36, 37, 38, 39] });
+
+    await modelButton(page, 'Slim').click(); // 変換で戻す (Undoではなく)
+    expect(await paintedPixels(page)).toEqual(slimPixels);
+  });
+
+  test('変換すると、3Dの腕の太さも変わる (Undoで戻すと、また元の太さ)', async ({ page }) => {
+    await openWithSkin(page);
+    await paintBaseLayer(page);
+    await modelButton(page, 'Slim').click();
+    expect(await armFrontColumns(page)).toEqual({ right: [44, 45, 46], left: [36, 37, 38] }); // 3Dの腕が幅3 (幅4なら 47 も塗れる)
+
+    for (let i = 0; i < 3; i++) await button(page, 'Undo').click(); // 描いた2回のドラッグが先に戻り、3回目で変換が戻る
+    await expect(modelButton(page, 'Classic')).toHaveAttribute('aria-pressed', 'true');
+    expect(await armFrontColumns(page)).toEqual({ right: [44, 45, 46, 47], left: [36, 37, 38, 39] }); // 3Dの腕が幅4に戻った
+  });
+
+  test('変換した作品は、保存される (リロードしても Slim。マイスキンにも Slim と出る)', async ({ page }) => {
+    await openWithSkin(page);
+    await modelButton(page, 'Slim').click();
+    await expect(page.locator('.vx-save--saved')).toBeVisible({ timeout: 5000 });
+    await page.reload();
+    await page.evaluate(() => document.fonts.ready);
+    await expect(modelButton(page, 'Slim')).toHaveAttribute('aria-pressed', 'true');
+    expect(await currentModelLabel(page)).toBe('Slim');
+  });
+
+  test('今のモデルを押しても何も起きない (Undo の履歴も増えない)。もう一方のボタンの説明に、Undoで戻せると書いてある', async ({ page }) => {
+    await openWithSkin(page);
+    await modelButton(page, 'Classic').click();
+    await expect(button(page, 'Undo')).toBeDisabled();
+    await expect(modelButton(page, 'Slim')).toHaveAttribute('title', /Undoで戻せます/);
+    await expect(modelButton(page, 'Slim')).toHaveAttribute('title', /1列は消えます/);
+    await expect(modelButton(page, 'Classic')).toHaveAttribute('title', /今のモデル/);
   });
 });

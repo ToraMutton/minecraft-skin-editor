@@ -91,6 +91,11 @@
 .vx-btn--flat::after { display: none; }
 .vx-btn--flat:active:not(:disabled) { transform: scale(0.88); }
 
+/* ---------- モデル (Classic / Slim) の切り替え ---------- */
+.vx-model-row { display: flex; gap: 6px; }
+.vx-model-row > .vx-btn { flex: 1; flex-direction: column; gap: 1px; height: 44px; padding: 0 6px; line-height: 1.15; }
+.vx-model-hint { font: 12px var(--vx-pixel-font); opacity: 0.8; }
+
 /* ---------- スイッチ (ON/OFF) ---------- */
 .vx-switch {
   display: flex; align-items: center; gap: 8px; width: 100%; padding: 4px 2px;

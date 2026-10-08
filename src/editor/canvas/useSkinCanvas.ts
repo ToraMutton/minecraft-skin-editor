@@ -9,6 +9,8 @@ import { readSkinFile, exportFileName } from './importFile';
 import { History } from './history';
 import { strokePoints } from './line';
 import { getLayout } from '../skin/layout';
+import type { SkinModel } from '../skin/layout';
+import { convertLayers } from '../skin/convert';
 import { createProject, uniqueName } from '../../projects/project';
 import type { NewProjectOptions } from '../../projects/project';
 import type { SkinProject } from '../../projects/project';
@@ -22,6 +24,9 @@ import { hexToRgba, rgbaToHex } from '../../shared/color';
 // データの本体は layersRef の3つの層 (下地・手描き・消去マスク)。
 // canvasRef の <canvas> は、層を重ねた見た目を書き込む「表示先」で、
 // 3D表示のテクスチャ・PNG書き出し・自動保存はこの canvas を使う
+// Undo/Redo で戻す1つ分の状態: 絵(3層)と、そのときのモデル
+interface Snapshot { layers: SkinLayers; model: SkinModel }
+
 export function useSkinCanvas(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
   // 描画ツール系
   const [color, setColor] = useState('#000000') // 現在の色
@@ -41,7 +46,7 @@ export function useSkinCanvas(canvasRef: React.RefObject<HTMLCanvasElement | nul
   const repository = appRepository // 作品の保存先 (IndexedDB。アプリで1つを共有する)
   const projectRef = useRef<SkinProject>(createProject()) // 今開いている作品 (最初は素体。起動時に保存済みの作品に置き換わる)
   const layersRef = useRef<SkinLayers>(projectRef.current.layers) // スキンのデータ本体 (= 作品の3層)
-  const history = useRef(new History<SkinLayers>(MAX_HISTORY)) // Undo/Redo履歴 (層の複製を積む)
+  const history = useRef(new History<Snapshot>(MAX_HISTORY)) // Undo/Redo履歴 (層の複製とモデルを積む。モデルの変換もUndoで戻せるように)
   const [startupWarning, setStartupWarning] = useState<string | null>(null) // 起動時の問題 (保存先が開けないなど)
 
   // 作品の自動保存。保存する瞬間に、最新の層を作品に入れて渡す
@@ -61,9 +66,11 @@ export function useSkinCanvas(canvasRef: React.RefObject<HTMLCanvasElement | nul
   const notifyUpdate = markEdited;
 
   // 層を丸ごと入れ替える (Undo・全消し・読み込みなど)。作品と画面の両方を、必ず同じ層にそろえる
-  const replaceLayers = useCallback((layers: SkinLayers) => {
+  // model を渡すと、作品のモデルも入れ替える (Classic ⇄ Slim の変換とそのUndo)。3D表示などは layout を見て腕の形を合わせる
+  const replaceLayers = useCallback((layers: SkinLayers, model: SkinModel = projectRef.current.model) => {
     layersRef.current = layers;
-    projectRef.current = { ...projectRef.current, layers };
+    projectRef.current = { ...projectRef.current, layers, model };
+    setLayout(getLayout(model));
     render();
   }, [render]);
 
@@ -71,7 +78,7 @@ export function useSkinCanvas(canvasRef: React.RefObject<HTMLCanvasElement | nul
   const loadProject = useCallback((project: SkinProject) => {
     projectRef.current = project;
     layersRef.current = project.layers;
-    history.current = new History<SkinLayers>(MAX_HISTORY);
+    history.current = new History<Snapshot>(MAX_HISTORY);
     lastPoint.current = null;
     setCanUndo(false); setCanRedo(false);
     setProjectInfo({ id: project.id, name: project.name });
@@ -109,24 +116,24 @@ export function useSkinCanvas(canvasRef: React.RefObject<HTMLCanvasElement | nul
 
   // 変更する前に呼ぶ: 履歴に積む (snapshot を省略すると、今の状態を積む)
   const pushUndo = useCallback((snapshot: SkinLayers = cloneLayers(layersRef.current)) => {
-    history.current.push(snapshot);
+    history.current.push({ layers: snapshot, model: projectRef.current.model });
     syncHistoryButtons();
   }, [syncHistoryButtons]);
 
   // 1つ前に戻る
   const handleUndo = useCallback(() => {
-    const previous = history.current.undo(layersRef.current);
+    const previous = history.current.undo({ layers: layersRef.current, model: projectRef.current.model });
     if (!previous) return;
-    replaceLayers(previous);
+    replaceLayers(previous.layers, previous.model);
     syncHistoryButtons();
     notifyUpdate();
   }, [replaceLayers, syncHistoryButtons, notifyUpdate]);
 
   // 1つ先に進む
   const handleRedo = useCallback(() => {
-    const next = history.current.redo(layersRef.current);
+    const next = history.current.redo({ layers: layersRef.current, model: projectRef.current.model });
     if (!next) return;
-    replaceLayers(next);
+    replaceLayers(next.layers, next.model);
     syncHistoryButtons();
     notifyUpdate();
   }, [replaceLayers, syncHistoryButtons, notifyUpdate]);
@@ -184,6 +191,18 @@ export function useSkinCanvas(canvasRef: React.RefObject<HTMLCanvasElement | nul
     lastPoint.current = [x, y];
     render();
   }, [tool, color, brushSize, mirror, render]);
+
+  // --- モデルの変換 (Classic ⇄ Slim) ---
+
+  // 今の作品を、もう一方のモデルに変換する。腕の絵を新しい展開図に移す (Undoで戻せる。Classic → Slim で捨てた1列も戻る)
+  const convertModel = useCallback((to: SkinModel) => {
+    const from = projectRef.current.model;
+    if (from === to) return;
+    pushUndo(); // 変換する前の絵とモデルを、履歴に積む
+    lastPoint.current = null;
+    replaceLayers(convertLayers(layersRef.current, getLayout(from), getLayout(to)), to);
+    notifyUpdate();
+  }, [pushUndo, replaceLayers, notifyUpdate]);
 
   // --- 全消し ---
 
@@ -248,7 +267,7 @@ export function useSkinCanvas(canvasRef: React.RefObject<HTMLCanvasElement | nul
     color, setColor, tool, setTool, brushSize, setBrushSize, mirror, setMirror,
     isDrawing, setIsDrawing, canUndo, canRedo, recentColors, addRecentColor,
     notifyUpdate, pushUndo, handleUndo, handleRedo, floodFill, pickColor, applyTool,
-    clearCanvas, newProject, newProjectFromFile, downloadImage, handleImport,
+    convertModel, clearCanvas, newProject, newProjectFromFile, downloadImage, handleImport,
     saveStatus, saveNow, startupWarning,
     // 作品の管理 (useProjectManager が使う)
     layout, projectInfo, setProjectInfo, projectRef, loadProject, flush, discardPending, resetStatus, markEdited, repository
