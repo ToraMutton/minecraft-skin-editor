@@ -62,3 +62,34 @@ describe('frontThumbnail (一覧用の小さな正面の絵)', () => {
     expect(b).toBeGreaterThan(100); expect(b).toBeLessThan(160);
   });
 });
+
+describe('frontThumbnail (Slim)', () => {
+  const SLIM = getLayout('slim');
+  const slim = () => frontThumbnail(createProject({ model: 'slim' }).layers, SLIM);
+
+  it('腕が幅3になり、胴体(x=4〜11)の横にぴったり付く', () => {
+    const t = slim();
+    expect(px(t, 0, 14)[3]).toBe(0); // 右腕の外 (Classic ならここも腕)
+    expect(px(t, 1, 14)[3]).toBe(255); // 右腕の左端
+    expect(px(t, 3, 14)[3]).toBe(255); // 右腕の右端 → すぐ隣が胴体
+    expect(px(t, 4, 14)[3]).toBe(255); // 胴体の左端
+    expect(px(t, 12, 14)[3]).toBe(255); // 左腕の左端
+    expect(px(t, 14, 14)[3]).toBe(255); // 左腕の右端
+    expect(px(t, 15, 14)[3]).toBe(0); // 左腕の外 (Classic ならここも腕)
+  });
+
+  it('頭・胴・脚は Classic と同じ位置 (腕以外の画素は変わらない)', () => {
+    const slimThumb = slim();
+    const classicThumb = frontThumbnail(createProject().layers, CLASSIC);
+    for (let y = 0; y < THUMB_HEIGHT; y++) {
+      for (let x = 4; x < 12; x++) expect(px(slimThumb, x, y), `(${x},${y})`).toEqual(px(classicThumb, x, y));
+    }
+  });
+
+  it('Slim の腕の絵は、Slim の展開図の位置から読む (Classic の読み方だと別の場所になる)', () => {
+    const p = createProject({ model: 'slim', start: 'blank' });
+    const front = SLIM.uv.rightArm.front;
+    setPixel(p.layers.paint, front.u, front.v + 5, [255, 0, 0, 255]); // 右腕の正面の、左端の列・上から5行目
+    expect(px(frontThumbnail(p.layers, SLIM), 1, 8 + 5)).toEqual([255, 0, 0, 255]);
+  });
+});

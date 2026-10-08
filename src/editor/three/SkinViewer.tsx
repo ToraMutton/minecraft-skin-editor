@@ -3,7 +3,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { useRef, useEffect } from 'react';
 import gsap from 'gsap';
 
-import { createSkinModel } from './createSkinModel';
+import { createSkinModel, applyLayout } from './createSkinModel';
 import type { SkinPart, PartName } from './createSkinModel';
 import { pickTexel } from './raycast';
 import { focusOn, HOME_TARGET, HOME_DISTANCE } from './camera';
@@ -38,6 +38,7 @@ export function SkinViewer({ canvasRef, visibleParts, visibleOverlay, showGuide,
   // 3Dモデルを作る時点のモデルの形式 (描画の初期化は作品が変わっても作り直さないので、refで読む)
   const layoutRef = useRef(layout);
   useEffect(() => { layoutRef.current = layout; }, [layout]);
+  const modelLayout = useRef(layout); // 今の3Dモデルの形
   const hoverTexel = useRef<[number, number] | null>(null); // マウスの下のピクセル (モデルの外なら null)
 
   // 描画ループ(useEffectの外で動き続ける)から最新のモードを読めるように、refにも入れておく
@@ -85,6 +86,7 @@ export function SkinViewer({ canvasRef, visibleParts, visibleOverlay, showGuide,
     texture.colorSpace = THREE.SRGBColorSpace;
 
     const model = createSkinModel(texture, layoutRef.current);
+    modelLayout.current = layoutRef.current;
     model.parts.forEach(part => scene.add(part.mesh));
 
     // 足元の「正面」の矢印 (塗る対象ではないので、Raycastの対象には入れない)
@@ -143,6 +145,13 @@ export function SkinViewer({ canvasRef, visibleParts, visibleOverlay, showGuide,
     };
   }, [canvasRef]);
 
+  // --- 作品のモデルが変わったら (Classic ⇄ Slim)、腕の形を差し替える ---
+  useEffect(() => {
+    if (!threeCtx.current || modelLayout.current === layout) return;
+    applyLayout(threeCtx.current.parts, layout);
+    modelLayout.current = layout;
+  }, [layout]);
+
   // --- 表示の切り替え (パーツ・上着・ガイド線・正面の矢印) ---
   useEffect(() => {
     if (!threeCtx.current) return;
@@ -172,7 +181,7 @@ export function SkinViewer({ canvasRef, visibleParts, visibleOverlay, showGuide,
   useEffect(() => {
     hoverTexel.current = null;
     threeCtx.current?.hover.draw(null, false);
-  }, [visibleParts, visibleOverlay]);
+  }, [visibleParts, visibleOverlay, layout]);
 
   const updateHover = (texel: [number, number] | null) => {
     hoverTexel.current = texel;

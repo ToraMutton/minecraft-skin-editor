@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import {
-  AUTOSAVE_KEY, UNREADABLE_BACKUP_KEY,
-  openWithSkin, makeSkinDataUrl, viewerCenter, paintedPixels, button, drag, clearStorage, settledViewerShot, sameView, createNewProject,
+  AUTOSAVE_KEY, UNREADABLE_BACKUP_KEY, LAST_OPENED_KEY,
+  openWithSkin, makeSkinDataUrl, viewerCenter, paintedPixels, button, drag, clearStorage, settledViewerShot, sameView, createNewProject, addProject,
 } from './helpers';
 
 test.describe('描画と Undo / Redo', () => {
@@ -754,5 +754,59 @@ test.describe('「新規」メニューと書き出し', () => {
     const download = page.waitForEvent('download');
     await button(page, '書き出し').click();
     expect((await download).suggestedFilename()).toBe('a_b_c.png');
+  });
+});
+
+test.describe('Slim モデルの作品', () => {
+  type Page = import('@playwright/test').Page;
+
+  // マイスキンから、名前で作品を開く
+  const openByName = async (page: Page, name: string) => {
+    await button(page, 'マイスキン').click();
+    await page.getByTestId('project-card').filter({ has: page.getByRole('heading', { name, exact: true }) }).getByRole('button', { name: '開く' }).click();
+    await expect(page.getByRole('dialog')).toBeHidden();
+    await page.waitForTimeout(300); // 3Dの腕の形が切り替わるのを待つ
+  };
+
+  // 上着を全部隠して、素の層(下の層)に描けるようにする (上着は腕と胴体で少し重なるので、境目の判定が揺れる)
+  const paintBaseLayer = (page: Page) => button(page, '上着をすべて切り替え').click();
+
+  // 3D表示の中心(胴体)から左右に、腕の正面を横切ってなぞる。そのとき塗られた、腕の正面の列 (x) の一覧
+  // 正面から見ると腕の正面だけが見える (側面は裏を向いている)。右腕の正面は展開図の x=44〜、左腕の正面は x=36〜
+  const armFrontColumns = async (page: Page) => {
+    const { box, x, y } = await viewerCenter(page);
+    await drag(page, [[x, y], [box.x + 5, y]], 120); // 画面の左 = キャラの右腕
+    await drag(page, [[x, y], [box.x + box.width - 5, y]], 120); // 画面の右 = キャラの左腕
+    const pixels = await paintedPixels(page);
+    const columns = (from: number, to: number, rows: [number, number]) =>
+      [...new Set(pixels.filter(([px, py]) => px >= from && px <= to && py >= rows[0] && py <= rows[1]).map(([px]) => px))].sort((a, b) => a - b);
+    return { right: columns(44, 55, [20, 31]), left: columns(36, 47, [52, 63]) };
+  };
+
+  test('Classic の腕は幅4、Slim の作品を開くと腕が幅3になる (3Dの腕の形が切り替わる)', async ({ page }) => {
+    await openWithSkin(page);
+    await paintBaseLayer(page);
+    await addProject(page, { name: 'Slimの作品', model: 'slim' });
+    await addProject(page, { name: 'Classicの作品', model: 'classic' });
+
+    await openByName(page, 'Classicの作品');
+    expect(await armFrontColumns(page)).toEqual({ right: [44, 45, 46, 47], left: [36, 37, 38, 39] });
+
+    await openByName(page, 'Slimの作品');
+    expect(await armFrontColumns(page)).toEqual({ right: [44, 45, 46], left: [36, 37, 38] });
+
+    await openByName(page, 'Classicの作品'); // 戻すと、また幅4
+    expect(await armFrontColumns(page)).toEqual({ right: [44, 45, 46, 47], left: [36, 37, 38, 39] });
+  });
+
+  test('リロードしても Slim のまま開く (起動時に腕の形が合う)', async ({ page }) => {
+    await openWithSkin(page);
+    const id = await addProject(page, { name: 'Slimの作品', model: 'slim' });
+    await page.evaluate(([key, value]) => localStorage.setItem(key, value), [LAST_OPENED_KEY, id]); // 次の起動で、この作品を開く
+    await page.reload();
+    await page.evaluate(() => document.fonts.ready);
+    await page.waitForTimeout(900);
+    await paintBaseLayer(page);
+    expect(await armFrontColumns(page)).toEqual({ right: [44, 45, 46], left: [36, 37, 38] });
   });
 });

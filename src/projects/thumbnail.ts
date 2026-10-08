@@ -10,9 +10,11 @@ export const THUMB_WIDTH = 16;
 export const THUMB_HEIGHT = 32;
 
 // 各パーツの正面が、サムネイルのどこに来るか (左上の x, y)。右腕・右足は、画面では左側にある
-const PLACEMENT: Record<PartName, [number, number]> = {
-  head: [4, 0], body: [4, 8], rightArm: [0, 8], leftArm: [12, 8], rightLeg: [4, 20], leftLeg: [8, 20],
-};
+// 腕は胴体(x=4〜11)の横にぴったり付ける。右腕は幅のぶんだけ左にずれる (Classic は x=0、Slim は x=1)
+function placement(layout: SkinLayout): Record<PartName, [number, number]> {
+  const armWidth = layout.uv.rightArm.front.w;
+  return { head: [4, 0], body: [4, 8], rightArm: [4 - armWidth, 8], leftArm: [12, 8], rightLeg: [4, 20], leftLeg: [8, 20] };
+}
 
 // 3層を重ねた見た目から、正面のサムネイル (RGBA) を作る。上着の層は、素の層の上に重ねる
 export function frontThumbnail(layers: SkinLayers, layout: SkinLayout): Uint8ClampedArray {
@@ -36,9 +38,10 @@ export function frontThumbnail(layers: SkinLayers, layout: SkinLayout): Uint8Cla
     }
   };
 
+  const positions = placement(layout);
   for (const over of [false, true]) {
     const table = over ? layout.uvOver : layout.uv;
-    for (const [part, [x, y]] of Object.entries(PLACEMENT) as [PartName, [number, number]][]) draw(table[part].front, x, y, over);
+    for (const [part, [x, y]] of Object.entries(positions) as [PartName, [number, number]][]) draw(table[part].front, x, y, over);
   }
   return out;
 }

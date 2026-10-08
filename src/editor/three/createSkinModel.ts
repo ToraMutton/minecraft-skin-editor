@@ -43,27 +43,40 @@ export function createPartGeometries(layout: SkinLayout): PartGeometry[] {
   const bodyGeo = new THREE.BoxGeometry(8, 12, 4); applyPartUV(bodyGeo, SKIN_UV.body);
   const bodyOverGeo = new THREE.BoxGeometry(8.5, 12.5, 4.5); applyPartUV(bodyOverGeo, SKIN_UV_OVER.body);
 
-  // 腕と足は同じ形。回転の中心(肩・股関節)が上端になるよう、下にずらしておく
-  const armGeo = new THREE.BoxGeometry(4, 12, 4); armGeo.translate(0, -6, 0);
-  const armOverGeo = new THREE.BoxGeometry(4.5, 12.5, 4.5); armOverGeo.translate(0, -6, 0);
-
+  // 腕と足は、回転の中心(肩・股関節)が上端になるよう、下にずらしておく
+  // 幅は展開図の正面の幅に合わせる (腕は Classic が4、Slim が3。足はどちらも4)
   const limb = (name: PartName, position: THREE.Vector3): PartGeometry => {
-    const base = armGeo.clone(); applyPartUV(base, SKIN_UV[name]);
-    const over = armOverGeo.clone(); applyPartUV(over, SKIN_UV_OVER[name]);
+    const width = SKIN_UV[name].front.w;
+    const base = new THREE.BoxGeometry(width, 12, 4); base.translate(0, -6, 0); applyPartUV(base, SKIN_UV[name]);
+    const over = new THREE.BoxGeometry(width + 0.5, 12.5, 4.5); over.translate(0, -6, 0); applyPartUV(over, SKIN_UV_OVER[name]);
     return { name, base, over, position };
   };
+  // 腕は、胴体(幅8)の横にぴったり付く位置に置く (Classic なら中心 ±6、Slim なら ±5.5)
+  const armX = 4 + SKIN_UV.rightArm.front.w / 2;
 
   const geometries = [
     { name: 'head' as const, base: headGeo, over: headOverGeo, position: new THREE.Vector3(0, 24, 0) },
     { name: 'body' as const, base: bodyGeo, over: bodyOverGeo, position: new THREE.Vector3(0, 18, 0) },
-    limb('rightArm', new THREE.Vector3(-6, 24, 0)),
-    limb('leftArm', new THREE.Vector3(6, 24, 0)),
+    limb('rightArm', new THREE.Vector3(-armX, 24, 0)),
+    limb('leftArm', new THREE.Vector3(armX, 24, 0)),
     limb('rightLeg', new THREE.Vector3(-2, 12, 0)),
     limb('leftLeg', new THREE.Vector3(2, 12, 0)),
   ];
-  armGeo.dispose();
-  armOverGeo.dispose();
   return geometries;
+}
+
+// 作ってある3Dモデルを、別のモデル(Classic / Slim)の形に差し替える
+// 腕の太さが変わるだけだが、素の層・上着・グリッド・ホバーは同じ形(ジオメトリ)を共有しているので、まとめて入れ替える。
+// 3D表示全体を作り直さないので、カメラの向きなどはそのまま
+export function applyLayout(parts: SkinPart[], layout: SkinLayout) {
+  for (const g of createPartGeometries(layout)) {
+    const part = parts.find(p => p.name === g.name)!;
+    const old = [part.mesh.geometry, part.overlay.geometry];
+    part.mesh.geometry = part.baseGrid.geometry = part.baseHover.geometry = g.base;
+    part.overlay.geometry = part.overlayGrid.geometry = part.overlayHover.geometry = g.over;
+    part.mesh.position.copy(g.position);
+    old.forEach(geometry => geometry.dispose());
+  }
 }
 
 // テクスチャを貼った3Dモデル(6パーツ + 上着 + ガイド線)を作る

@@ -14,8 +14,8 @@ const CLASSIC = getLayout('classic');
 const RECT = { left: 0, top: 0, width: 800, height: 600 };
 
 // パーツの表面の点 point を、その面の外側 (normal の方向) から見てクリックしたときのピクセル
-function texelAt(partName: PartName, point: [number, number, number], normal: [number, number, number]) {
-  const part = createPartGeometries(CLASSIC).find(g => g.name === partName)!;
+function texelAt(partName: PartName, point: [number, number, number], normal: [number, number, number], layout = CLASSIC) {
+  const part = createPartGeometries(layout).find(g => g.name === partName)!;
   const mesh = new THREE.Mesh(part.base);
   mesh.position.copy(part.position);
   mesh.updateMatrixWorld();
@@ -74,5 +74,33 @@ describe('右腕の向き', () => {
 
   it('内側(+x, 胴体側)には展開図の 48〜51 列 (右腕の「左」の面)', () => {
     expect(texelAt('rightArm', [-4, 18.5, 1.5], [1, 0, 0])).toEqual([48, 25]);
+  });
+});
+
+// Slim の右腕は幅3: x=-7〜-4 の箱 (肩は胴体に接したまま、外側に1px狭い)
+describe('Slim の右腕の向き', () => {
+  const SLIM = getLayout('slim');
+  const at = (point: [number, number, number], normal: [number, number, number]) => texelAt('rightArm', point, normal, SLIM);
+
+  it('正面: 外側(-x)の端が展開図の x=44、内側(+x)の端が x=46 (幅3)', () => {
+    expect(at([-6.5, 18.5, 2], [0, 0, 1])).toEqual([44, 25]);
+    expect(at([-4.5, 18.5, 2], [0, 0, 1])).toEqual([46, 25]);
+  });
+
+  it('背面: 内側(+x)の端が x=51、外側(-x)の端が x=53 (幅3)', () => {
+    expect(at([-4.5, 18.5, -2], [0, 0, -1])).toEqual([51, 25]);
+    expect(at([-6.5, 18.5, -2], [0, 0, -1])).toEqual([53, 25]);
+  });
+
+  it('外側(-x)は 40〜43 列、内側(+x, 胴体側)は 47〜50 列 (側面は幅4のまま)', () => {
+    expect(at([-7, 18.5, -1.5], [-1, 0, 0])).toEqual([40, 25]);
+    expect(at([-7, 18.5, 1.5], [-1, 0, 0])).toEqual([43, 25]);
+    expect(at([-4, 18.5, -1.5], [1, 0, 0])).toEqual([50, 25]);
+    expect(at([-4, 18.5, 1.5], [1, 0, 0])).toEqual([47, 25]);
+  });
+
+  it('上面: 外側後ろの角が (44, 16)、内側前の角が (46, 19)', () => {
+    expect(at([-6.5, 24, -1.5], [0, 1, 0])).toEqual([44, 16]);
+    expect(at([-4.5, 24, 1.5], [0, 1, 0])).toEqual([46, 19]);
   });
 });
