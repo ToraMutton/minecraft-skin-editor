@@ -198,7 +198,7 @@ export function useSkinCanvas(canvasRef: React.RefObject<HTMLCanvasElement | nul
   // 新しい作品を作って切り替える。今の作品は保存済みなのでそのまま残る (全消しは、今の作品を完全に透明にするだけ)
   // 作り始め方: 素体 / 白紙 / 読み込んだPNGの画素。名前は「無題のスキン」「無題のスキン 2」…と、重ならないように付ける
   // 今の作品を保存できなかったときは、切り替えずに false を返す (切り替えると、保存できていない絵を失うため)
-  const newProject = useCallback(async (options: Pick<NewProjectOptions, 'start' | 'name'> = {}): Promise<boolean> => {
+  const newProject = useCallback(async (options: Pick<NewProjectOptions, 'start' | 'name' | 'model'> = {}): Promise<boolean> => {
     if (!(await flush())) return false;
     let existing: string[] = [];
     try { existing = (await repository.list()).map(p => p.name); } catch { /* 一覧を読めなくても、作品は作れる (名前が重なるだけ) */ }
@@ -237,10 +237,10 @@ export function useSkinCanvas(canvasRef: React.RefObject<HTMLCanvasElement | nul
   }, [pushUndo, replaceLayers, notifyUpdate]);
 
   // 「新規 → PNGから」: PNGを下地にした、新しい作品を作る。名前はファイル名から付ける
-  const newProjectFromFile = useCallback(async (file: File): Promise<{ ok: true } | { ok: false; message: string }> => {
+  const newProjectFromFile = useCallback(async (file: File, model?: NewProjectOptions['model']): Promise<{ ok: true } | { ok: false; message: string }> => {
     const result = await readSkinFile(file);
     if (!result.ok) return result;
-    const created = await newProject({ start: result.pixels, name: result.name ?? '読み込んだスキン' });
+    const created = await newProject({ start: result.pixels, name: result.name ?? '読み込んだスキン', model });
     return created ? { ok: true } : { ok: false, message: '今のスキンを保存できなかったため、新しいスキンを作れません' };
   }, [newProject]);
 

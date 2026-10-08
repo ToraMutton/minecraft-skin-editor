@@ -105,7 +105,7 @@ export function ProjectsModal({ repository, currentId, onClose, beforeLoad, onOp
           {items === null && <p className="vx-empty">読み込み中…</p>}
           {items?.length === 0 && <p className="vx-empty">作品がありません</p>}
           {items?.map(item => {
-            const { id, name, updatedAt } = item.summary;
+            const { id, name, model, updatedAt } = item.summary;
             const isCurrent = id === currentId;
             return (
               <article key={id} className={isCurrent ? 'vx-project-card vx-project-card--current' : 'vx-project-card'} data-testid="project-card">
@@ -122,6 +122,7 @@ export function ProjectsModal({ repository, currentId, onClose, beforeLoad, onOp
                   )}
                   <div className="vx-project-meta">
                     {isCurrent && <span className="vx-project-badge">編集中</span>}
+                    <span className="vx-project-model">{model === 'slim' ? 'Slim' : 'Classic'}</span>
                     <span>{formatDate(updatedAt)}</span>
                   </div>
                   <div className="vx-project-actions">

@@ -1,16 +1,25 @@
 import { useEffect, useRef, useState } from 'react';
 import { PlusSquare, ChevronDown, UserRound, Square, FileUp, Sparkles } from 'lucide-react';
 import { Button } from './Button';
+import type { SkinModel } from '../skin/layout';
+
+// 「新規」で選べるモデル。腕の太さが違う
+const MODELS: { id: SkinModel; label: string; hint: string }[] = [
+  { id: 'classic', label: 'Classic', hint: '腕4px' },
+  { id: 'slim', label: 'Slim', hint: '腕3px' },
+];
 
 interface Props {
+  model: SkinModel; // 次に作るスキンのモデル
+  onModelChange: (model: SkinModel) => void;
   onNewStarter: () => void; // 素体から
   onNewBlank: () => void; // 白紙から
   onNewFromFile: (file: File) => void; // PNGから
 }
 
-// 「新規」メニュー: 素体から / 白紙から / PNGから / Quick Design (準備中)
-// 1回のクリックでメニューが開き、もう1回のクリックで作り始められる
-export function NewMenu({ onNewStarter, onNewBlank, onNewFromFile }: Props) {
+// 「新規」メニュー: モデル(Classic / Slim)の選択 + 素体から / 白紙から / PNGから / Quick Design (準備中)
+// 1回のクリックでメニューが開き、もう1回のクリックで作り始められる。モデルを選んでもメニューは閉じない (選んだ後に、作り方を選ぶため)
+export function NewMenu({ model, onModelChange, onNewStarter, onNewBlank, onNewFromFile }: Props) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -21,7 +30,7 @@ export function NewMenu({ onNewStarter, onNewBlank, onNewFromFile }: Props) {
     if (returnFocus) triggerRef.current?.focus();
   };
 
-  const enabledItems = () => [...(rootRef.current?.querySelectorAll<HTMLElement>('[role=menuitem]:not([aria-disabled=true])') ?? [])];
+  const enabledItems = () => [...(rootRef.current?.querySelectorAll<HTMLElement>('[role^=menuitem]:not([aria-disabled=true])') ?? [])];
 
   // 開いたら、最初の項目にフォーカスする
   useEffect(() => {
@@ -60,6 +69,16 @@ export function NewMenu({ onNewStarter, onNewBlank, onNewFromFile }: Props) {
 
       {open && (
         <div className="vx-menu-list" role="menu" aria-label="新しいスキンの作り方">
+          <div className="vx-menu-models" role="group" aria-label="モデル (腕の太さ)">
+            {MODELS.map(m => (
+              <button
+                key={m.id} type="button" role="menuitemradio" aria-checked={model === m.id} className="vx-menu-model"
+                onClick={() => onModelChange(m.id)}
+              >
+                {m.label} <span className="vx-menu-hint">{m.hint}</span>
+              </button>
+            ))}
+          </div>
           <button type="button" role="menuitem" className="vx-menu-item" onClick={choose(onNewStarter)}>
             <UserRound size={16} /> 素体から <span className="vx-menu-hint">初期のキャラ</span>
           </button>

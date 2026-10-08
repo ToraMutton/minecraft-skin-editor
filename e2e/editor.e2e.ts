@@ -622,8 +622,11 @@ test.describe('「新規」メニューと書き出し', () => {
     await expect(page.getByRole('menuitem', { name: /素体から/ })).toBeFocused(); // 開いたら最初の項目にフォーカス
     await page.keyboard.press('ArrowDown');
     await expect(page.getByRole('menuitem', { name: /白紙から/ })).toBeFocused();
+    await page.keyboard.press('ArrowDown'); // PNGから
+    await page.keyboard.press('ArrowDown'); // Quick Design (使えない) を飛ばして、先頭(モデルの行の Classic)に戻る
+    await expect(page.getByRole('menuitemradio', { name: /Classic/ })).toBeFocused();
     await page.keyboard.press('ArrowDown');
-    await page.keyboard.press('ArrowDown'); // Quick Design (使えない) を飛ばして、先頭に戻る
+    await page.keyboard.press('ArrowDown');
     await expect(page.getByRole('menuitem', { name: /素体から/ })).toBeFocused();
     await page.keyboard.press('Escape');
     await expect(page.getByRole('menu')).toBeHidden();
@@ -808,5 +811,97 @@ test.describe('Slim モデルの作品', () => {
     await page.waitForTimeout(900);
     await paintBaseLayer(page);
     expect(await armFrontColumns(page)).toEqual({ right: [44, 45, 46], left: [36, 37, 38] });
+  });
+
+  // --- 「新規」メニューで、モデルを選んで作る ---
+
+  const modelRadio = (page: Page, model: 'Classic' | 'Slim') => page.getByRole('menuitemradio', { name: new RegExp(model) });
+  const openNewMenu = async (page: Page) => { await button(page, '新規').click(); await expect(page.getByRole('menu')).toBeVisible(); };
+  // マイスキンで見える、今開いている作品のモデル表示 (「編集中」の付いたカード)
+  const currentModelLabel = async (page: Page) => {
+    await button(page, 'マイスキン').click();
+    const card = page.getByTestId('project-card').filter({ hasText: '編集中' });
+    const label = await card.locator('.vx-project-model').innerText();
+    await page.keyboard.press('Escape');
+    return label;
+  };
+
+  test('「新規」メニューのモデルは、初めは Classic。Slim を選んでもメニューは閉じず、選んだほうに印が付く', async ({ page }) => {
+    await openWithSkin(page);
+    await openNewMenu(page);
+    await expect(modelRadio(page, 'Classic')).toHaveAttribute('aria-checked', 'true');
+    await expect(modelRadio(page, 'Slim')).toHaveAttribute('aria-checked', 'false');
+
+    await modelRadio(page, 'Slim').click();
+    await expect(page.getByRole('menu')).toBeVisible(); // 閉じない (続けて作り方を選ぶため)
+    await expect(modelRadio(page, 'Slim')).toHaveAttribute('aria-checked', 'true');
+    await expect(modelRadio(page, 'Classic')).toHaveAttribute('aria-checked', 'false');
+    await expect(page.getByRole('menuitem')).toHaveCount(4); // 作り方の項目は、これまでどおり4つ
+  });
+
+  test('Slim を選んで「素体から」: Slim の作品ができる (腕が幅3、マイスキンにも Slim と出る)', async ({ page }) => {
+    await openWithSkin(page);
+    await openNewMenu(page);
+    await modelRadio(page, 'Slim').click();
+    await page.getByRole('menuitem', { name: /素体から/ }).click();
+    // 素体は、腕の展開図に合わせて塗られる。右腕の背面は Slim なら x=51〜53 (Classic は 52〜55 なので、x=55 が塗られていない)
+    const has = (pixels: [number, number][], x: number, y: number) => pixels.some(([px, py]) => px === x && py === y);
+    const pixels = await paintedPixels(page);
+    expect(has(pixels, 53, 25)).toBe(true);
+    expect(has(pixels, 55, 25)).toBe(false);
+    expect(await currentModelLabel(page)).toBe('Slim');
+  });
+
+  test('「白紙から」も、選んだモデルで作られる。Classic に戻して作ると Classic', async ({ page }) => {
+    await openWithSkin(page);
+    await openNewMenu(page);
+    await modelRadio(page, 'Slim').click();
+    await page.getByRole('menuitem', { name: /白紙から/ }).click();
+    expect(await currentModelLabel(page)).toBe('Slim');
+
+    await openNewMenu(page);
+    await modelRadio(page, 'Classic').click();
+    await page.getByRole('menuitem', { name: /白紙から/ }).click();
+    expect(await currentModelLabel(page)).toBe('Classic');
+    await paintBaseLayer(page);
+    expect(await armFrontColumns(page)).toEqual({ right: [44, 45, 46, 47], left: [36, 37, 38, 39] });
+  });
+
+  test('「PNGから」も、選んだモデルで作られる', async ({ page }) => {
+    await openWithSkin(page);
+    await openNewMenu(page);
+    await modelRadio(page, 'Slim').click();
+    const chooser = page.waitForEvent('filechooser');
+    await page.getByRole('menuitem', { name: /PNGから/ }).click();
+    const png = Buffer.from((await makeSkinDataUrl(page, 'pattern')).split(',')[1], 'base64');
+    await (await chooser).setFiles({ name: 'slim.png', mimeType: 'image/png', buffer: png });
+    await expect.poll(async () => (await paintedPixels(page)).length).toBe(4096);
+    expect(await currentModelLabel(page)).toBe('Slim');
+  });
+
+  test('選んだモデルは、リロードしても覚えている (次の「新規」も同じモデル)', async ({ page }) => {
+    await openWithSkin(page);
+    await openNewMenu(page);
+    await modelRadio(page, 'Slim').click();
+    await page.keyboard.press('Escape');
+
+    await page.reload();
+    await page.evaluate(() => document.fonts.ready);
+    await openNewMenu(page);
+    await expect(modelRadio(page, 'Slim')).toHaveAttribute('aria-checked', 'true');
+    await page.getByRole('menuitem', { name: /白紙から/ }).click();
+    expect(await currentModelLabel(page)).toBe('Slim');
+  });
+
+  test('キーボードだけでモデルを選べる (↑で項目の上のモデルへ、Enterで選ぶ)', async ({ page }) => {
+    await openWithSkin(page);
+    await openNewMenu(page);
+    await expect(page.getByRole('menuitem', { name: /素体から/ })).toBeFocused(); // 開いた直後は、これまでどおり「素体から」
+    await page.keyboard.press('ArrowUp'); // 上のモデルの行へ (右端の Slim)
+    await expect(modelRadio(page, 'Slim')).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(modelRadio(page, 'Slim')).toHaveAttribute('aria-checked', 'true');
+    await page.keyboard.press('ArrowUp');
+    await expect(modelRadio(page, 'Classic')).toBeFocused();
   });
 });

@@ -7,6 +7,8 @@ import type { PartVisibility, ViewMode } from './viewTypes';
 import { useSkinCanvas } from './canvas/useSkinCanvas';
 import { useKeyboardShortcuts } from './useKeyboardShortcuts';
 import { useProjectManager } from './useProjectManager';
+import { readNewModel, saveNewModel } from './newModel';
+import type { SkinModel } from './skin/layout';
 import { SkinViewer } from './three/SkinViewer';
 import { EditorHeader } from './components/EditorHeader';
 import { ToolPanel } from './components/ToolPanel';
@@ -39,6 +41,10 @@ export function EditorLayout() {
     if (result === true || (typeof result === 'object' && result.ok)) return;
     window.alert(result === false ? '今のスキンを保存できなかったため、新しいスキンを作れません' : result.message);
   };
+
+  // 「新規」で作るスキンのモデル。選んだら覚えておく (次に開いたときも同じ)
+  const [newModel, setNewModel] = useState<SkinModel>(readNewModel);
+  const chooseNewModel = (model: SkinModel) => { setNewModel(model); saveNewModel(model); };
 
   // マイスキン (作品の一覧)
   const [showProjects, setShowProjects] = useState(false);
@@ -99,9 +105,10 @@ export function EditorLayout() {
 
       <EditorHeader
         canUndo={canUndo} canRedo={canRedo} onUndo={handleUndo} onRedo={handleRedo}
-        onNewStarter={() => void createNew(() => newProject({ start: 'starter' }))}
-        onNewBlank={() => void createNew(() => newProject({ start: 'blank' }))}
-        onNewFromFile={file => void createNew(() => newProjectFromFile(file))}
+        newModel={newModel} onNewModelChange={chooseNewModel}
+        onNewStarter={() => void createNew(() => newProject({ start: 'starter', model: newModel }))}
+        onNewBlank={() => void createNew(() => newProject({ start: 'blank', model: newModel }))}
+        onNewFromFile={file => void createNew(() => newProjectFromFile(file, newModel))}
         onOpenProjects={() => setShowProjects(true)}
         onImport={handleImport}
         onDownload={downloadImage}

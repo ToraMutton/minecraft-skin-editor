@@ -14,6 +14,15 @@ describe('createProject', () => {
     expect(p.layers.erased.every(v => v === 0)).toBe(true);
   });
 
+  it('model に slim を渡すと、Slim の作品になり、素体も腕が幅3で描かれる', () => {
+    const p = createProject({ model: 'slim' });
+    expect(p.model).toBe('slim');
+    const alpha = (x: number, y: number) => p.layers.base[(y * 64 + x) * 4 + 3];
+    expect(alpha(53, 25)).toBe(255); // 右腕の背面の右端 (Slim は x=51〜53)
+    expect(alpha(55, 25)).toBe(0); // Classic の背面の右端 (Slim では使わない列)
+    expect(createProject().layers.base[(25 * 64 + 55) * 4 + 3]).toBe(255); // Classic では塗られている
+  });
+
   it('blank なら下地も完全に透明', () => {
     expect(createProject({ start: 'blank' }).layers.base.every(v => v === 0)).toBe(true);
   });
