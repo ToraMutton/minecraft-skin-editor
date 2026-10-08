@@ -84,3 +84,13 @@ describe('duplicateProject', () => {
     await expect(duplicateProject(memoryRepo().repo, 'none')).rejects.toThrow('見つかりません');
   });
 });
+
+describe('複製と生成の記録', () => {
+  it('Quick Design の作品を複製すると、生成の記録も引き継がれる (複製の「もう一度作る」ができる)', async () => {
+    const source = createProject({ name: 'QD', generation: { answers: { top: 'jacket' }, seed: 99, rendererVersion: 1 } });
+    const { repo, store } = memoryRepo([source]);
+    const copy = await duplicateProject(repo, source.id);
+    expect(copy.generation).toEqual({ answers: { top: 'jacket' }, seed: 99, rendererVersion: 1 });
+    expect(store.get(copy.id)!.generation).toEqual(source.generation);
+  });
+});

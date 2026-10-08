@@ -251,6 +251,7 @@
 .vx-project-name { margin: 0; font: 16px var(--vx-pixel-font); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .vx-project-meta { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--vx-text-sub); }
 .vx-project-model { padding: 1px 6px; font: 12px var(--vx-pixel-font); color: var(--vx-text-sub); border: 2px solid var(--vx-line); } /* Classic / Slim */
+.vx-project-qd { display: inline-flex; align-items: center; gap: 3px; padding: 1px 6px; font: 12px var(--vx-pixel-font); color: #e8d6ff; background: #4a3a7a; border: 2px solid var(--vx-line); } /* Quick Design で作った作品 */
 .vx-project-badge { padding: 1px 6px; background: #52a535; color: #fff; font: 12px var(--vx-pixel-font); border: 2px solid var(--vx-line); } /* 緑の枠の中でも目立つよう、少し明るい緑と輪郭を付ける */
 .vx-project-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: auto; }
 .vx-project-actions .vx-btn { height: 30px; padding: 0 10px; }
@@ -289,4 +290,75 @@
 .vx-menu-model:hover, .vx-menu-model:focus-visible { border-color: var(--vx-text-sub); outline: none; }
 .vx-menu-model[aria-checked="true"] { background: var(--vx-green); border-color: var(--vx-line); box-shadow: inset 0 2px 0 #52a535; }
 .vx-menu-model[aria-checked="true"] .vx-menu-hint { color: #d8f0d0; }
+.vx-menu-item--qd { color: #e8d6ff; }
 .vx-menu-hint { margin-left: auto; font: 12px var(--vx-pixel-font); color: var(--vx-text-sub); }
+
+/* ---------- Quick Design ---------- */
+.vx-qd { width: min(1040px, 100%); max-height: min(780px, 100%); gap: 10px; }
+.vx-qd-lead { margin: 6px 0 0; font-size: 12px; color: var(--vx-text-sub); }
+.vx-qd-body { display: grid; grid-template-columns: minmax(0, 1fr) 316px; gap: 12px; min-height: 0; flex: 1; }
+.vx-qd-questions { display: flex; flex-direction: column; gap: 10px; overflow-y: auto; padding: 2px 6px 4px 2px; min-height: 0; }
+.vx-qd-section {
+  display: flex; flex-direction: column; gap: 8px; padding: 10px 12px 12px;
+  background: var(--vx-surface); border: 2px solid var(--vx-line); box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.05);
+}
+.vx-qd-section h3 { margin: 0; font: 14px var(--vx-pixel-font); color: var(--vx-text-sub); }
+.vx-qd-row { display: grid; grid-template-columns: 84px minmax(0, 1fr); align-items: center; gap: 8px; }
+.vx-qd-row .vx-label { font-size: 14px; line-height: 1.2; }
+.vx-qd-hint { font-size: 11px; opacity: 0.8; }
+.vx-qd-note { margin: 0; font-size: 12px; color: var(--vx-text-sub); }
+
+/* 選択肢 (1つだけ選ぶ)。押すと沈むが、transform だけなので周りは動かない */
+.vx-choice { display: flex; flex-wrap: wrap; gap: 6px; }
+.vx-choice-item {
+  position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 5px; height: 30px; padding: 0 10px;
+  background: var(--vx-panel); color: var(--vx-text); border: 2px solid var(--vx-line); box-shadow: inset 0 2px 0 var(--vx-highlight);
+  font: 700 13px var(--vx-ui-font); white-space: nowrap; cursor: pointer; user-select: none;
+}
+.vx-choice-item:hover:not(:disabled) { background: #58595c; }
+.vx-choice-item:active:not(:disabled) { transform: translateY(2px); }
+.vx-choice-item[aria-checked="true"] { background: var(--vx-green); box-shadow: inset 0 2px 0 #52a535; }
+.vx-choice-item[aria-checked="true"]:hover { background: #469b2e; }
+.vx-choice-item:focus-visible { outline: 2px solid var(--vx-text); outline-offset: 2px; }
+.vx-choice-item:disabled { opacity: 0.4; cursor: default; }
+/* 色見本: 色の四角。選ばれているものは白い枠で囲む */
+.vx-choice--swatches { gap: 5px; }
+.vx-choice-item--color { width: 34px; padding: 0; background: var(--vx-bg); box-shadow: none; }
+.vx-choice-item--color:hover:not(:disabled) { background: #3b3c3e; }
+.vx-choice-item--color[aria-checked="true"], .vx-choice-item--color[aria-checked="true"]:hover { background: var(--vx-bg); box-shadow: 0 0 0 2px #ffffff; }
+.vx-choice-colors { position: absolute; inset: 3px; border: 2px solid var(--vx-line); }
+.vx-choice--swatches .vx-choice-item:not(.vx-choice-item--color) { width: auto; }
+
+/* プレビュー: 正面と背面の2体。別の案にすると、ぽんと現れる */
+.vx-qd-preview {
+  display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 10px;
+  background: var(--vx-surface); border: 2px solid var(--vx-line); box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.05);
+}
+.vx-qd-stage {
+  width: 100%; display: flex; justify-content: center; padding: 14px 0 10px; border: 2px solid var(--vx-line);
+  background: radial-gradient(ellipse at 50% 35%, #46484c 0%, #2a2b2e 70%);
+  animation: vx-qd-pop 0.22s ease-out;
+}
+.vx-figures { display: flex; gap: 14px; }
+.vx-figure { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.vx-figure figcaption { font: 12px var(--vx-pixel-font); color: var(--vx-text-sub); }
+.vx-qd-dice { display: flex; gap: 6px; }
+.vx-qd-model { width: 100%; display: flex; flex-direction: column; gap: 6px; padding-top: 10px; border-top: 2px solid var(--vx-line); }
+.vx-qd-model .vx-choice { justify-content: center; }
+.vx-qd-count { margin: 0; font: 13px var(--vx-pixel-font); color: var(--vx-text-sub); text-align: center; }
+.vx-qd-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.vx-qd-footer-right { display: flex; align-items: center; gap: 16px; }
+.vx-qd-footer-right .vx-switch { width: auto; gap: 8px; }
+
+@keyframes vx-qd-pop { 0% { transform: scale(0.95); opacity: 0.35; } 100% { transform: scale(1); opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .vx-qd-stage { animation: none; } }
+@media (max-width: 900px) {
+  .vx-qd-body { grid-template-columns: 1fr; overflow-y: auto; }
+  .vx-qd-preview { order: -1; }
+  .vx-qd-questions { overflow: visible; }
+}
+
+/* ---------- サイドバーの Quick Design パネル (生成した作品だけ) ---------- */
+.vx-qdpanel-body { display: flex; flex-direction: column; gap: 8px; }
+.vx-qdpanel-body > .vx-btn { width: 100%; }
+.vx-qdpanel-code { margin: 0; font: 13px var(--vx-pixel-font); color: var(--vx-text-sub); }

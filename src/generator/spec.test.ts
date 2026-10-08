@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { randomSpec, parseSpec, RENDERER_VERSION, MOODS, HAIR_STYLES, EYE_STYLES, TOPS, BOTTOMS } from './spec';
-import { OUTFITS, HAIR_COLORS, EYE_COLORS, SKIN_TONES } from './palettes';
+import { OUTFITS, HAIR_COLORS, HAIR_PALETTE, EYE_COLORS, SKIN_TONES } from './palettes';
 
 const SEEDS = Array.from({ length: 400 }, (_, i) => i * 7919 + 13);
 
@@ -75,7 +75,8 @@ describe('配色の読みやすさ (どの seed でも)', () => {
   });
 
   it('色は、真っ黒・真っ白に近づけない (明るさ 0.17〜0.97)', () => {
-    const all = [...SKIN_TONES, ...Object.values(HAIR_COLORS).flat(), ...Object.values(EYE_COLORS).flat(), ...Object.values(OUTFITS).flat().flatMap(o => Object.values(o))];
+    const all = [...SKIN_TONES, ...Object.values(HAIR_COLORS).flat(), ...Object.values(EYE_COLORS).flat(), ...HAIR_PALETTE.map(h => h.color),
+      ...Object.values(OUTFITS).flat().flatMap(o => [o.primary, o.inner, o.accent, o.secondary, o.shoes])];
     for (const c of all) { expect(c.l).toBeGreaterThanOrEqual(0.17); expect(c.l).toBeLessThanOrEqual(0.97); }
   });
 });

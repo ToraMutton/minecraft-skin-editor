@@ -17,6 +17,10 @@ import { ViewToggles } from './components/ViewToggles';
 import { PartPanel } from './components/PartPanel';
 import { ModelPanel } from './components/ModelPanel';
 import { ProjectsModal } from './components/ProjectsModal';
+import { QuickDesignDialog } from './components/QuickDesignDialog';
+import type { QuickDesignResult } from './components/QuickDesignDialog';
+import { QuickDesignPanel } from './components/QuickDesignPanel';
+import { designSkin, randomSeed } from '../generator';
 
 const ALL_VISIBLE: PartVisibility = {
   head: true, body: true, rightArm: true, leftArm: true, rightLeg: true, leftLeg: true,
@@ -31,9 +35,9 @@ export function EditorLayout() {
     color, setColor, tool, setTool, brushSize, setBrushSize, mirror, setMirror,
     isDrawing, setIsDrawing, canUndo, canRedo, recentColors, addRecentColor,
     notifyUpdate, pushUndo, handleUndo, handleRedo, floodFill, pickColor, applyTool,
-    convertModel, clearCanvas, newProject, newProjectFromFile, downloadImage, handleImport,
+    convertModel, applyGeneration, clearCanvas, newProject, newProjectFromFile, downloadImage, handleImport,
     saveStatus, saveNow, startupWarning,
-    layout, projectInfo, setProjectInfo, projectRef, loadProject, flush, discardPending, resetStatus, markEdited, repository
+    layout, generation, projectInfo, setProjectInfo, projectRef, loadProject, flush, discardPending, resetStatus, markEdited, repository
   } = useSkinCanvas(canvasRef);
 
   // 新しい作品を作る。失敗したら、理由を知らせる (今の作品が保存できない、PNGが使えない、など)
@@ -46,6 +50,23 @@ export function EditorLayout() {
   // 「新規」で作るスキンのモデル。選んだら覚えておく (次に開いたときも同じ)
   const [newModel, setNewModel] = useState<SkinModel>(readNewModel);
   const chooseNewModel = (model: SkinModel) => { setNewModel(model); saveNewModel(model); };
+
+  // Quick Design: create = 新しい作品を作る / redo = 今の作品の絵を作り直す (条件を変える)
+  const [quickDesign, setQuickDesign] = useState<'create' | 'redo' | null>(null);
+  const [keepPaint, setKeepPaint] = useState(true); // 作り直すとき、手描きを残すか
+  const submitQuickDesign = (result: QuickDesignResult) => {
+    const mode = quickDesign;
+    setQuickDesign(null);
+    if (mode === 'redo') { applyGeneration(result.pixels, result.generation, result.keepPaint); setKeepPaint(result.keepPaint); return; }
+    chooseNewModel(result.model); // 次の「新規」も、同じモデルから
+    void createNew(() => newProject({ start: result.pixels, model: result.model, name: 'Quick Design', generation: result.generation }));
+  };
+  // 同じ条件で、新しい案に作り直す
+  const regenerate = () => {
+    if (!generation) return;
+    const next = designSkin(generation.answers, randomSeed(), layout);
+    applyGeneration(next.pixels, next.generation, keepPaint);
+  };
 
   // マイスキン (作品の一覧)
   const [showProjects, setShowProjects] = useState(false);
@@ -96,7 +117,7 @@ export function EditorLayout() {
   // --- キーボードショートカット ---
   // マイスキンを開いている間は、キー操作で絵やツールが変わらないようにする
   useKeyboardShortcuts({
-    enabled: !showProjects,
+    enabled: !showProjects && quickDesign === null,
     canUndo, canRedo, onUndo: handleUndo, onRedo: handleRedo,
     onToolChange: setTool, onBrushSizeChange: setBrushSize,
   });
@@ -110,6 +131,7 @@ export function EditorLayout() {
         onNewStarter={() => void createNew(() => newProject({ start: 'starter', model: newModel }))}
         onNewBlank={() => void createNew(() => newProject({ start: 'blank', model: newModel }))}
         onNewFromFile={file => void createNew(() => newProjectFromFile(file, newModel))}
+        onQuickDesign={() => setQuickDesign('create')}
         onOpenProjects={() => setShowProjects(true)}
         onImport={handleImport}
         onDownload={downloadImage}
@@ -122,6 +144,14 @@ export function EditorLayout() {
           repository={repository} currentId={projectInfo.id} onClose={() => setShowProjects(false)}
           beforeLoad={projects.syncCurrent}
           onOpen={projects.open} onRename={projects.rename} onDuplicate={projects.duplicate} onDelete={projects.remove}
+        />
+      )}
+
+      {quickDesign && (
+        <QuickDesignDialog
+          mode={quickDesign} model={quickDesign === 'redo' ? layout.model : newModel}
+          initialAnswers={quickDesign === 'redo' && generation ? generation.answers : {}} initialSeed={quickDesign === 'redo' ? generation?.seed : undefined}
+          initialKeepPaint={keepPaint} onClose={() => setQuickDesign(null)} onSubmit={submitQuickDesign}
         />
       )}
 
@@ -165,6 +195,12 @@ export function EditorLayout() {
         {/* --- 右サイドバー --- */}
         <aside className="vx-sidebar">
           <ModelPanel model={layout.model} onChange={convertModel} />
+          {generation && (
+            <QuickDesignPanel
+              seed={generation.seed} keepPaint={keepPaint} onKeepPaintChange={setKeepPaint}
+              onRegenerate={regenerate} onChangeConditions={() => setQuickDesign('redo')}
+            />
+          )}
           <PartPanel
             visibleParts={visibleParts} visibleOverlay={visibleOverlay}
             onTogglePart={togglePart} onToggleOverlay={toggleOverlay} onToggleAllOverlay={toggleAllOverlay}

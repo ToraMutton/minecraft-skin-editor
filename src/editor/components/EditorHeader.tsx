@@ -16,6 +16,7 @@ interface Props {
   onNewStarter: () => void;
   onNewBlank: () => void;
   onNewFromFile: (file: File) => void;
+  onQuickDesign: () => void;
   onOpenProjects: () => void;
   onImport: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onDownload: () => void;
@@ -23,7 +24,7 @@ interface Props {
   onRetrySave: () => void;
 }
 
-export function EditorHeader({ canUndo, canRedo, onUndo, onRedo, newModel, onNewModelChange, onNewStarter, onNewBlank, onNewFromFile, onOpenProjects, onImport, onDownload, saveStatus, onRetrySave }: Props) {
+export function EditorHeader({ canUndo, canRedo, onUndo, onRedo, newModel, onNewModelChange, onNewStarter, onNewBlank, onNewFromFile, onQuickDesign, onOpenProjects, onImport, onDownload, saveStatus, onRetrySave }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   return (
@@ -42,7 +43,7 @@ export function EditorHeader({ canUndo, canRedo, onUndo, onRedo, newModel, onNew
       <div className="vx-header-group">
         <SaveStatusBadge status={saveStatus} onRetry={onRetrySave} />
         <Button onClick={onOpenProjects}><LayoutGrid size={16} /> マイスキン</Button>
-        <NewMenu model={newModel} onModelChange={onNewModelChange} onNewStarter={onNewStarter} onNewBlank={onNewBlank} onNewFromFile={onNewFromFile} />
+        <NewMenu model={newModel} onModelChange={onNewModelChange} onNewStarter={onNewStarter} onNewBlank={onNewBlank} onNewFromFile={onNewFromFile} onQuickDesign={onQuickDesign} />
         <Button onClick={() => fileInputRef.current?.click()} title="今のスキンに、PNGを読み込んで置き換えます (Undoで戻せます)"><FolderOpen size={16} /> 読込</Button>
         <input ref={fileInputRef} type="file" accept="image/png" onChange={onImport} style={{ display: 'none' }} aria-label="今のスキンに読み込むPNG" />
         <Button variant="primary" onClick={onDownload} title="PNGファイルとして書き出します (Minecraftに設定できます)"><Download size={16} /> 書き出し</Button>

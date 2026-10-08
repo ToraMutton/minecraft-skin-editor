@@ -82,3 +82,9 @@ export function makeRamp(base: Oklch): Rgb[] {
   const darkScale = Math.min(1, room / -RAMP_STEPS[0]);
   return RAMP_STEPS.map(dl => toRgb(shade(base, dl < 0 ? dl * darkScale : dl)));
 }
+
+// CSSの色の文字列 (画面の色見本に使う)
+export function cssColor(color: Oklch): string {
+  const [r, g, b] = toRgb(color);
+  return `rgb(${r}, ${g}, ${b})`;
+}

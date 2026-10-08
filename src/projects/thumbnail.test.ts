@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { frontThumbnail, THUMB_WIDTH, THUMB_HEIGHT } from './thumbnail';
+import { frontThumbnail, figureThumbnail, THUMB_WIDTH, THUMB_HEIGHT } from './thumbnail';
 import { createProject } from './project';
 import { SKIN_UV, SKIN_UV_OVER } from '../editor/skin/uv';
 import { getLayout } from '../editor/skin/layout';
@@ -91,5 +91,54 @@ describe('frontThumbnail (Slim)', () => {
     const front = SLIM.uv.rightArm.front;
     setPixel(p.layers.paint, front.u, front.v + 5, [255, 0, 0, 255]); // 右腕の正面の、左端の列・上から5行目
     expect(px(frontThumbnail(p.layers, SLIM), 1, 8 + 5)).toEqual([255, 0, 0, 255]);
+  });
+});
+
+describe('figureThumbnail (背面)', () => {
+  const CLASSIC_L = getLayout('classic'), SLIM_L = getLayout('slim');
+
+  it('正面は frontThumbnail と同じ', () => {
+    const layers = createProject().layers;
+    expect(figureThumbnail(layers, CLASSIC_L, 'front')).toEqual(frontThumbnail(layers, CLASSIC_L));
+  });
+
+  it('背面: 後ろから見ると左右が入れ替わり、左腕が画面の左、右腕が画面の右になる', () => {
+    const p = createProject({ start: 'blank' });
+    const back = (part: 'leftArm' | 'rightArm') => CLASSIC_L.uv[part].back;
+    setPixel(p.layers.paint, back('leftArm').u, back('leftArm').v + 5, [255, 0, 0, 255]); // 左腕の背面の左端
+    setPixel(p.layers.paint, back('rightArm').u + 3, back('rightArm').v + 5, [0, 0, 255, 255]); // 右腕の背面の右端
+    const t = figureThumbnail(p.layers, CLASSIC_L, 'back');
+    expect(px(t, 0, 8 + 5)).toEqual([255, 0, 0, 255]); // 画面の左端
+    expect(px(t, 15, 8 + 5)).toEqual([0, 0, 255, 255]); // 画面の右端
+  });
+
+  it('背面: 画面の左の足は左足、右は右足。頭・胴の背面が中央に来る', () => {
+    const p = createProject({ start: 'blank' });
+    const f = (part: 'leftLeg' | 'rightLeg' | 'head' | 'body') => CLASSIC_L.uv[part].back;
+    setPixel(p.layers.paint, f('leftLeg').u, f('leftLeg').v + 11, [10, 20, 30, 255]);
+    setPixel(p.layers.paint, f('rightLeg').u + 3, f('rightLeg').v + 11, [30, 20, 10, 255]);
+    setPixel(p.layers.paint, f('head').u, f('head').v, [1, 2, 3, 255]);
+    setPixel(p.layers.paint, f('body').u + 7, f('body').v + 11, [4, 5, 6, 255]);
+    const t = figureThumbnail(p.layers, CLASSIC_L, 'back');
+    expect(px(t, 4, 20 + 11)).toEqual([10, 20, 30, 255]);
+    expect(px(t, 8 + 3, 20 + 11)).toEqual([30, 20, 10, 255]);
+    expect(px(t, 4, 0)).toEqual([1, 2, 3, 255]);
+    expect(px(t, 4 + 7, 8 + 11)).toEqual([4, 5, 6, 255]);
+  });
+
+  it('Slim の背面: 画面の左の腕は x=1 から (幅3)、右の腕は x=12 から', () => {
+    const t = figureThumbnail(createProject({ model: 'slim' }).layers, SLIM_L, 'back');
+    expect(px(t, 0, 14)[3]).toBe(0);
+    expect(px(t, 1, 14)[3]).toBe(255);
+    expect(px(t, 14, 14)[3]).toBe(255);
+    expect(px(t, 15, 14)[3]).toBe(0);
+  });
+
+  it('上着の層があれば、背面でも重なる (長い髪が背中に垂れる、フードなど)', () => {
+    const p = createProject({ start: 'blank' });
+    const base = CLASSIC_L.uv.body.back, over = CLASSIC_L.uvOver.body.back;
+    setPixel(p.layers.paint, base.u + 2, base.v + 3, [10, 10, 10, 255]);
+    setPixel(p.layers.paint, over.u + 2, over.v + 3, [200, 100, 50, 255]);
+    expect(px(figureThumbnail(p.layers, CLASSIC_L, 'back'), 4 + 2, 8 + 3)).toEqual([200, 100, 50, 255]);
   });
 });

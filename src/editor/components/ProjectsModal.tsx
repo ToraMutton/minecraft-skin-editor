@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Copy, PencilLine, Trash2, X } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { Copy, PencilLine, Sparkles, Trash2, X } from 'lucide-react';
 import { Button } from './Button';
+import { useDialog } from './useDialog';
 import { ProjectThumbnail } from './ProjectThumbnail';
 import { loadProjectItems } from '../../projects/items';
 import type { ProjectItem } from '../../projects/items';
@@ -28,7 +29,6 @@ export function ProjectsModal({ repository, currentId, onClose, beforeLoad, onOp
   const [message, setMessage] = useState<string | null>(null); // 失敗したときの理由
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [draftName, setDraftName] = useState('');
-  const dialogRef = useRef<HTMLDivElement>(null);
 
   const reload = useCallback(async () => {
     try {
@@ -46,9 +46,6 @@ export function ProjectsModal({ repository, currentId, onClose, beforeLoad, onOp
     return () => { cancelled = true; };
   }, [beforeLoad, reload]);
 
-  // 開いたら、ダイアログにフォーカスを移す (キーボードで操作できるように)
-  useEffect(() => { dialogRef.current?.focus(); }, []);
-
   // 操作を実行して、失敗したら理由を出し、成功したら一覧を読み直す
   const run = async (action: () => Promise<ActionResult>, onSuccess?: () => void) => {
     setMessage(null);
@@ -61,32 +58,13 @@ export function ProjectsModal({ repository, currentId, onClose, beforeLoad, onOp
   const startRename = (item: ProjectItem) => { setRenamingId(item.summary.id); setDraftName(item.summary.name); };
   const commitRename = (id: string) => run(() => onRename(id, draftName), () => setRenamingId(null));
 
-  // Esc で閉じる (名前を編集中なら、まず編集をやめる)
-  // ダイアログ内の要素が消えるとフォーカスが外れて、ダイアログ自身では Esc を受け取れなくなるので、画面全体で受け取る
-  useEffect(() => {
-    const onEscape = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
-      e.stopPropagation();
-      if (renamingId) setRenamingId(null); else onClose();
-    };
-    window.addEventListener('keydown', onEscape);
-    return () => window.removeEventListener('keydown', onEscape);
-  }, [renamingId, onClose]);
+  // Esc で閉じる (名前を編集中なら、まず編集をやめる)。フォーカス・Tabの閉じ込めも共通の動き
+  const { dialogRef, onKeyDown } = useDialog(() => { if (renamingId) setRenamingId(null); else onClose(); });
 
   // 名前の編集をやめたら、フォーカスをダイアログに戻す (キー操作を続けられるように)
   useEffect(() => {
     if (renamingId === null && !dialogRef.current?.contains(document.activeElement)) dialogRef.current?.focus();
-  }, [renamingId]);
-
-  // Tab はダイアログの中だけを回る
-  const onKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key !== 'Tab') return;
-    const focusable = dialogRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled), input');
-    if (!focusable || focusable.length === 0) return;
-    const first = focusable[0], last = focusable[focusable.length - 1];
-    if (e.shiftKey && (document.activeElement === first || document.activeElement === dialogRef.current)) { e.preventDefault(); last.focus(); }
-    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
-  };
+  }, [renamingId, dialogRef]);
 
   return (
     <div className="vx-modal-backdrop" onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}>
@@ -105,7 +83,7 @@ export function ProjectsModal({ repository, currentId, onClose, beforeLoad, onOp
           {items === null && <p className="vx-empty">読み込み中…</p>}
           {items?.length === 0 && <p className="vx-empty">作品がありません</p>}
           {items?.map(item => {
-            const { id, name, model, updatedAt } = item.summary;
+            const { id, name, model, generated, updatedAt } = item.summary;
             const isCurrent = id === currentId;
             return (
               <article key={id} className={isCurrent ? 'vx-project-card vx-project-card--current' : 'vx-project-card'} data-testid="project-card">
@@ -123,6 +101,7 @@ export function ProjectsModal({ repository, currentId, onClose, beforeLoad, onOp
                   <div className="vx-project-meta">
                     {isCurrent && <span className="vx-project-badge">編集中</span>}
                     <span className="vx-project-model">{model === 'slim' ? 'Slim' : 'Classic'}</span>
+                    {generated && <span className="vx-project-qd" title="Quick Design で作った作品"><Sparkles size={11} /> Quick Design</span>}
                     <span>{formatDate(updatedAt)}</span>
                   </div>
                   <div className="vx-project-actions">

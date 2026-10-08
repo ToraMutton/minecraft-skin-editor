@@ -160,3 +160,46 @@ describe('保存に失敗したとき', () => {
     expect(error.message).toContain('容量');
   });
 });
+
+describe('生成の記録 (generation)', () => {
+  const generation = { answers: { mood: 'cute' as const, hair: 'long' as const, skin: 1 }, seed: 777, rendererVersion: 1 };
+
+  it('保存して取り出すと、記録がそのまま残る。一覧では generated になる', async () => {
+    const repo = newRepo();
+    const project = createProject({ name: 'QD', generation });
+    await repo.save(project);
+    await repo.save(createProject({ name: 'ふつう' }));
+    expect((await repo.get(project.id))!.generation).toEqual(generation);
+    const list = await repo.list();
+    expect(list.find(p => p.name === 'QD')!.generated).toBe(true);
+    expect(list.find(p => p.name === 'ふつう')!.generated).toBe(false);
+  });
+
+  it('記録の無い(古い)作品は、そのまま読める。記録の項目も付かない', async () => {
+    const repo = newRepo();
+    const project = createProject();
+    await repo.save(project);
+    const loaded = (await repo.get(project.id))!;
+    expect('generation' in loaded).toBe(false);
+  });
+
+  it('記録が壊れていても、作品は読める (記録だけが捨てられる)。一覧にも出る', async () => {
+    const repo = newRepo();
+    const project = createProject({ name: '壊れた記録' });
+    await repo.save({ ...project, generation: { seed: 'x', rendererVersion: 1 } } as unknown as typeof project);
+    const loaded = await repo.get(project.id);
+    expect(loaded).not.toBeNull();
+    expect(loaded!.layers.base).toEqual(project.layers.base);
+    expect('generation' in loaded!).toBe(false);
+    const list = await repo.list();
+    expect(list).toHaveLength(1);
+    expect(list[0].generated).toBe(false);
+  });
+
+  it('答えの一部だけが壊れていれば、使える答えは残る', async () => {
+    const repo = newRepo();
+    const project = createProject();
+    await repo.save({ ...project, generation: { seed: 5, rendererVersion: 1, answers: { mood: 'nope', hair: 'short' } } } as unknown as typeof project);
+    expect((await repo.get(project.id))!.generation).toEqual({ answers: { hair: 'short' }, seed: 5, rendererVersion: 1 });
+  });
+});

@@ -170,3 +170,8 @@ export async function makeSkinPng(page: Page, kind: 'classic' | 'slim' | 'unknow
 export async function pixelColor(page: Page, x: number, y: number): Promise<number[]> {
   return page.getByTestId('skin-canvas').evaluate((c: HTMLCanvasElement, [px, py]) => [...c.getContext('2d')!.getImageData(px, py, 1, 1).data], [x, y]);
 }
+
+// 画面のスキン画像 (3層を重ねた結果) の、全ピクセルの RGBA
+export async function canvasData(page: Page): Promise<number[]> {
+  return page.getByTestId('skin-canvas').evaluate((c: HTMLCanvasElement) => [...c.getContext('2d')!.getImageData(0, 0, 64, 64).data]);
+}

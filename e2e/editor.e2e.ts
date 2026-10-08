@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import {
   AUTOSAVE_KEY, UNREADABLE_BACKUP_KEY, LAST_OPENED_KEY,
-  openWithSkin, makeSkinDataUrl, viewerCenter, paintedPixels, button, drag, clearStorage, settledViewerShot, sameView, createNewProject, addProject, makeSkinPng, pixelColor,
+  openWithSkin, makeSkinDataUrl, viewerCenter, paintedPixels, button, drag, clearStorage, settledViewerShot, sameView, createNewProject, addProject, makeSkinPng, pixelColor, canvasData,
 } from './helpers';
 
 test.describe('描画と Undo / Redo', () => {
@@ -594,7 +594,7 @@ test.describe('「新規」メニューと書き出し', () => {
     }, [size, paint] as const)).split(',')[1], 'base64'),
   });
 
-  test('「新規」を押すと、素体から / 白紙から / PNGから / Quick Design(準備中) が並ぶ', async ({ page }) => {
+  test('「新規」を押すと、素体から / 白紙から / PNGから / Quick Design が並ぶ', async ({ page }) => {
     await openWithSkin(page);
     await button(page, '新規').click();
     await expect(page.getByRole('menuitem')).toHaveCount(4);
@@ -602,17 +602,19 @@ test.describe('「新規」メニューと書き出し', () => {
     await expect(page.getByRole('menuitem', { name: /白紙から/ })).toBeVisible();
     await expect(page.getByRole('menuitem', { name: /PNGから/ })).toBeVisible();
     const quick = page.getByRole('menuitem', { name: /Quick Design/ });
-    await expect(quick).toHaveAttribute('aria-disabled', 'true');
-    await expect(quick).toContainText('準備中');
+    await expect(quick).not.toHaveAttribute('aria-disabled', 'true'); // 使える
+    await expect(quick).toContainText('質問に答える');
   });
 
-  test('Quick Design は押しても何も起きない (メニューも閉じず、作品も増えない)', async ({ page }) => {
+  test('Quick Design を押すと、メニューが閉じて、ダイアログが開く。Esc で閉じても、作品は増えない', async ({ page }) => {
     await openWithSkin(page);
     await waitSaved(page);
     await button(page, '新規').click();
-    await page.getByRole('menuitem', { name: /Quick Design/ }).click({ force: true });
-    await expect(page.getByRole('menu')).toBeVisible();
+    await page.getByRole('menuitem', { name: /Quick Design/ }).click();
+    await expect(page.getByRole('menu')).toBeHidden();
+    await expect(page.getByRole('dialog', { name: /Quick Design/ })).toBeVisible();
     await page.keyboard.press('Escape');
+    await expect(page.getByRole('dialog')).toBeHidden();
     expect(await projectNames(page)).toHaveLength(1);
   });
 
@@ -623,7 +625,9 @@ test.describe('「新規」メニューと書き出し', () => {
     await page.keyboard.press('ArrowDown');
     await expect(page.getByRole('menuitem', { name: /白紙から/ })).toBeFocused();
     await page.keyboard.press('ArrowDown'); // PNGから
-    await page.keyboard.press('ArrowDown'); // Quick Design (使えない) を飛ばして、先頭(モデルの行の Classic)に戻る
+    await page.keyboard.press('ArrowDown'); // Quick Design
+    await expect(page.getByRole('menuitem', { name: /Quick Design/ })).toBeFocused();
+    await page.keyboard.press('ArrowDown'); // 先頭(モデルの行の Classic)に戻る
     await expect(page.getByRole('menuitemradio', { name: /Classic/ })).toBeFocused();
     await page.keyboard.press('ArrowDown');
     await page.keyboard.press('ArrowDown');
@@ -1064,5 +1068,295 @@ test.describe('Slim モデルの作品', () => {
     await importPng(page, 'legacy');
     expect((await pixelColor(page, 40, 55))[3]).toBe(255); // 左腕の背面の端まで入っている
     await expect(modelButton(page, 'Classic')).toHaveAttribute('aria-pressed', 'true');
+  });
+});
+
+test.describe('Quick Design', () => {
+  type Page = import('@playwright/test').Page;
+  const dialog = (page: Page) => page.getByRole('dialog', { name: /Quick Design/ });
+  const panel = (page: Page) => page.getByRole('region', { name: 'Quick Design' });
+  const group = (page: Page, name: string) => dialog(page).getByRole('radiogroup', { name, exact: true });
+  const choose = (page: Page, groupName: string, choice: string) => group(page, groupName).getByRole('radio', { name: choice, exact: true }).click();
+  const isOn = (page: Page, groupName: string, choice: string) => group(page, groupName).getByRole('radio', { name: choice, exact: true });
+  const openDialog = async (page: Page) => { await button(page, '新規').click(); await page.getByRole('menuitem', { name: /Quick Design/ }).click(); await expect(dialog(page)).toBeVisible(); };
+  const preview = (page: Page) => dialog(page).locator('canvas').evaluateAll(cs => cs.map(c => (c as HTMLCanvasElement).toDataURL()).join('|'));
+  const createWith = async (page: Page, answers: [string, string][] = []) => {
+    await openDialog(page);
+    for (const [g, c] of answers) await choose(page, g, c);
+    await dialog(page).getByRole('button', { name: /この内容で作る/ }).click();
+    await expect(panel(page)).toBeVisible();
+    await page.waitForTimeout(400);
+  };
+  // 体の外側の層(上着・髪の厚み)の画素数: 胴の外側の層 (u 16〜39, v 32〜47)
+  const bodyOverlay = async (page: Page) => (await paintedPixels(page)).filter(([x, y]) => x >= 16 && x < 40 && y >= 32 && y < 48).length;
+  const waitSaved = (page: Page) => expect(page.locator('.vx-save--saved')).toBeVisible({ timeout: 5000 });
+  const projectNames = async (page: Page) => {
+    await button(page, 'マイスキン').click();
+    await expect(page.getByRole('dialog', { name: 'マイスキン' })).toBeVisible();
+    await expect(page.getByTestId('project-card').first()).toBeVisible();
+    const names = await page.getByTestId('project-card').getByRole('heading').allTextContents();
+    await page.keyboard.press('Escape');
+    return names;
+  };
+
+  test('開くと、質問がすべて「おまかせ」になっていて、プレビュー(正面・背面)が出ている。「作る」にフォーカスがある', async ({ page }) => {
+    await openWithSkin(page);
+    await openDialog(page);
+    for (const g of ['雰囲気', '髪型', '髪の色', '肌の色', '目', '上着', '縞', '下', '服の配色']) {
+      await expect(isOn(page, g, 'おまかせ'), g).toHaveAttribute('aria-checked', 'true');
+    }
+    await expect(isOn(page, 'モデル', 'Classic (腕4px)')).toHaveAttribute('aria-checked', 'true');
+    await expect(dialog(page).getByRole('button', { name: /この内容で作る/ })).toBeFocused();
+    await expect(dialog(page)).toContainText('指定 0・おまかせ 9');
+    const canvases = dialog(page).locator('canvas');
+    await expect(canvases).toHaveCount(2);
+    for (const i of [0, 1]) {
+      const painted = await canvases.nth(i).evaluate((c: HTMLCanvasElement) => c.getContext('2d')!.getImageData(0, 0, 16, 32).data.filter((_, k) => k % 4 === 3 && _ > 0).length);
+      expect(painted, `プレビュー${i}`).toBeGreaterThan(200); // 人の形に塗られている
+    }
+  });
+
+  test('開いてすぐ Enter で、全部おまかせの作品ができる (名前は Quick Design。絵は全面が塗られ、右に Quick Design パネルが出る)', async ({ page }) => {
+    await openWithSkin(page);
+    await openDialog(page);
+    await page.keyboard.press('Enter');
+    await expect(dialog(page)).toBeHidden();
+    await expect(panel(page)).toBeVisible();
+    await expect(panel(page).getByRole('button', { name: /もう一度作る/ })).toBeVisible();
+    expect((await paintedPixels(page)).length).toBeGreaterThan(1600); // 素の層の全ての面 (1632ピクセル) が塗られている
+    await waitSaved(page);
+    expect(await projectNames(page)).toContain('Quick Design');
+  });
+
+  test('普通の作品 (素体・白紙) には、Quick Design パネルは出ない', async ({ page }) => {
+    await openWithSkin(page);
+    await expect(panel(page)).toHaveCount(0);
+    await createNewProject(page, '白紙から');
+    await expect(panel(page)).toHaveCount(0);
+  });
+
+  test('選んだ答えが絵に反映される: Tシャツ+ショートは外側の層が空、ジャケットは外側の層が使われる', async ({ page }) => {
+    await openWithSkin(page);
+    await createWith(page, [['上着', 'Tシャツ'], ['髪型', 'ショート']]);
+    expect(await bodyOverlay(page)).toBe(0);
+    await createWith(page, [['上着', 'ジャケット'], ['髪型', 'ショート']]);
+    expect(await bodyOverlay(page)).toBeGreaterThan(40);
+  });
+
+  test('モデルを選べる: Slim で作ると、作品も Slim になる。次に開いたときの「新規」も Slim', async ({ page }) => {
+    await openWithSkin(page);
+    await openDialog(page);
+    await choose(page, 'モデル', 'Slim (腕3px)');
+    await dialog(page).getByRole('button', { name: /この内容で作る/ }).click();
+    await expect(panel(page)).toBeVisible();
+    await expect(page.locator('.vx-sidebar').getByRole('button', { name: /Slim/ })).toHaveAttribute('aria-pressed', 'true');
+    // Slim で使わない場所 (右腕の背面の右端) は透明
+    expect((await pixelColor(page, 55, 25))[3]).toBe(0);
+    await button(page, '新規').click();
+    await expect(page.getByRole('menuitemradio', { name: /Slim/ })).toHaveAttribute('aria-checked', 'true');
+  });
+
+  test('「別の案」で絵が変わり、◀で前の案に、▶で次の案に戻れる。案の番号が出る', async ({ page }) => {
+    await openWithSkin(page);
+    await openDialog(page);
+    const first = await preview(page);
+    await expect(dialog(page)).toContainText('案 1 / 1');
+    const prev = dialog(page).getByRole('button', { name: '前の案' }), next = dialog(page).getByRole('button', { name: '次の案' });
+    await expect(prev).toBeDisabled(); await expect(next).toBeDisabled();
+
+    await dialog(page).getByRole('button', { name: '別の案' }).click();
+    const second = await preview(page);
+    expect(second).not.toBe(first);
+    await expect(dialog(page)).toContainText('案 2 / 2');
+
+    await prev.click();
+    expect(await preview(page)).toBe(first);
+    await expect(next).toBeEnabled();
+    await next.click();
+    expect(await preview(page)).toBe(second);
+    await prev.click();
+    await dialog(page).getByRole('button', { name: '別の案' }).click(); // 戻ってから別の案を作ると、先の案は捨てられて作り直し
+    await expect(dialog(page)).toContainText('案 2 / 2');
+  });
+
+  test('答えを変えるとプレビューがすぐ変わる。同じ案の中で、他のおまかせの項目は変わらない (髪型を変えても服は同じ)', async ({ page }) => {
+    await openWithSkin(page);
+    await openDialog(page);
+    await choose(page, '雰囲気', 'シンプル'); // 雰囲気を固定してから比べる
+    await choose(page, '上着', 'Tシャツ');
+    const before = await dialog(page).locator('canvas').first().evaluate((c: HTMLCanvasElement) => [...c.getContext('2d')!.getImageData(0, 8, 16, 12).data]); // 正面の胴の部分
+    await choose(page, '髪型', 'ロング');
+    const afterHair = await dialog(page).locator('canvas').first().evaluate((c: HTMLCanvasElement) => [...c.getContext('2d')!.getImageData(0, 8, 16, 12).data]);
+    // 髪型を変えても、胴(服)の色の組み合わせは同じ
+    const palette = (data: number[]) => new Set(Array.from({ length: data.length / 4 }, (_, i) => data.slice(i * 4, i * 4 + 3).join(',')));
+    const [a, b] = [palette(before), palette(afterHair)];
+    const common = [...a].filter(c => b.has(c)).length;
+    expect(common / Math.max(a.size, b.size)).toBeGreaterThan(0.5);
+    await expect(dialog(page)).toContainText('指定 3・おまかせ 6');
+  });
+
+  test('「全部おまかせに戻す」で、選んだ項目が全部おまかせに戻る (何も選んでいなければ押せない)', async ({ page }) => {
+    await openWithSkin(page);
+    await openDialog(page);
+    const reset = dialog(page).getByRole('button', { name: /全部おまかせに戻す/ });
+    await expect(reset).toBeDisabled();
+    await choose(page, '雰囲気', 'クール'); await choose(page, '髪の色', 'ティール'); await choose(page, '服の配色', 'サイバー');
+    await expect(isOn(page, '髪の色', 'ティール')).toHaveAttribute('aria-checked', 'true');
+    await reset.click();
+    for (const g of ['雰囲気', '髪の色', '服の配色']) await expect(isOn(page, g, 'おまかせ')).toHaveAttribute('aria-checked', 'true');
+    await expect(reset).toBeDisabled();
+  });
+
+  test('縞は、上着が Tシャツ(またはおまかせ)のときだけ選べる', async ({ page }) => {
+    await openWithSkin(page);
+    await openDialog(page);
+    await expect(isOn(page, '縞', 'あり')).toBeEnabled();
+    await choose(page, '上着', 'パーカー');
+    await expect(isOn(page, '縞', 'あり')).toBeDisabled();
+    await expect(dialog(page)).toContainText('Tシャツのときだけ');
+    await choose(page, '上着', 'Tシャツ');
+    await expect(isOn(page, '縞', 'あり')).toBeEnabled();
+  });
+
+  test('キーボード: 矢印キーで隣の選択肢に移って選ばれる。Tab は、ダイアログの外に出ない。Esc で閉じる', async ({ page }) => {
+    await openWithSkin(page);
+    await openDialog(page);
+    await isOn(page, '髪型', 'おまかせ').focus();
+    await page.keyboard.press('ArrowRight');
+    await expect(isOn(page, '髪型', 'ショート')).toBeFocused();
+    await expect(isOn(page, '髪型', 'ショート')).toHaveAttribute('aria-checked', 'true');
+    await page.keyboard.press('End');
+    await expect(isOn(page, '髪型', 'ロング')).toHaveAttribute('aria-checked', 'true');
+    await page.keyboard.press('ArrowRight'); // 端から先頭へ回る
+    await expect(isOn(page, '髪型', 'おまかせ')).toHaveAttribute('aria-checked', 'true');
+    for (let i = 0; i < 40; i++) {
+      await page.keyboard.press('Tab');
+      expect(await dialog(page).evaluate(d => d.contains(document.activeElement)), `Tab ${i}`).toBe(true);
+    }
+    await page.keyboard.press('Escape');
+    await expect(dialog(page)).toBeHidden();
+  });
+
+  test('キャンセル・×・外側のクリックで閉じる。どれも作品は増えない', async ({ page }) => {
+    await openWithSkin(page);
+    await waitSaved(page);
+    await openDialog(page);
+    await dialog(page).getByRole('button', { name: 'キャンセル' }).click();
+    await expect(dialog(page)).toBeHidden();
+    await openDialog(page);
+    await dialog(page).getByRole('button', { name: '閉じる' }).click();
+    await expect(dialog(page)).toBeHidden();
+    await openDialog(page);
+    await page.mouse.click(8, 8); // ダイアログの外
+    await expect(dialog(page)).toBeHidden();
+    expect(await projectNames(page)).toHaveLength(1);
+  });
+
+  test('ダイアログを開いている間は、キーボードのショートカットが効かない', async ({ page }) => {
+    await openWithSkin(page);
+    await openDialog(page);
+    await page.keyboard.press('e'); // 消しゴムのショートカット
+    await page.keyboard.press('Escape');
+    await expect(page.locator('.vx-tools .vx-btn--selected')).toHaveAttribute('title', 'ペン (W)');
+  });
+
+  test('「もう一度作る」で絵が変わる。手描きを残す(既定)なら、手描きは残る。切ると、手描きも消える', async ({ page }) => {
+    await openWithSkin(page);
+    await createWith(page, [['雰囲気', 'シンプル']]);
+    const generated = await canvasData(page);
+
+    // 手描きを1つ入れる (どのピクセルが変わったかを調べる)
+    const { x, y } = await viewerCenter(page);
+    await page.mouse.click(x, y);
+    const painted = await canvasData(page);
+    const at = painted.findIndex((v, i) => v !== generated[i]);
+    expect(at).toBeGreaterThanOrEqual(0);
+    const [px, py] = [Math.floor(at / 4) % 64, Math.floor(Math.floor(at / 4) / 64)];
+    expect(await pixelColor(page, px, py)).toEqual([0, 0, 0, 255]); // 黒 (生成の絵には、真っ黒は無い)
+
+    await panel(page).getByRole('button', { name: /もう一度作る/ }).click();
+    await expect.poll(async () => (await canvasData(page)).join() !== painted.join()).toBe(true);
+    expect(await pixelColor(page, px, py)).toEqual([0, 0, 0, 255]); // 手描きが残っている
+
+    await panel(page).getByRole('switch', { name: '手描きを残す' }).click(); // 切る
+    await panel(page).getByRole('button', { name: /もう一度作る/ }).click();
+    await expect.poll(async () => (await pixelColor(page, px, py)).join() !== '0,0,0,255').toBe(true);
+  });
+
+  test('「もう一度作る」は Undo / Redo で、絵も記録(案の番号)も戻る', async ({ page }) => {
+    await openWithSkin(page);
+    await createWith(page);
+    const code = async () => (await panel(page).locator('.vx-qdpanel-code').innerText());
+    const [data0, code0] = [await canvasData(page), await code()];
+    await panel(page).getByRole('button', { name: /もう一度作る/ }).click();
+    await expect.poll(async () => (await code()) !== code0).toBe(true);
+    const [data1, code1] = [await canvasData(page), await code()];
+    expect(data1.join()).not.toBe(data0.join());
+
+    await button(page, 'Undo').click();
+    expect((await canvasData(page)).join()).toBe(data0.join());
+    expect(await code()).toBe(code0);
+    await button(page, 'Redo').click();
+    expect((await canvasData(page)).join()).toBe(data1.join());
+    expect(await code()).toBe(code1);
+  });
+
+  test('「条件を変える…」: 今の答えがそのまま入った状態で開き、モデルは変えられない。変えて作り直すと絵が変わる', async ({ page }) => {
+    await openWithSkin(page);
+    await createWith(page, [['雰囲気', 'クール'], ['髪型', 'ショート'], ['上着', 'ジャケット']]);
+    const before = await canvasData(page);
+    await panel(page).getByRole('button', { name: /条件を変える/ }).click();
+    await expect(dialog(page)).toContainText('条件を変える');
+    await expect(isOn(page, '雰囲気', 'クール')).toHaveAttribute('aria-checked', 'true');
+    await expect(isOn(page, '髪型', 'ショート')).toHaveAttribute('aria-checked', 'true');
+    await expect(isOn(page, '上着', 'ジャケット')).toHaveAttribute('aria-checked', 'true');
+    await expect(isOn(page, '目', 'おまかせ')).toHaveAttribute('aria-checked', 'true');
+    await expect(isOn(page, 'モデル', 'Classic (腕4px)')).toBeDisabled();
+    await expect(dialog(page).getByRole('switch', { name: '手描きを残す' })).toBeVisible();
+
+    await choose(page, '髪型', 'ロング');
+    await dialog(page).getByRole('button', { name: /この条件で作り直す/ }).click();
+    await expect(dialog(page)).toBeHidden();
+    expect((await canvasData(page)).join()).not.toBe(before.join());
+    await page.waitForTimeout(300);
+    await panel(page).getByRole('button', { name: /条件を変える/ }).click(); // 作り直した結果の答えが、次に開くときに入っている
+    await expect(isOn(page, '髪型', 'ロング')).toHaveAttribute('aria-checked', 'true');
+    await expect(isOn(page, '上着', 'ジャケット')).toHaveAttribute('aria-checked', 'true');
+  });
+
+  test('作品に残る: リロードしても Quick Design パネルがあり、答えも同じ。マイスキンには Quick Design の印が付く', async ({ page }) => {
+    await openWithSkin(page);
+    await createWith(page, [['髪の色', 'ピンク']]);
+    const code = await panel(page).locator('.vx-qdpanel-code').innerText();
+    await waitSaved(page);
+    await page.reload();
+    await page.evaluate(() => document.fonts.ready);
+    await expect(panel(page)).toBeVisible();
+    expect(await panel(page).locator('.vx-qdpanel-code').innerText()).toBe(code);
+    await panel(page).getByRole('button', { name: /条件を変える/ }).click();
+    await expect(isOn(page, '髪の色', 'ピンク')).toHaveAttribute('aria-checked', 'true');
+    await page.keyboard.press('Escape');
+
+    await button(page, 'マイスキン').click();
+    const card = page.getByTestId('project-card').filter({ has: page.getByRole('heading', { name: 'Quick Design', exact: true }) });
+    await expect(card.locator('.vx-project-qd')).toBeVisible();
+    await expect(page.getByTestId('project-card').filter({ hasText: '編集中' })).toHaveCount(1);
+  });
+
+  test('複製しても記録は引き継がれる。「読込」でPNGを入れると記録は外れ(パネルが消え)、Undo で戻る', async ({ page }) => {
+    await openWithSkin(page);
+    await createWith(page);
+    await waitSaved(page);
+    await button(page, 'マイスキン').click();
+    const card = page.getByTestId('project-card').filter({ has: page.getByRole('heading', { name: 'Quick Design', exact: true }) });
+    await card.getByRole('button', { name: /を複製/ }).click();
+    const copy = page.getByTestId('project-card').filter({ has: page.getByRole('heading', { name: 'Quick Design のコピー', exact: true }) });
+    await expect(copy.locator('.vx-project-qd')).toBeVisible();
+    await page.keyboard.press('Escape');
+
+    await page.getByLabel('今のスキンに読み込むPNG').setInputFiles(await makeSkinPng(page, 'classic'));
+    await expect(panel(page)).toHaveCount(0); // 読み込んだ絵は、生成した絵ではない
+    await button(page, 'Undo').click();
+    await expect(panel(page)).toBeVisible();
   });
 });

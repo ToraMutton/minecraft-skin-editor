@@ -15,11 +15,12 @@ interface Props {
   onNewStarter: () => void; // 素体から
   onNewBlank: () => void; // 白紙から
   onNewFromFile: (file: File) => void; // PNGから
+  onQuickDesign: () => void; // Quick Design (質問に答えて作る)
 }
 
-// 「新規」メニュー: モデル(Classic / Slim)の選択 + 素体から / 白紙から / PNGから / Quick Design (準備中)
+// 「新規」メニュー: モデル(Classic / Slim)の選択 + 素体から / 白紙から / PNGから / Quick Design
 // 1回のクリックでメニューが開き、もう1回のクリックで作り始められる。モデルを選んでもメニューは閉じない (選んだ後に、作り方を選ぶため)
-export function NewMenu({ model, onModelChange, onNewStarter, onNewBlank, onNewFromFile }: Props) {
+export function NewMenu({ model, onModelChange, onNewStarter, onNewBlank, onNewFromFile, onQuickDesign }: Props) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -88,9 +89,8 @@ export function NewMenu({ model, onModelChange, onNewStarter, onNewBlank, onNewF
           <button type="button" role="menuitem" className="vx-menu-item" onClick={() => { close(true); fileInputRef.current?.click(); }}>
             <FileUp size={16} /> PNGから… <span className="vx-menu-hint">64×64</span>
           </button>
-          {/* Phase 3 で追加する。今は押せない (aria-disabled で、スクリーンリーダーにも「使えない」と伝わる) */}
-          <button type="button" role="menuitem" className="vx-menu-item" aria-disabled="true" tabIndex={-1} onClick={e => e.preventDefault()}>
-            <Sparkles size={16} /> Quick Design <span className="vx-menu-hint">準備中</span>
+          <button type="button" role="menuitem" className="vx-menu-item vx-menu-item--qd" onClick={choose(onQuickDesign)}>
+            <Sparkles size={16} /> Quick Design… <span className="vx-menu-hint">質問に答える</span>
           </button>
         </div>
       )}

@@ -4,7 +4,7 @@ import { openDB } from 'idb';
 import type { IDBPDatabase } from 'idb';
 import { RepositoryError } from './repository';
 import type { ProjectRepository } from './repository';
-import { SCHEMA_VERSION, summarize } from './project';
+import { SCHEMA_VERSION, summarize, parseGeneration } from './project';
 import type { SkinProject, ProjectSummary } from './project';
 import { PIXEL_COUNT } from '../editor/canvas/layers';
 
@@ -81,7 +81,10 @@ export class LocalProjectRepository implements ProjectRepository {
       const value = await db.get(STORE, id);
       if (value === undefined) return null;
       if (!isValidProject(value)) throw new RepositoryError('作品のデータが壊れています');
-      return value;
+      // 生成の記録は、壊れていても作品を読めなくしない (記録だけを捨てる)
+      const { generation, ...rest } = value;
+      const parsed = parseGeneration(generation);
+      return parsed ? { ...rest, generation: parsed } : rest;
     } catch (error) {
       if (error instanceof RepositoryError) throw error;
       throw new RepositoryError('作品を読み込めませんでした', error);

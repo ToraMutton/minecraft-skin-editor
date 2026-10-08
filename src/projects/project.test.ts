@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { createProject, summarize, uniqueName, SCHEMA_VERSION } from './project';
+import { createProject, summarize, uniqueName, parseGeneration, SCHEMA_VERSION } from './project';
+import { RENDERER_VERSION } from '../generator/spec';
 import { PIXEL_COUNT } from '../editor/canvas/layers';
 
 describe('createProject', () => {
@@ -44,7 +45,7 @@ describe('createProject', () => {
 describe('summarize', () => {
   it('3層を含まない、一覧用の情報だけを返す', () => {
     const summary = summarize(createProject({ name: 'テスト' }));
-    expect(Object.keys(summary).sort()).toEqual(['createdAt', 'id', 'model', 'name', 'updatedAt']);
+    expect(Object.keys(summary).sort()).toEqual(['createdAt', 'generated', 'id', 'model', 'name', 'updatedAt']);
   });
 });
 
@@ -55,5 +56,30 @@ describe('uniqueName', () => {
   it('重なったら番号を付ける。使われている番号は飛ばす', () => {
     expect(uniqueName('無題のスキン', ['無題のスキン'])).toBe('無題のスキン 2');
     expect(uniqueName('無題のスキン', ['無題のスキン', '無題のスキン 2', '無題のスキン 4'])).toBe('無題のスキン 3');
+  });
+});
+
+describe('generation (Quick Design の記録)', () => {
+  const generation = { answers: { mood: 'cool' as const, skin: 2 }, seed: 12345, rendererVersion: RENDERER_VERSION };
+
+  it('普通の作品には無い。渡せば作品に入り、一覧用の情報では generated になる', () => {
+    expect('generation' in createProject()).toBe(false);
+    expect(summarize(createProject()).generated).toBe(false);
+    const p = createProject({ generation });
+    expect(p.generation).toEqual(generation);
+    expect(summarize(p).generated).toBe(true);
+  });
+
+  it('parseGeneration: 作った記録は、JSONにして戻しても同じ', () => {
+    expect(parseGeneration(JSON.parse(JSON.stringify(generation)))).toEqual(generation);
+  });
+
+  it('壊れた記録は undefined (記録が無い作品として扱う)。答えの壊れた項目だけが捨てられる', () => {
+    for (const bad of [null, 'x', 5, [], {}, { seed: 1 }, { seed: -1, rendererVersion: 1 }, { seed: 1.5, rendererVersion: 1 }, { seed: 2 ** 32, rendererVersion: 1 },
+      { seed: 1, rendererVersion: 0 }, { seed: 1, rendererVersion: RENDERER_VERSION + 1 }, { seed: 'a', rendererVersion: 1 }]) {
+      expect(parseGeneration(bad), JSON.stringify(bad)).toBeUndefined();
+    }
+    expect(parseGeneration({ seed: 7, rendererVersion: 1, answers: { mood: 'scary', hair: 'long', skin: 99 } })).toEqual({ answers: { hair: 'long' }, seed: 7, rendererVersion: 1 });
+    expect(parseGeneration({ seed: 7, rendererVersion: 1 })).toEqual({ answers: {}, seed: 7, rendererVersion: 1 }); // 答えが無ければ全部おまかせ
   });
 });

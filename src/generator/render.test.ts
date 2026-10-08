@@ -199,9 +199,9 @@ describe('各パーツの作り (素材・形)', () => {
     const tee = build({ top: 'tshirt', hair: 'short' });
     expect(over(tee, 'body')).toBe(0);
     expect(over(tee, 'rightArm')).toBe(0);
-    expect(over(build({ top: 'jacket' }), 'body')).toBeGreaterThan(40);
+    expect(over(build({ top: 'jacket', hair: 'short' }), 'body')).toBeGreaterThan(40);
     expect(over(build({ top: 'jacket' }), 'rightArm')).toBeGreaterThan(20);
-    expect(over(build({ top: 'hoodie' }), 'body')).toBeGreaterThan(15); // フード
+    expect(over(build({ top: 'hoodie', hair: 'short' }), 'body')).toBeGreaterThan(15); // フード (長い髪だと、髪がフードの上に重なる)
   });
 
   it('ジャケットは前が開いていて(外側の層が空)、中のシャツが素の層に描かれている', () => {
@@ -243,9 +243,10 @@ describe('契約: 見た目が意図せず変わらない (描き方を変えた
   // 描き方 (painters / shading / color / palettes) を変えると、この値が変わる。見た目を意図して変えたときは、
   // 画像を確認して、この値を更新し、RENDERER_VERSION を上げる (保存した設定で、昔と違う絵が作られないように)
   const GOLDEN: Record<string, string> = {
-    'classic:1000': 'c2e3f372', 'classic:8919': '9b2697cc', 'classic:16838': 'b39f9a10', 'classic:40595': '3d3a8c7d', 'classic:167299': '90c2ab5b', 'classic:301922': '49f200d6',
-    'slim:1000': '23e02d26', 'slim:8919': 'ed0e60c0', 'slim:16838': 'bc47afac', 'slim:40595': '1f6032d1', 'slim:167299': '4b09923b', 'slim:301922': 'c28c81c2',
+    'classic:1000': '8f10c6a3', 'classic:8919': '2eb53e27', 'classic:16838': 'e85f7aa3', 'classic:40595': '9df10781', 'classic:167299': 'addd64f7', 'classic:301922': 'a33d0959',
+    'slim:1000': '39a422f3', 'slim:8919': '75215d9b', 'slim:16838': 'dbc19e1f', 'slim:40595': 'd11efed1', 'slim:167299': 'd792a66b', 'slim:301922': '1cf30d9d',
   };
+
   for (const model of MODELS) {
     it(`${model}: 代表的な seed の画素のハッシュ`, () => {
       for (const seed of [1000, 8919, 16838, 40595, 167299, 301922]) {
