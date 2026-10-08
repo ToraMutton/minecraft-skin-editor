@@ -243,6 +243,7 @@ export function useSkinCanvas(canvasRef: React.RefObject<HTMLCanvasElement | nul
   // --- 画像インポート ---
 
   // 「読込」: 今の作品に、PNGを下地として読み込んで置き換える (Undoで戻せる)
+  // 画像から推測したモデルが今のモデルと違えば、作品のモデルも切り替える (Undoで、絵とモデルがまとめて戻る)。判断できなければ今のモデルのまま
   const handleImport = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]; // 選ばれたファイルが複数の場合でも最初の1枚を対象にする
     e.target.value = ''; // 同じファイルを再度選べるようにリセット
@@ -251,15 +252,16 @@ export function useSkinCanvas(canvasRef: React.RefObject<HTMLCanvasElement | nul
     const result = await readSkinFile(file);
     if (!result.ok) { alert(result.message); return; }
     pushUndo();
-    replaceLayers(createLayers(result.pixels)); // 読み込んだスキンは下地にする
+    replaceLayers(createLayers(result.pixels), result.model ?? projectRef.current.model); // 読み込んだスキンは下地にする
     notifyUpdate();
   }, [pushUndo, replaceLayers, notifyUpdate]);
 
   // 「新規 → PNGから」: PNGを下地にした、新しい作品を作る。名前はファイル名から付ける
+  // モデルは画像から推測したものを優先する。判断できなければ、引数 model (「新規」で選んでいるモデル)
   const newProjectFromFile = useCallback(async (file: File, model?: NewProjectOptions['model']): Promise<{ ok: true } | { ok: false; message: string }> => {
     const result = await readSkinFile(file);
     if (!result.ok) return result;
-    const created = await newProject({ start: result.pixels, name: result.name ?? '読み込んだスキン', model });
+    const created = await newProject({ start: result.pixels, name: result.name ?? '読み込んだスキン', model: result.model ?? model });
     return created ? { ok: true } : { ok: false, message: '今のスキンを保存できなかったため、新しいスキンを作れません' };
   }, [newProject]);
 

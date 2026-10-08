@@ -144,3 +144,29 @@ export async function addProject(page: Page, options: { name: string; model: 'cl
     };
   }), options);
 }
+
+// 読み込みテスト用のスキン画像 (PNG)。どのピクセルも場所ごとに違う色で、不透明
+//   classic : 64×64。腕も全部塗ってある (Classic と判定される)
+//   slim    : 64×64。Slim の腕が使わない場所(4か所)だけ透明 (Slim と判定される)
+//   unknown : 64×64。頭にしか絵が無い (腕が空なので、判定できない)
+//   legacy  : 旧形式の 64×32。透明な画素が1つも無い
+export async function makeSkinPng(page: Page, kind: 'classic' | 'slim' | 'unknown' | 'legacy'): Promise<{ name: string; mimeType: string; buffer: Buffer }> {
+  const dataUrl = await page.evaluate(k => {
+    const c = document.createElement('canvas');
+    c.width = 64; c.height = k === 'legacy' ? 32 : 64;
+    const g = c.getContext('2d')!;
+    const paint = (x: number, y: number, w: number, h: number) => {
+      for (let yy = y; yy < y + h; yy++) for (let xx = x; xx < x + w; xx++) { g.fillStyle = `rgb(${xx * 4}, ${yy * 4}, ${(xx + yy) % 256})`; g.fillRect(xx, yy, 1, 1); }
+    };
+    if (k === 'unknown') paint(8, 8, 8, 8);
+    else paint(0, 0, 64, c.height);
+    if (k === 'slim') for (const [x, y, w, h] of [[50, 16, 2, 4], [54, 20, 2, 12], [42, 48, 2, 4], [46, 52, 2, 12]]) g.clearRect(x, y, w, h);
+    return c.toDataURL('image/png');
+  }, kind);
+  return { name: `${kind}.png`, mimeType: 'image/png', buffer: Buffer.from(dataUrl.split(',')[1], 'base64') };
+}
+
+// 画面のスキン画像 (3層を重ねた結果) の、ピクセル (x, y) の色 [r, g, b, a]
+export async function pixelColor(page: Page, x: number, y: number): Promise<number[]> {
+  return page.getByTestId('skin-canvas').evaluate((c: HTMLCanvasElement, [px, py]) => [...c.getContext('2d')!.getImageData(px, py, 1, 1).data], [x, y]);
+}

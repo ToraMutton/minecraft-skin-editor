@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import {
   AUTOSAVE_KEY, UNREADABLE_BACKUP_KEY, LAST_OPENED_KEY,
-  openWithSkin, makeSkinDataUrl, viewerCenter, paintedPixels, button, drag, clearStorage, settledViewerShot, sameView, createNewProject, addProject,
+  openWithSkin, makeSkinDataUrl, viewerCenter, paintedPixels, button, drag, clearStorage, settledViewerShot, sameView, createNewProject, addProject, makeSkinPng, pixelColor,
 } from './helpers';
 
 test.describe('描画と Undo / Redo', () => {
@@ -877,9 +877,9 @@ test.describe('Slim モデルの作品', () => {
     await modelRadio(page, 'Slim').click();
     const chooser = page.waitForEvent('filechooser');
     await page.getByRole('menuitem', { name: /PNGから/ }).click();
-    const png = Buffer.from((await makeSkinDataUrl(page, 'pattern')).split(',')[1], 'base64');
-    await (await chooser).setFiles({ name: 'slim.png', mimeType: 'image/png', buffer: png });
-    await expect.poll(async () => (await paintedPixels(page)).length).toBe(4096);
+    // 腕が空の画像 (モデルを判定できない) なので、メニューで選んだ Slim で作られる。判定できる画像の場合は、下の判定のテスト
+    await (await chooser).setFiles(await makeSkinPng(page, 'unknown'));
+    await expect.poll(async () => (await paintedPixels(page)).length).toBe(64);
     expect(await currentModelLabel(page)).toBe('Slim');
   });
 
@@ -977,5 +977,92 @@ test.describe('Slim モデルの作品', () => {
     await expect(modelButton(page, 'Slim')).toHaveAttribute('title', /Undoで戻せます/);
     await expect(modelButton(page, 'Slim')).toHaveAttribute('title', /1列は消えます/);
     await expect(modelButton(page, 'Classic')).toHaveAttribute('title', /今のモデル/);
+  });
+
+  // --- PNGの読み込み: モデルの自動判定と、旧形式 (64×32) ---
+
+  // 「新規 → PNGから」で、PNGを読み込む (メニューのモデルは、指定すれば先に選ぶ)
+  const newFromPng = async (page: Page, kind: 'classic' | 'slim' | 'unknown' | 'legacy', menuModel?: 'Classic' | 'Slim') => {
+    await openNewMenu(page);
+    if (menuModel) await modelRadio(page, menuModel).click();
+    const chooser = page.waitForEvent('filechooser');
+    await page.getByRole('menuitem', { name: /PNGから/ }).click();
+    await (await chooser).setFiles(await makeSkinPng(page, kind));
+    await expect(page.getByRole('menu')).toBeHidden();
+    await page.waitForTimeout(500);
+  };
+  const importPng = async (page: Page, kind: 'classic' | 'slim' | 'unknown' | 'legacy') => {
+    await page.getByLabel('今のスキンに読み込むPNG').setInputFiles(await makeSkinPng(page, kind));
+    await page.waitForTimeout(500);
+  };
+
+  test('「PNGから」: 画像の中身から判定したモデルを優先する (メニューが違っても、Slim用はSlim・Classic用はClassic)', async ({ page }) => {
+    await openWithSkin(page);
+    await newFromPng(page, 'slim', 'Classic');
+    expect(await currentModelLabel(page)).toBe('Slim');
+    await expect(modelButton(page, 'Slim')).toHaveAttribute('aria-pressed', 'true');
+
+    await newFromPng(page, 'classic', 'Slim');
+    expect(await currentModelLabel(page)).toBe('Classic');
+    await expect(modelButton(page, 'Classic')).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  test('「PNGから」: 腕に絵が無くて判定できない画像は、メニューで選んでいるモデルで作る', async ({ page }) => {
+    await openWithSkin(page);
+    await newFromPng(page, 'unknown', 'Slim');
+    expect(await currentModelLabel(page)).toBe('Slim');
+    await newFromPng(page, 'unknown', 'Classic');
+    expect(await currentModelLabel(page)).toBe('Classic');
+  });
+
+  test('「読込」: Slim用の画像を読み込むと、作品のモデルもSlimになる。Undoで絵とモデルがまとめて戻り、Redoでまた進む', async ({ page }) => {
+    await openWithSkin(page);
+    await expect(modelButton(page, 'Classic')).toHaveAttribute('aria-pressed', 'true');
+    const before = await paintedPixels(page);
+
+    await importPng(page, 'slim');
+    await expect(modelButton(page, 'Slim')).toHaveAttribute('aria-pressed', 'true');
+    expect((await pixelColor(page, 55, 25))[3]).toBe(0); // Slim の腕が使わない場所は、透明のまま
+    expect((await pixelColor(page, 53, 25))[3]).toBe(255);
+
+    await button(page, 'Undo').click();
+    await expect(modelButton(page, 'Classic')).toHaveAttribute('aria-pressed', 'true');
+    expect(await paintedPixels(page)).toEqual(before);
+
+    await button(page, 'Redo').click();
+    await expect(modelButton(page, 'Slim')).toHaveAttribute('aria-pressed', 'true');
+    expect((await pixelColor(page, 55, 25))[3]).toBe(0);
+  });
+
+  test('「読込」: 判定できない画像なら、今のモデルのまま。Classic用の画像でSlimの作品はClassicになる', async ({ page }) => {
+    await openWithSkin(page);
+    await modelButton(page, 'Slim').click();
+    await importPng(page, 'unknown');
+    await expect(modelButton(page, 'Slim')).toHaveAttribute('aria-pressed', 'true'); // 判定できないので変わらない
+
+    await importPng(page, 'classic');
+    await expect(modelButton(page, 'Classic')).toHaveAttribute('aria-pressed', 'true');
+    expect((await pixelColor(page, 55, 25))[3]).toBe(255); // Classic の腕の背面の右端まで、そのまま入っている
+  });
+
+  test('旧形式 (64×32) のPNGを読み込める: Classicで、右腕・右脚が左右反転して左腕・左脚になり、帽子の層は透明', async ({ page }) => {
+    await openWithSkin(page);
+    await newFromPng(page, 'legacy', 'Slim'); // 旧形式は必ず Classic (メニューが Slim でも)
+    expect(await currentModelLabel(page)).toBe('Classic');
+
+    const same = async (a: [number, number], b: [number, number]) => expect(await pixelColor(page, ...a)).toEqual(await pixelColor(page, ...b));
+    for (let i = 0; i < 4; i++) {
+      await same([36 + i, 55], [47 - i, 23]); // 左腕の正面 ← 右腕の正面 (左右反転)
+      await same([20 + i, 55], [7 - i, 23]); // 左脚の正面 ← 右脚の正面
+    }
+    expect((await pixelColor(page, 40, 10))[3]).toBe(0); // 帽子の層 (頭の上着の正面) は透明
+    expect((await pixelColor(page, 10, 10))[3]).toBe(255); // 頭本体は残る
+  });
+
+  test('旧形式 (64×32) のPNGは、「読込」でも読み込める', async ({ page }) => {
+    await openWithSkin(page);
+    await importPng(page, 'legacy');
+    expect((await pixelColor(page, 40, 55))[3]).toBe(255); // 左腕の背面の端まで入っている
+    await expect(modelButton(page, 'Classic')).toHaveAttribute('aria-pressed', 'true');
   });
 });

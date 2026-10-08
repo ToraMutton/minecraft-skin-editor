@@ -13,6 +13,16 @@ export function imageToPixels(img: HTMLImageElement): Pixels {
   return ctx.getImageData(0, 0, SKIN_SIZE, SKIN_SIZE).data;
 }
 
+// 読み込んだスキン画像の画素を、そのままの大きさで読む (64×64 または 旧形式の 64×32。引き伸ばさない)
+export function imageToRawPixels(img: HTMLImageElement): Uint8ClampedArray {
+  const canvas = document.createElement('canvas');
+  canvas.width = img.naturalWidth;
+  canvas.height = img.naturalHeight;
+  const ctx = canvas.getContext('2d')!;
+  ctx.drawImage(img, 0, 0);
+  return ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+}
+
 // データURL(など)の画像を読み込み、大きさと中身を返す。読めなければ失敗(reject)する
 export function decodeImage(url: string): Promise<DecodedImage> {
   return new Promise((resolve, reject) => {
