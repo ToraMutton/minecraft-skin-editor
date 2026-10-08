@@ -2,8 +2,10 @@
 import { createLayers } from '../editor/canvas/layers';
 import type { SkinLayers } from '../editor/canvas/layers';
 import { createStarterPixels } from '../editor/skin/starter';
+import { getLayout } from '../editor/skin/layout';
+import type { SkinModel } from '../editor/skin/layout';
 
-export type SkinModel = 'classic' | 'slim';
+export type { SkinModel };
 
 // 保存するデータの形のバージョン。形を変えるときは増やし、読み込み時に古い形から変換する
 export const SCHEMA_VERSION = 1;
@@ -36,7 +38,7 @@ export interface NewProjectOptions {
 
 export function createProject(options: NewProjectOptions = {}): SkinProject {
   const { name = '無題のスキン', model = 'classic', start = 'starter', now = new Date() } = options;
-  const base = start === 'starter' ? createStarterPixels() : start === 'blank' ? undefined : start;
+  const base = start === 'starter' ? createStarterPixels(getLayout(model)) : start === 'blank' ? undefined : start;
   const timestamp = now.toISOString();
   return {
     schemaVersion: SCHEMA_VERSION,

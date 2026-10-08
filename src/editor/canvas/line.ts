@@ -1,5 +1,6 @@
 // なぞり描きで、点と点の間を埋める
 import { isSameFace } from '../skin/faces';
+import type { SkinLayout } from '../skin/layout';
 
 type Point = [number, number];
 
@@ -23,7 +24,7 @@ export function linePixels(x0: number, y0: number, x1: number, y1: number): Poin
 
 // なぞり描きで、前の点(from)から今の点(to)までに塗る点
 // 同じ面の中なら直線でつなぐ。違う面なら(展開図では離れた場所なので)つながず、今の点だけ
-export function strokePoints(from: Point | null, to: Point): Point[] {
-  if (!from || !isSameFace(from, to)) return [to];
+export function strokePoints(layout: SkinLayout, from: Point | null, to: Point): Point[] {
+  if (!from || !isSameFace(layout, from, to)) return [to];
   return linePixels(from[0], from[1], to[0], to[1]).slice(1); // from は前回もう塗っているので除く
 }

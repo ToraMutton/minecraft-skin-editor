@@ -10,6 +10,7 @@ import { focusOn, HOME_TARGET, HOME_DISTANCE } from './camera';
 import { createFrontArrow } from './frontArrow';
 import { hoverTargetInMode } from './hoverHighlight';
 import type { HoverBrush, HoverLayer } from './hoverHighlight';
+import type { SkinLayout } from '../skin/layout';
 import type { PartVisibility, ViewMode } from '../viewTypes';
 
 interface Props {
@@ -19,6 +20,7 @@ interface Props {
   showGuide: boolean;
   isAutoFocus: boolean;
   mode: ViewMode;
+  layout: SkinLayout; // 今の作品のモデルの形式
   brush: HoverBrush; // マウスの下に「どこが塗られるか」を出すために使う
   // モデル上のピクセル(x, y)が押された・なぞられた・離された。何を塗るかは親が決める
   onPaintStart: (x: number, y: number) => void;
@@ -27,12 +29,15 @@ interface Props {
 }
 
 // スキンを3Dで表示し、モデルの上でのクリック・ドラッグを「テクスチャ上のピクセル」として親に伝える
-export function SkinViewer({ canvasRef, visibleParts, visibleOverlay, showGuide, isAutoFocus, mode, brush, onPaintStart, onPaintMove, onPaintEnd }: Props) {
+export function SkinViewer({ canvasRef, visibleParts, visibleOverlay, showGuide, isAutoFocus, mode, layout, brush, onPaintStart, onPaintMove, onPaintEnd }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const threeCtx = useRef<{ camera: THREE.PerspectiveCamera; parts: SkinPart[], controls: OrbitControls, frontArrow: THREE.Mesh, hover: HoverLayer } | null>(null);
   const prevActiveCount = useRef(6);
   const isStroking = useRef(false); // モデルの上で押したまま動かしているか
   const lastMoveHit = useRef(false); // 前回のポインタ移動でモデルに当たっていたか (外に出たら線を切るため)
+  // 3Dモデルを作る時点のモデルの形式 (描画の初期化は作品が変わっても作り直さないので、refで読む)
+  const layoutRef = useRef(layout);
+  useEffect(() => { layoutRef.current = layout; }, [layout]);
   const hoverTexel = useRef<[number, number] | null>(null); // マウスの下のピクセル (モデルの外なら null)
 
   // 描画ループ(useEffectの外で動き続ける)から最新のモードを読めるように、refにも入れておく
@@ -79,7 +84,7 @@ export function SkinViewer({ canvasRef, visibleParts, visibleOverlay, showGuide,
     texture.minFilter = THREE.NearestFilter;
     texture.colorSpace = THREE.SRGBColorSpace;
 
-    const model = createSkinModel(texture);
+    const model = createSkinModel(texture, layoutRef.current);
     model.parts.forEach(part => scene.add(part.mesh));
 
     // 足元の「正面」の矢印 (塗る対象ではないので、Raycastの対象には入れない)
@@ -160,8 +165,8 @@ export function SkinViewer({ canvasRef, visibleParts, visibleOverlay, showGuide,
   const { tool, size, mirror } = brush;
   useEffect(() => {
     if (!threeCtx.current) return;
-    threeCtx.current.hover.draw(hoverTargetInMode(hoverTexel.current, mode, { tool, size, mirror }), showGuide);
-  }, [mode, tool, size, mirror, showGuide]);
+    threeCtx.current.hover.draw(hoverTargetInMode(layout, hoverTexel.current, mode, { tool, size, mirror }), showGuide);
+  }, [layout, mode, tool, size, mirror, showGuide]);
 
   // 表示するパーツや層が変わると、マウスの下にあったピクセルが塗る対象でなくなることがあるので、一度消す
   useEffect(() => {
@@ -171,7 +176,7 @@ export function SkinViewer({ canvasRef, visibleParts, visibleOverlay, showGuide,
 
   const updateHover = (texel: [number, number] | null) => {
     hoverTexel.current = texel;
-    threeCtx.current?.hover.draw(hoverTargetInMode(texel, mode, brush), showGuide);
+    threeCtx.current?.hover.draw(hoverTargetInMode(layout, texel, mode, brush), showGuide);
   };
 
   // --- オートフォーカス: 表示するパーツが変わったときだけカメラを動かす ---

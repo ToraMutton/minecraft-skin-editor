@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { linePixels, strokePoints } from './line';
 import { faceIndexAt, isSameFace } from '../skin/faces';
+import { getLayout } from '../skin/layout';
+
+const CLASSIC = getLayout('classic');
 
 describe('linePixels (直線)', () => {
   it('1点だけなら、その点', () => {
@@ -30,34 +33,34 @@ describe('linePixels (直線)', () => {
 
 describe('面の判定', () => {
   it('頭の正面 (8〜15, 8〜15) の中どうしは同じ面', () => {
-    expect(isSameFace([8, 8], [15, 15])).toBe(true);
+    expect(isSameFace(CLASSIC, [8, 8], [15, 15])).toBe(true);
   });
 
   it('隣り合っていても、頭の右側面(〜7列)と正面(8列〜)は別の面', () => {
-    expect(isSameFace([7, 10], [8, 10])).toBe(false);
+    expect(isSameFace(CLASSIC, [7, 10], [8, 10])).toBe(false);
   });
 
   it('素の層と上着の層は、同じ向きの面でも別の面', () => {
-    expect(isSameFace([10, 10], [42, 10])).toBe(false); // 頭の正面 と 頭の上着の正面
+    expect(isSameFace(CLASSIC, [10, 10], [42, 10])).toBe(false); // 頭の正面 と 頭の上着の正面
   });
 
   it('使われていない場所 (左上の 0〜7, 0〜7 など) はどの面でもない', () => {
-    expect(faceIndexAt(0, 0)).toBe(-1);
-    expect(isSameFace([0, 0], [1, 1])).toBe(false);
+    expect(faceIndexAt(CLASSIC, 0, 0)).toBe(-1);
+    expect(isSameFace(CLASSIC, [0, 0], [1, 1])).toBe(false);
   });
 });
 
 describe('strokePoints (なぞり描きの補間)', () => {
   it('最初の点は、その点だけ', () => {
-    expect(strokePoints(null, [10, 10])).toEqual([[10, 10]]);
+    expect(strokePoints(CLASSIC, null, [10, 10])).toEqual([[10, 10]]);
   });
 
   it('同じ面の中なら、前の点の次から今の点まで直線でつなぐ', () => {
-    expect(strokePoints([8, 10], [11, 10])).toEqual([[9, 10], [10, 10], [11, 10]]);
+    expect(strokePoints(CLASSIC, [8, 10], [11, 10])).toEqual([[9, 10], [10, 10], [11, 10]]);
   });
 
   it('別の面へ移ったら、つながずに今の点だけ (展開図で間にある別の場所を塗らない)', () => {
     // 頭の正面 → 胴体の正面: 直線で結ぶと間にある脚の上面などを通ってしまう
-    expect(strokePoints([12, 15], [24, 20])).toEqual([[24, 20]]);
+    expect(strokePoints(CLASSIC, [12, 15], [24, 20])).toEqual([[24, 20]]);
   });
 });

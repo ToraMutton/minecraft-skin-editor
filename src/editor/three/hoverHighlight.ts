@@ -6,6 +6,7 @@ import { brushPixels } from '../canvas/operations';
 import type { Tool } from '../canvas/tools';
 import { faceAt } from '../skin/faces';
 import type { FaceRect } from '../skin/faces';
+import type { SkinLayout } from '../skin/layout';
 import type { ViewMode } from '../viewTypes';
 
 // 今のブラシの設定 (どこが塗られるかの計算に使う)
@@ -22,18 +23,18 @@ export interface HoverTarget {
 }
 
 // ピクセル(x, y)で今のツールを使ったら、どこに効くか (面の外なら null)
-export function hoverTarget(texel: readonly [number, number], brush: HoverBrush): HoverTarget | null {
+export function hoverTarget(layout: SkinLayout, texel: readonly [number, number], brush: HoverBrush): HoverTarget | null {
   const [x, y] = texel;
-  const face = faceAt(x, y);
+  const face = faceAt(layout, x, y);
   if (!face) return null;
   // ペン・消しゴムは太さとミラーのぶん広がる。バケツ・スポイトは押した1点が起点
-  const pixels = brush.tool === 'pen' || brush.tool === 'eraser' ? brushPixels(x, y, brush.size, brush.mirror) : [[x, y] as [number, number]];
+  const pixels = brush.tool === 'pen' || brush.tool === 'eraser' ? brushPixels(layout, x, y, brush.size, brush.mirror) : [[x, y] as [number, number]];
   return { face, pixels };
 }
 
 // 今のモードで、マウスの下に何を強調するか (塗れないアニメーションモードと、モデルの外では何も出さない)
-export function hoverTargetInMode(texel: readonly [number, number] | null, mode: ViewMode, brush: HoverBrush): HoverTarget | null {
-  return mode === 'edit' && texel ? hoverTarget(texel, brush) : null;
+export function hoverTargetInMode(layout: SkinLayout, texel: readonly [number, number] | null, mode: ViewMode, brush: HoverBrush): HoverTarget | null {
+  return mode === 'edit' && texel ? hoverTarget(layout, texel, brush) : null;
 }
 
 const SIZE = 512;

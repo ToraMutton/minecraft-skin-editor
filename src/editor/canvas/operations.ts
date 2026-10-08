@@ -2,6 +2,7 @@
 import { SKIN_SIZE, PIXEL_COUNT, isInside, compositePixel, composite } from './layers';
 import type { SkinLayers, RGBA } from './layers';
 import { getMirrorCoord } from '../skin/mirror';
+import type { SkinLayout } from '../skin/layout';
 
 // ペン: 手描き層に色を置く。消去マスクは外す (透明にした場所の上にも描けるように)
 export function paintPixel(layers: SkinLayers, x: number, y: number, color: RGBA) {
@@ -21,7 +22,7 @@ export function erasePixel(layers: SkinLayers, x: number, y: number) {
 }
 
 // ブラシが触れるピクセルの一覧 (太さ・ミラーを考慮。重複なし、画像の外は含まない)
-export function brushPixels(x: number, y: number, size: number, mirror: boolean): [number, number][] {
+export function brushPixels(layout: SkinLayout, x: number, y: number, size: number, mirror: boolean): [number, number][] {
   const result = new Map<number, [number, number]>();
   const add = (px: number, py: number) => {
     if (isInside(px, py)) result.set(py * SKIN_SIZE + px, [px, py]);
@@ -34,7 +35,7 @@ export function brushPixels(x: number, y: number, size: number, mirror: boolean)
       const px = x + dx, py = y + dy;
       add(px, py);
       if (mirror) {
-        const m = getMirrorCoord(px, py);
+        const m = getMirrorCoord(layout, px, py);
         if (m) add(m[0], m[1]);
       }
     }

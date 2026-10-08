@@ -2,6 +2,7 @@
 import type { ProjectRepository } from './repository';
 import type { ProjectSummary } from './project';
 import { frontThumbnail } from './thumbnail';
+import { getLayout } from '../editor/skin/layout';
 
 export interface ProjectItem {
   summary: ProjectSummary;
@@ -14,7 +15,7 @@ export async function loadProjectItems(repo: ProjectRepository): Promise<Project
   return Promise.all(summaries.map(async summary => {
     try {
       const project = await repo.get(summary.id);
-      return { summary, thumbnail: project ? frontThumbnail(project.layers) : null };
+      return { summary, thumbnail: project ? frontThumbnail(project.layers, getLayout(project.model)) : null };
     } catch {
       return { summary, thumbnail: null };
     }

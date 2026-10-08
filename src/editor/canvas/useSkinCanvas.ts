@@ -8,6 +8,7 @@ import { decodeImage, renderToCanvas } from './image';
 import { readSkinFile, exportFileName } from './importFile';
 import { History } from './history';
 import { strokePoints } from './line';
+import { getLayout } from '../skin/layout';
 import { createProject, uniqueName } from '../../projects/project';
 import type { NewProjectOptions } from '../../projects/project';
 import type { SkinProject } from '../../projects/project';
@@ -47,6 +48,7 @@ export function useSkinCanvas(canvasRef: React.RefObject<HTMLCanvasElement | nul
   const { status: saveStatus, markEdited, saveNow, flush, discardPending, resetStatus } = useAutosave(repository, () => ({ ...projectRef.current, layers: layersRef.current }))
   // 画面に出す、今の作品の情報 (名前など。projectRef は変わっても画面は再描画されないので、別に持つ)
   const [projectInfo, setProjectInfo] = useState({ id: projectRef.current.id, name: projectRef.current.name })
+  const [layout, setLayout] = useState(() => getLayout(projectRef.current.model)) // 今の作品のモデルの形式 (3D表示などに渡す)
   const lastPoint = useRef<[number, number] | null>(null) // なぞり描きで前回塗った点
 
   // 層を書き換えたら呼ぶ: 見た目を canvas に反映する
@@ -73,6 +75,7 @@ export function useSkinCanvas(canvasRef: React.RefObject<HTMLCanvasElement | nul
     lastPoint.current = null;
     setCanUndo(false); setCanRedo(false);
     setProjectInfo({ id: project.id, name: project.name });
+    setLayout(getLayout(project.model));
     try { localStorage.setItem(LAST_PROJECT_KEY, project.id); } catch { /* 記録できなくても、作品は開ける */ }
     render();
   }, [render]);
@@ -171,8 +174,9 @@ export function useSkinCanvas(canvasRef: React.RefObject<HTMLCanvasElement | nul
   const applyTool = useCallback((x: number, y: number, connect = false) => {
     const layers = layersRef.current;
     const rgba = hexToRgba(color);
-    for (const [cx, cy] of strokePoints(connect ? lastPoint.current : null, [x, y])) {
-      for (const [px, py] of brushPixels(cx, cy, brushSize, mirror)) {
+    const layout = getLayout(projectRef.current.model); // 今の作品のモデルの形式
+    for (const [cx, cy] of strokePoints(layout, connect ? lastPoint.current : null, [x, y])) {
+      for (const [px, py] of brushPixels(layout, cx, cy, brushSize, mirror)) {
         if (tool === 'eraser') erasePixel(layers, px, py); // 消しゴム: 透明にする
         else paintPixel(layers, px, py, rgba);
       }
@@ -247,6 +251,6 @@ export function useSkinCanvas(canvasRef: React.RefObject<HTMLCanvasElement | nul
     clearCanvas, newProject, newProjectFromFile, downloadImage, handleImport,
     saveStatus, saveNow, startupWarning,
     // 作品の管理 (useProjectManager が使う)
-    projectInfo, setProjectInfo, projectRef, loadProject, flush, discardPending, resetStatus, markEdited, repository
+    layout, projectInfo, setProjectInfo, projectRef, loadProject, flush, discardPending, resetStatus, markEdited, repository
   };
 }

@@ -2,6 +2,9 @@ import { describe, it, expect } from 'vitest';
 import { createLayers, compositePixel } from './layers';
 import { paintPixel, erasePixel, brushPixels, floodFill, pickColor } from './operations';
 import { getMirrorCoord } from '../skin/mirror';
+import { getLayout } from '../skin/layout';
+
+const CLASSIC = getLayout('classic');
 
 const RED = { r: 255, g: 0, b: 0, a: 255 };
 const BLUE = { r: 0, g: 0, b: 255, a: 255 };
@@ -53,29 +56,29 @@ describe('brushPixels (太さとミラー)', () => {
   const sorted = (list: [number, number][]) => list.map(p => p.join(',')).sort();
 
   it('太さ1は押した点だけ', () => {
-    expect(brushPixels(10, 10, 1, false)).toEqual([[10, 10]]);
+    expect(brushPixels(CLASSIC, 10, 10, 1, false)).toEqual([[10, 10]]);
   });
 
   it('太さ2は押した点を右下とする2×2、太さ3は押した点を中心とする3×3', () => {
-    expect(sorted(brushPixels(10, 10, 2, false))).toEqual(sorted([[9, 9], [10, 9], [9, 10], [10, 10]]));
-    expect(brushPixels(10, 10, 3, false)).toHaveLength(9);
-    expect(brushPixels(10, 10, 3, false)).toContainEqual([9, 9]);
-    expect(brushPixels(10, 10, 3, false)).toContainEqual([11, 11]);
+    expect(sorted(brushPixels(CLASSIC, 10, 10, 2, false))).toEqual(sorted([[9, 9], [10, 9], [9, 10], [10, 10]]));
+    expect(brushPixels(CLASSIC, 10, 10, 3, false)).toHaveLength(9);
+    expect(brushPixels(CLASSIC, 10, 10, 3, false)).toContainEqual([9, 9]);
+    expect(brushPixels(CLASSIC, 10, 10, 3, false)).toContainEqual([11, 11]);
   });
 
   it('画像の端では、はみ出した分は含まない', () => {
-    expect(sorted(brushPixels(0, 0, 3, false))).toEqual(sorted([[0, 0], [1, 0], [0, 1], [1, 1]]));
+    expect(sorted(brushPixels(CLASSIC, 0, 0, 3, false))).toEqual(sorted([[0, 0], [1, 0], [0, 1], [1, 1]]));
   });
 
   it('ミラーONなら、各ピクセルのミラー先も含む', () => {
     // 頭の正面 (8〜15, 8〜15) の左端 → 右端
-    const result = brushPixels(8, 10, 1, true);
-    expect(sorted(result)).toEqual(sorted([[8, 10], getMirrorCoord(8, 10)!]));
+    const result = brushPixels(CLASSIC, 8, 10, 1, true);
+    expect(sorted(result)).toEqual(sorted([[8, 10], getMirrorCoord(CLASSIC, 8, 10)!]));
   });
 
   it('ミラー先が自分と重なっても、同じピクセルを2回数えない', () => {
     // 太さ2で頭の正面の中央線をまたぐと、ミラー先がブラシの中に戻ってくる
-    const result = brushPixels(12, 10, 2, true);
+    const result = brushPixels(CLASSIC, 12, 10, 2, true);
     expect(new Set(result.map(p => p.join(','))).size).toBe(result.length);
   });
 });

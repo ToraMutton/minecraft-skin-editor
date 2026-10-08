@@ -3,6 +3,9 @@ import * as THREE from 'three';
 import { pickTexel } from './raycast';
 import { createPartGeometries } from './createSkinModel';
 import type { PartName } from './createSkinModel';
+import { getLayout } from '../skin/layout';
+
+const CLASSIC = getLayout('classic');
 
 // 3Dモデルの各面に、展開図のどこがどの向きで貼られているかを確かめる
 // 正解はMinecraft本体と同じ対応 (skinview3d の setUVs と同じ)。
@@ -12,7 +15,7 @@ const RECT = { left: 0, top: 0, width: 800, height: 600 };
 
 // パーツの表面の点 point を、その面の外側 (normal の方向) から見てクリックしたときのピクセル
 function texelAt(partName: PartName, point: [number, number, number], normal: [number, number, number]) {
-  const part = createPartGeometries().find(g => g.name === partName)!;
+  const part = createPartGeometries(CLASSIC).find(g => g.name === partName)!;
   const mesh = new THREE.Mesh(part.base);
   mesh.position.copy(part.position);
   mesh.updateMatrixWorld();

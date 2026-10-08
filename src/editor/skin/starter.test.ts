@@ -2,12 +2,15 @@ import { describe, it, expect } from 'vitest';
 import { createStarterPixels } from './starter';
 import { SKIN_UV, SKIN_UV_OVER } from './uv';
 import { createLayers } from '../canvas/layers';
+import { getLayout } from './layout';
+
+const CLASSIC = getLayout('classic');
 
 const alphaAt = (pixels: Uint8ClampedArray, x: number, y: number) => pixels[(y * 64 + x) * 4 + 3];
 const colorAt = (pixels: Uint8ClampedArray, x: number, y: number) => [...pixels.slice((y * 64 + x) * 4, (y * 64 + x) * 4 + 3)];
 
 describe('素体スキン', () => {
-  const pixels = createStarterPixels();
+  const pixels = createStarterPixels(CLASSIC);
 
   it('64×64 のRGBAで、下地としてそのまま使える', () => {
     expect(pixels).toHaveLength(64 * 64 * 4);
@@ -63,8 +66,8 @@ describe('素体スキン', () => {
   });
 
   it('呼ぶたびに新しい配列を返す (1つを書き換えても他に影響しない)', () => {
-    const a = createStarterPixels();
+    const a = createStarterPixels(CLASSIC);
     a[0] = 123;
-    expect(createStarterPixels()[0]).not.toBe(123);
+    expect(createStarterPixels(CLASSIC)[0]).not.toBe(123);
   });
 });

@@ -1,8 +1,8 @@
 // 一覧に出す、正面から見たキャラクターの小さな絵 (16×32)
 // 64×64 の展開図のままだと何の絵か分からないので、頭・胴・腕・脚の「正面」の面だけを人の形に並べる。
 // 保存はせず、表示のたびに3層から作る (保存すると、絵とずれる原因が増えるため)
-import { SKIN_UV, SKIN_UV_OVER } from '../editor/skin/uv';
 import type { PartName, UVFace } from '../editor/skin/uv';
+import type { SkinLayout } from '../editor/skin/layout';
 import { composite, SKIN_SIZE } from '../editor/canvas/layers';
 import type { SkinLayers } from '../editor/canvas/layers';
 
@@ -15,7 +15,7 @@ const PLACEMENT: Record<PartName, [number, number]> = {
 };
 
 // 3層を重ねた見た目から、正面のサムネイル (RGBA) を作る。上着の層は、素の層の上に重ねる
-export function frontThumbnail(layers: SkinLayers): Uint8ClampedArray {
+export function frontThumbnail(layers: SkinLayers, layout: SkinLayout): Uint8ClampedArray {
   const skin = composite(layers);
   const out = new Uint8ClampedArray(THUMB_WIDTH * THUMB_HEIGHT * 4);
 
@@ -37,7 +37,7 @@ export function frontThumbnail(layers: SkinLayers): Uint8ClampedArray {
   };
 
   for (const over of [false, true]) {
-    const table = over ? SKIN_UV_OVER : SKIN_UV;
+    const table = over ? layout.uvOver : layout.uv;
     for (const [part, [x, y]] of Object.entries(PLACEMENT) as [PartName, [number, number]][]) draw(table[part].front, x, y, over);
   }
   return out;

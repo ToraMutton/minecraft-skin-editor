@@ -2,10 +2,13 @@ import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { focusOn, HOME_DISTANCE } from './camera';
 import { createPartGeometries } from './createSkinModel';
+import { getLayout } from '../skin/layout';
+
+const CLASSIC = getLayout('classic');
 
 // アプリと同じ形・位置のパーツ (上着の層は子として付ける)
 function partMeshes() {
-  return Object.fromEntries(createPartGeometries().map(g => {
+  return Object.fromEntries(createPartGeometries(CLASSIC).map(g => {
     const mesh = new THREE.Mesh(g.base);
     mesh.position.copy(g.position);
     mesh.add(new THREE.Mesh(g.over));

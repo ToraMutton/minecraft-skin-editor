@@ -2,6 +2,9 @@ import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { uvToTexel, pickTexel } from './raycast';
 import { createPartGeometries } from './createSkinModel';
+import { getLayout } from '../skin/layout';
+
+const CLASSIC = getLayout('classic');
 
 const RECT = { left: 0, top: 0, width: 800, height: 600 };
 
@@ -22,7 +25,7 @@ function toScreen(point: THREE.Vector3, camera: THREE.Camera): [number, number] 
 
 // アプリと同じ形・位置の頭 (素の層と上着の層)
 function headMeshes() {
-  const head = createPartGeometries().find(g => g.name === 'head')!;
+  const head = createPartGeometries(CLASSIC).find(g => g.name === 'head')!;
   const base = new THREE.Mesh(head.base);
   const over = new THREE.Mesh(head.over);
   for (const mesh of [base, over]) {

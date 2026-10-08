@@ -1,8 +1,8 @@
 // 初めて起動したときと「新規」で出てくる素体スキン
 // 何も描いていないと3Dモデルが真っ黒に見えて、どこから描けばいいか分からないので、
 // 肌・髪・目・シャツ・ズボン・靴だけの、シンプルな人型を下地として置いておく
-import { SKIN_UV } from './uv';
-import type { UVFace } from './uv';
+import type { UVFace, PartName } from './uv';
+import type { SkinLayout } from './layout';
 import { PIXEL_COUNT, SKIN_SIZE } from '../canvas/layers';
 import type { Pixels } from '../canvas/layers';
 
@@ -21,7 +21,8 @@ const MOUTH = [176, 122, 85];
 
 type Color = number[];
 
-export function createStarterPixels(): Pixels {
+export function createStarterPixels(layout: SkinLayout): Pixels {
+  const SKIN_UV = layout.uv; // 腕の太さなど、モデルによる違いは展開図に入っている
   const pixels: Pixels = new Uint8ClampedArray(PIXEL_COUNT * 4);
 
   const set = (x: number, y: number, c: Color) => {
@@ -34,7 +35,7 @@ export function createStarterPixels(): Pixels {
     for (let y = from; y < to; y++) for (let x = 0; x < face.w; x++) set(face.u + x, face.v + y, c);
   };
   // 4つの側面(右・前・左・後)を1本の帯として塗る。rows は上から数えた行の範囲
-  const sides = (part: keyof typeof SKIN_UV, c: Color, rows: [number, number]) => {
+  const sides = (part: PartName, c: Color, rows: [number, number]) => {
     const uv = SKIN_UV[part];
     for (const f of [uv.right, uv.front, uv.left, uv.back]) fill(f, c, rows);
   };

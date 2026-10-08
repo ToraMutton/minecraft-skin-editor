@@ -1,3 +1,5 @@
+import type { SkinLayout } from './layout';
+
 // スキンのパーツ定義
 // 領域1に描いたら領域2にX反転してコピー、領域2に描いたら領域1にX反転してコピーするマッピング
 export interface FaceMapping {
@@ -69,8 +71,8 @@ export const FACE_MAPPINGS: FaceMapping[] = [
 ];
 
 // 描いたピクセルのミラー先座標を返す関数
-export function getMirrorCoord(x: number, y: number): [number, number] | null {
-  for (const map of FACE_MAPPINGS) {
+export function getMirrorCoord(layout: SkinLayout, x: number, y: number): [number, number] | null {
+  for (const map of layout.mirror) {
     // 領域1にヒットした場合 -> 領域2へX反転コピー
     if (x >= map.x1 && x < map.x1 + map.w && y >= map.y1 && y < map.y1 + map.h) {
       const relX = x - map.x1;

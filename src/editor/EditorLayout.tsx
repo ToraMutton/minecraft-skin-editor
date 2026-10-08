@@ -30,7 +30,7 @@ export function EditorLayout() {
     notifyUpdate, pushUndo, handleUndo, handleRedo, floodFill, pickColor, applyTool,
     clearCanvas, newProject, newProjectFromFile, downloadImage, handleImport,
     saveStatus, saveNow, startupWarning,
-    projectInfo, setProjectInfo, projectRef, loadProject, flush, discardPending, resetStatus, markEdited, repository
+    layout, projectInfo, setProjectInfo, projectRef, loadProject, flush, discardPending, resetStatus, markEdited, repository
   } = useSkinCanvas(canvasRef);
 
   // 新しい作品を作る。失敗したら、理由を知らせる (今の作品が保存できない、PNGが使えない、など)
@@ -147,7 +147,7 @@ export function EditorLayout() {
             canvasRef={canvasRef}
             visibleParts={visibleParts} visibleOverlay={visibleOverlay}
             showGuide={showGuide} isAutoFocus={isAutoFocus} mode={mode}
-            brush={{ tool, size: brushSize, mirror }}
+            layout={layout} brush={{ tool, size: brushSize, mirror }}
             onPaintStart={handlePaintStart} onPaintMove={handlePaintMove} onPaintEnd={handlePaintEnd}
           />
 

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import { SKIN_UV, SKIN_UV_OVER } from '../skin/uv';
 import type { PartName } from '../skin/uv';
+import type { SkinLayout } from '../skin/layout';
 import { applyPartUV } from './applyPartUV';
 import { createGridTexture } from './gridTexture';
 import { createHoverLayer } from './hoverHighlight';
@@ -35,7 +35,8 @@ export interface SkinModel {
 
 // 6パーツの形を作る (1単位 = テクスチャの1ピクセル)
 // DOMを使わないので、Node上のテストからも呼べる
-export function createPartGeometries(): PartGeometry[] {
+export function createPartGeometries(layout: SkinLayout): PartGeometry[] {
+  const SKIN_UV = layout.uv, SKIN_UV_OVER = layout.uvOver;
   const headGeo = new THREE.BoxGeometry(8, 8, 8); applyPartUV(headGeo, SKIN_UV.head); headGeo.translate(0, 4, 0);
   const headOverGeo = new THREE.BoxGeometry(9, 9, 9); applyPartUV(headOverGeo, SKIN_UV_OVER.head); headOverGeo.translate(0, 4, 0);
 
@@ -66,7 +67,7 @@ export function createPartGeometries(): PartGeometry[] {
 }
 
 // テクスチャを貼った3Dモデル(6パーツ + 上着 + ガイド線)を作る
-export function createSkinModel(texture: THREE.Texture): SkinModel {
+export function createSkinModel(texture: THREE.Texture, layout: SkinLayout): SkinModel {
   const baseMaterial = new THREE.MeshLambertMaterial({ map: texture, transparent: false, side: THREE.FrontSide });
   const overlayMaterial = new THREE.MeshLambertMaterial({ map: texture, transparent: true, alphaTest: 0.1, side: THREE.FrontSide });
 
@@ -80,7 +81,7 @@ export function createSkinModel(texture: THREE.Texture): SkinModel {
   const hover = createHoverLayer();
   const hoverMaterial = new THREE.MeshBasicMaterial({ map: hover.texture, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
 
-  const meshes = createPartGeometries().map(({ name, base, over, position }) => {
+  const meshes = createPartGeometries(layout).map(({ name, base, over, position }) => {
     const mesh = new THREE.Mesh(base, baseMaterial.clone());
     mesh.name = name;
     mesh.position.copy(position);
