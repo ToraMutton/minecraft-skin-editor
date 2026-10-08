@@ -1,15 +1,18 @@
 import { describe, it, expect } from 'vitest';
-import { SKIN_UV, SKIN_UV_OVER } from './uv';
 import type { PartUV } from './uv';
+import { getLayout } from './layout';
+
+const MODELS = ['classic', 'slim'] as const;
 
 // 全パーツ・全面を「名前付きの長方形」の一覧にする
 const facesOf = (table: Record<string, PartUV>, layer: string) =>
   Object.entries(table).flatMap(([part, uv]) =>
     Object.entries(uv).map(([face, rect]) => ({ name: `${layer}.${part}.${face}`, ...rect })));
 
-const ALL_FACES = [...facesOf(SKIN_UV, 'base'), ...facesOf(SKIN_UV_OVER, 'over')];
+describe.each(MODELS)('UVマッピング定義 (%s)', model => {
+  const { uv: SKIN_UV, uvOver: SKIN_UV_OVER } = getLayout(model);
+  const ALL_FACES = [...facesOf(SKIN_UV, 'base'), ...facesOf(SKIN_UV_OVER, 'over')];
 
-describe('UVマッピング定義', () => {
   it('すべての面が64×64の中に収まっている', () => {
     const outside = ALL_FACES.filter(f => f.u < 0 || f.v < 0 || f.u + f.w > 64 || f.v + f.h > 64);
     expect(outside.map(f => f.name)).toEqual([]);

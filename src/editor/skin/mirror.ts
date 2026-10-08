@@ -1,4 +1,5 @@
 import type { SkinLayout } from './layout';
+import { armsUV } from './uv';
 
 // スキンのパーツ定義
 // 領域1に描いたら領域2にX反転してコピー、領域2に描いたら領域1にX反転してコピーするマッピング
@@ -7,8 +8,8 @@ export interface FaceMapping {
   x2: number; y2: number;                       // 領域2 (幅と高さは共通)
 }
 
-// 腕と足、頭と胴体（全パーツ・全レイヤー）の正確なミラー対応表
-export const FACE_MAPPINGS: FaceMapping[] = [
+// 頭・胴体・足（全レイヤー）のミラー対応表。腕以外は、ClassicもSlimも同じ
+const BODY_MAPPINGS: FaceMapping[] = [
   // === 頭 (Head) ===
   // 素肌 (Base)
   { x1: 0, y1: 8, w: 8, h: 8, x2: 16, y2: 8 }, // Right側面 <-> Left側面
@@ -52,7 +53,10 @@ export const FACE_MAPPINGS: FaceMapping[] = [
   { x1: 4, y1: 36, w: 4, h: 12, x2: 4, y2: 52 }, // Front
   { x1: 8, y1: 36, w: 4, h: 12, x2: 0, y2: 52 }, // Left <-> Right
   { x1: 12, y1: 36, w: 4, h: 12, x2: 12, y2: 52 }, // Back
+];
 
+// Classic の腕 (幅4) のミラー対応表
+export const CLASSIC_ARM_MAPPINGS: FaceMapping[] = [
   // === 右腕・左腕 ===
   // 素肌 (Base)
   { x1: 44, y1: 16, w: 4, h: 4, x2: 36, y2: 48 }, // Top
@@ -69,6 +73,19 @@ export const FACE_MAPPINGS: FaceMapping[] = [
   { x1: 48, y1: 36, w: 4, h: 12, x2: 48, y2: 52 }, // Left <-> Right
   { x1: 52, y1: 36, w: 4, h: 12, x2: 60, y2: 52 }, // Back
 ];
+
+// 腕のミラー対応表を、展開図から作る。右腕の面と、それを左右反転した左腕の面を結ぶ
+// (右腕の右側面 ↔ 左腕の左側面、正面 ↔ 正面 … 幅が違っても同じ規則)
+export function armMappings(armWidth: number): FaceMapping[] {
+  const { base, over } = armsUV(armWidth);
+  return [base, over].flatMap(({ rightArm: r, leftArm: l }) => ([
+    [r.top, l.top], [r.bottom, l.bottom], [r.right, l.left], [r.front, l.front], [r.left, l.right], [r.back, l.back],
+  ] as const).map(([a, b]) => ({ x1: a.u, y1: a.v, w: a.w, h: a.h, x2: b.u, y2: b.v })));
+}
+
+// Classic / Slim のミラー対応表 (頭・胴体・足は共通で、腕だけ違う)
+export const FACE_MAPPINGS: FaceMapping[] = [...BODY_MAPPINGS, ...CLASSIC_ARM_MAPPINGS];
+export const SLIM_FACE_MAPPINGS: FaceMapping[] = [...BODY_MAPPINGS, ...armMappings(3)];
 
 // 描いたピクセルのミラー先座標を返す関数
 export function getMirrorCoord(layout: SkinLayout, x: number, y: number): [number, number] | null {

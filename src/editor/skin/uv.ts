@@ -126,3 +126,32 @@ export const SKIN_UV_OVER: Record<string, PartUV> = {
     bottom: { u: 56, v: 48, w: 4, h: 4 },
   },
 };
+
+// 幅 w・高さ h・奥行き d の箱の展開図を、左上 (u, v) に置いたときの6面
+// Minecraftのスキンは、どのパーツもこの並び方 (skinview3d の setSkinUVs と同じ):
+//   上段:  [上: d の右隣から幅w] [下: その右隣に幅w]
+//   下段:  [右側面 d] [正面 w] [左側面 d] [背面 w]
+export function boxUV(u: number, v: number, w: number, h: number, d: number): PartUV {
+  return {
+    right: { u, v: v + d, w: d, h },
+    front: { u: u + d, v: v + d, w, h },
+    left: { u: u + d + w, v: v + d, w: d, h },
+    back: { u: u + d + w + d, v: v + d, w, h },
+    top: { u: u + d, v, w, h: d },
+    bottom: { u: u + d + w, v, w, h: d },
+  };
+}
+
+interface ArmsUV { rightArm: PartUV; leftArm: PartUV }
+
+// 腕の展開図 (Classic は幅4、Slim は幅3)。腕の位置は、素の層・上着の層、右腕・左腕で決まっている
+export function armsUV(armWidth: number): { base: ArmsUV; over: ArmsUV } {
+  return {
+    base: { rightArm: boxUV(40, 16, armWidth, 12, 4), leftArm: boxUV(32, 48, armWidth, 12, 4) },
+    over: { rightArm: boxUV(40, 32, armWidth, 12, 4), leftArm: boxUV(48, 48, armWidth, 12, 4) },
+  };
+}
+
+// Slim: 腕の幅が3。頭・胴・脚はClassicと同じなので、腕だけ差し替える
+export const SLIM_SKIN_UV: Record<string, PartUV> = { ...SKIN_UV, ...armsUV(3).base };
+export const SLIM_SKIN_UV_OVER: Record<string, PartUV> = { ...SKIN_UV_OVER, ...armsUV(3).over };

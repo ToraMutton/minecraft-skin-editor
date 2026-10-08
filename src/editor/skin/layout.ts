@@ -1,9 +1,9 @@
 // スキンの「形式」: モデル(Classic / Slim)ごとに決まる、展開図・ミラー対応表・面の番号表のセット
 // モデルによって変わる計算(どの面か・ミラー先はどこか・どこに貼るか)は、この SkinLayout を引数で受け取る。
 // 「今のモデル」をグローバルに持たないので、渡し忘れは型エラーになり、テストでもモデルを指定できる
-import { SKIN_UV, SKIN_UV_OVER } from './uv';
+import { SKIN_UV, SKIN_UV_OVER, SLIM_SKIN_UV, SLIM_SKIN_UV_OVER } from './uv';
 import type { PartUV } from './uv';
-import { FACE_MAPPINGS } from './mirror';
+import { FACE_MAPPINGS, SLIM_FACE_MAPPINGS } from './mirror';
 import type { FaceMapping } from './mirror';
 import { buildFaceTable } from './faces';
 import type { FaceTable } from './faces';
@@ -31,6 +31,6 @@ export function getLayout(model: SkinModel): SkinLayout {
 }
 
 function buildLayout(model: SkinModel): SkinLayout {
-  if (model === 'slim') throw new Error('Slimモデルの形式は、まだありません');
+  if (model === 'slim') return { model, uv: SLIM_SKIN_UV, uvOver: SLIM_SKIN_UV_OVER, mirror: SLIM_FACE_MAPPINGS, ...buildFaceTable(SLIM_SKIN_UV, SLIM_SKIN_UV_OVER) };
   return { model, uv: SKIN_UV, uvOver: SKIN_UV_OVER, mirror: FACE_MAPPINGS, ...buildFaceTable(SKIN_UV, SKIN_UV_OVER) };
 }
