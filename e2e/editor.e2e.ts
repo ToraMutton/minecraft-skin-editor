@@ -1079,6 +1079,8 @@ test.describe('Quick Design', () => {
   const choose = (page: Page, groupName: string, choice: string) => group(page, groupName).getByRole('radio', { name: choice, exact: true }).click();
   const isOn = (page: Page, groupName: string, choice: string) => group(page, groupName).getByRole('radio', { name: choice, exact: true });
   const openDialog = async (page: Page) => { await button(page, '新規').click(); await page.getByRole('menuitem', { name: /Quick Design/ }).click(); await expect(dialog(page)).toBeVisible(); };
+  const accessories = (page: Page) => dialog(page).getByRole('group', { name: 'アクセサリー', exact: true });
+  const accessory = (page: Page, name: string) => accessories(page).getByRole('button', { name, exact: true });
   const preview = (page: Page) => dialog(page).locator('canvas').evaluateAll(cs => cs.map(c => (c as HTMLCanvasElement).toDataURL()).join('|'));
   const createWith = async (page: Page, answers: [string, string][] = []) => {
     await openDialog(page);
@@ -1106,8 +1108,9 @@ test.describe('Quick Design', () => {
       await expect(isOn(page, g, 'おまかせ'), g).toHaveAttribute('aria-checked', 'true');
     }
     await expect(isOn(page, 'モデル', 'Classic (腕4px)')).toHaveAttribute('aria-checked', 'true');
+    await expect(accessory(page, 'おまかせ')).toHaveAttribute('aria-pressed', 'true'); // アクセサリーも、おまかせ
     await expect(dialog(page).getByRole('button', { name: /この内容で作る/ })).toBeFocused();
-    await expect(dialog(page)).toContainText('指定 0・おまかせ 9');
+    await expect(dialog(page)).toContainText('指定 0・おまかせ 10');
     const canvases = dialog(page).locator('canvas');
     await expect(canvases).toHaveCount(2);
     for (const i of [0, 1]) {
@@ -1192,7 +1195,7 @@ test.describe('Quick Design', () => {
     const [a, b] = [palette(before), palette(afterHair)];
     const common = [...a].filter(c => b.has(c)).length;
     expect(common / Math.max(a.size, b.size)).toBeGreaterThan(0.5);
-    await expect(dialog(page)).toContainText('指定 3・おまかせ 6');
+    await expect(dialog(page)).toContainText('指定 3・おまかせ 7');
   });
 
   test('「全部おまかせに戻す」で、選んだ項目が全部おまかせに戻る (何も選んでいなければ押せない)', async ({ page }) => {
@@ -1201,9 +1204,12 @@ test.describe('Quick Design', () => {
     const reset = dialog(page).getByRole('button', { name: /全部おまかせに戻す/ });
     await expect(reset).toBeDisabled();
     await choose(page, '雰囲気', 'クール'); await choose(page, '髪の色', 'ティール'); await choose(page, '服の配色', 'サイバー');
+    await accessory(page, 'メガネ').click();
     await expect(isOn(page, '髪の色', 'ティール')).toHaveAttribute('aria-checked', 'true');
     await reset.click();
     for (const g of ['雰囲気', '髪の色', '服の配色']) await expect(isOn(page, g, 'おまかせ')).toHaveAttribute('aria-checked', 'true');
+    await expect(accessory(page, 'おまかせ')).toHaveAttribute('aria-pressed', 'true');
+    await expect(accessory(page, 'メガネ')).toHaveAttribute('aria-pressed', 'false');
     await expect(reset).toBeDisabled();
   });
 
@@ -1358,5 +1364,74 @@ test.describe('Quick Design', () => {
     await expect(panel(page)).toHaveCount(0); // 読み込んだ絵は、生成した絵ではない
     await button(page, 'Undo').click();
     await expect(panel(page)).toBeVisible();
+  });
+
+  test('目に「ちびかわ」がある: 2×2の目が顔の下寄り(5〜6行目)に、左上にハイライトが付く', async ({ page }) => {
+    await openWithSkin(page);
+    await createWith(page, [['目', 'ちびかわ'], ['髪型', 'ショート']]);
+    const bright = ([r, g, b]: number[]) => r > 200 && g > 200 && b > 200;
+    // 顔 (頭の正面) は (8,8)〜(15,15)。ハイライトは各目の左上: 左目 (9,13)・右目 (13,13)
+    expect(bright(await pixelColor(page, 8 + 1, 8 + 5)), '左目のハイライト').toBe(true);
+    expect(bright(await pixelColor(page, 8 + 5, 8 + 5)), '右目のハイライト').toBe(true);
+    const dark = ([r, g, b]: number[]) => r + g + b < 360;
+    expect(dark(await pixelColor(page, 8 + 1, 8 + 4)), '目尻のまつ毛').toBe(true);
+    // おでこ(上から4行)は、目の部品が無く、髪か肌 (明るい白目・ハイライトは無い)
+    for (let x = 0; x < 8; x++) expect(bright(await pixelColor(page, 8 + x, 8 + 3)), `おでこ ${x}`).toBe(false);
+  });
+
+  test('アクセサリー: おまかせ / なし / 複数選択。選ぶとプレビューが変わり、外すと元に戻る。帽子とカチューシャ・リボンは一緒に付けられない', async ({ page }) => {
+    await openWithSkin(page);
+    await openDialog(page);
+    await expect(accessories(page).getByRole('button')).toHaveText(['おまかせ', 'なし', '帽子', 'カチューシャ', 'リボン', 'メガネ', 'イヤリング', 'マフラー', '手袋']);
+
+    await accessory(page, 'なし').click(); // 付けない、と答える
+    const none = await preview(page);
+    await expect(accessory(page, 'なし')).toHaveAttribute('aria-pressed', 'true');
+    await expect(accessory(page, 'おまかせ')).toHaveAttribute('aria-pressed', 'false');
+    await expect(dialog(page)).toContainText('指定 1・おまかせ 9'); // 「なし」も答えの1つ
+
+    await accessory(page, 'メガネ').click();
+    await expect(accessory(page, 'メガネ')).toHaveAttribute('aria-pressed', 'true');
+    await expect(accessory(page, 'なし')).toHaveAttribute('aria-pressed', 'false');
+    expect(await preview(page)).not.toBe(none);
+    await accessory(page, '手袋').click();
+    await expect(accessory(page, 'メガネ')).toHaveAttribute('aria-pressed', 'true'); // 複数付けられる
+    await expect(accessory(page, '手袋')).toHaveAttribute('aria-pressed', 'true');
+    await accessory(page, 'メガネ').click(); await accessory(page, '手袋').click(); // 全部外すと「なし」に戻る
+    await expect(accessory(page, 'なし')).toHaveAttribute('aria-pressed', 'true');
+    expect(await preview(page)).toBe(none); // 同じ案なので、元の絵に戻る
+
+    await accessory(page, '帽子').click();
+    await expect(accessory(page, 'カチューシャ')).toBeDisabled();
+    await expect(accessory(page, 'リボン')).toBeDisabled();
+    await accessory(page, '帽子').click();
+    await accessory(page, 'リボン').click();
+    await expect(accessory(page, '帽子')).toBeDisabled(); // 逆も同じ
+    await expect(accessory(page, 'カチューシャ')).toBeEnabled(); // カチューシャとリボンは一緒に付けられる
+    await accessory(page, 'おまかせ').click();
+    await expect(accessory(page, '帽子')).toBeEnabled();
+    await expect(accessory(page, 'おまかせ')).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  test('アクセサリーを指定して作ると絵に付き、「条件を変える」を開くと、選んだ組み合わせがそのまま入っている', async ({ page }) => {
+    await openWithSkin(page);
+    await createWith(page, [['髪型', 'ショート'], ['上着', 'Tシャツ']]);
+    // 手袋を付けると、手首から先の素の層が肌でなくなる
+    await panel(page).getByRole('button', { name: /条件を変える/ }).click();
+    await accessory(page, 'なし').click();
+    await dialog(page).getByRole('button', { name: /この条件で作り直す/ }).click();
+    const bare = await pixelColor(page, 44 + 1, 20 + 10); // 右腕の正面・手の高さ
+    await page.waitForTimeout(300);
+    await panel(page).getByRole('button', { name: /条件を変える/ }).click();
+    await accessory(page, 'なし').click(); // 押し直して、手袋とマフラーに
+    await accessory(page, 'マフラー').click(); await accessory(page, '手袋').click();
+    await dialog(page).getByRole('button', { name: /この条件で作り直す/ }).click();
+    await page.waitForTimeout(300);
+    expect(await pixelColor(page, 44 + 1, 20 + 10)).not.toEqual(bare); // 手袋になった
+    await panel(page).getByRole('button', { name: /条件を変える/ }).click();
+    await expect(accessory(page, 'マフラー')).toHaveAttribute('aria-pressed', 'true');
+    await expect(accessory(page, '手袋')).toHaveAttribute('aria-pressed', 'true');
+    await expect(accessory(page, 'メガネ')).toHaveAttribute('aria-pressed', 'false');
+    await expect(accessory(page, 'おまかせ')).toHaveAttribute('aria-pressed', 'false');
   });
 });

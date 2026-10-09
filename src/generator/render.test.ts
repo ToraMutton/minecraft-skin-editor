@@ -1,9 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { renderSkin, generateSkin, buildBuffer, makeRamps } from './render';
-import { randomSpec, MOODS, HAIR_STYLES, EYE_STYLES, TOPS, BOTTOMS, RENDERER_VERSION } from './spec';
-import type { SkinSpec } from './spec';
+import { randomSpec, MOODS, HAIR_STYLES, EYE_STYLES, TOPS, BOTTOMS, ACCESSORIES, RENDERER_VERSION } from './spec';
+import type { SkinSpec, HairStyle } from './spec';
 import { getLayout } from '../editor/skin/layout';
 import { PaintBuffer } from './buffer';
+import { shadeOffset, FACE_LIGHT } from './shading';
 import { rgbToOklch } from './color';
 import { RAMP_BASE } from './color';
 import { faceAt } from '../editor/skin/faces';
@@ -88,8 +89,23 @@ describe.each(MODELS)('renderSkin (%s)', model => {
       }
       count++;
     }
-    expect(count).toBe(3 * 3 * 3 * 3 * 2 * 2);
-  });
+    expect(count).toBe(MOODS.length * HAIR_STYLES.length * EYE_STYLES.length * TOPS.length * BOTTOMS.length * 2);
+  }, 60000);
+
+  it('アクセサリーを付けても、全ての組み合わせ (小物1つずつ × 目 × 上着、全部付け × 目) が壊れずに描ける。素の層は全面不透明のまま', () => {
+    const base = randomSpec(77);
+    const check = (accessories: SkinSpec['accessories'], eyes: SkinSpec['eyes'], top: SkinSpec['top']) => {
+      const px = renderSkin({ ...base, accessories, eyes, top, hair: 'long' }, layout);
+      for (let i = 0; i < 4096; i++) {
+        const f = faceAt(layout, i % 64, Math.floor(i / 64));
+        if (!f) expect(px[i * 4 + 3], `面の外 ${accessories} ${i}`).toBe(0);
+        else if (f.layer === 'base') expect(px[i * 4 + 3], `${accessories}/${eyes}/${top} ${i}`).toBe(255);
+        else expect([0, 255]).toContain(px[i * 4 + 3]);
+      }
+    };
+    for (const a of ACCESSORIES) for (const eyes of EYE_STYLES) for (const top of TOPS) check([a], eyes, top);
+    for (const eyes of EYE_STYLES) check(['glasses', 'earrings', 'scarf', 'gloves', 'headband'], eyes, 'jacket');
+  }, 60000);
 
   it('顔が描かれている (目・口があるので、頭の正面の目の高さに、肌以外の色が複数ある)', () => {
     for (const seed of SEEDS.slice(0, 30)) {
@@ -234,8 +250,242 @@ describe('各パーツの作り (素材・形)', () => {
       return [3, 4, 5].map(y => [0, 1, 2, 5, 6, 7].map(x => f.get(x, y)?.mat ?? '-').join(',')).join(' / ');
     };
     const patterns = new Set(EYE_STYLES.map(eyes));
-    expect(patterns.size).toBe(3);
+    expect(patterns.size).toBe(4);
     expect(eyes('lashes')).toContain('dark');
+  });
+});
+
+describe('ちびかわいい目 (2×2を顔の下寄りに)', () => {
+  const build = (changes: Partial<SkinSpec> = {}, model: 'classic' | 'slim' = 'classic') => buildBuffer({ ...randomSpec(5), eyes: 'kawaii', accessories: [], ...changes }, getLayout(model));
+  const face = (b: PaintBuffer) => b.face('head', 'base', 'front');
+
+  it('目は 2×2 が左右に1つずつ。5〜6行目 (顔の下寄り) にあり、上の4行 (おでこ) には目の部品が無い', () => {
+    const f = face(build());
+    for (const [x0, x1] of [[1, 2], [5, 6]]) {
+      for (const y of [5, 6]) for (const x of [x0, x1]) expect(['eye', 'white'], `(${x},${y})`).toContain(f.get(x, y)?.mat);
+    }
+    for (let y = 0; y < 4; y++) for (let x = 0; x < 8; x++) expect(['eye', 'white', 'dark'], `(${x},${y})`).not.toContain(f.get(x, y)?.mat);
+  });
+
+  it('ハイライト(白)は、両目とも左上の1ピクセル。他の3ピクセルは黒目で、上の段は暗く、下の段は明るい', () => {
+    const f = face(build());
+    for (const left of [1, 5]) {
+      expect(f.get(left, 5)?.mat).toBe('white');
+      expect(f.get(left + 1, 5)).toMatchObject({ mat: 'eye', tone: -1 });
+      expect(f.get(left, 6)).toMatchObject({ mat: 'eye', tone: 0 });
+      expect(f.get(left + 1, 6)).toMatchObject({ mat: 'eye', tone: 1 });
+    }
+  });
+
+  it('目尻にまつ毛、頬(左右の端)にほっぺ、あごの行に小さな口。目・ハイライトは光や影を受けない (flat)', () => {
+    const f = face(build());
+    expect(f.get(1, 4)?.mat).toBe('dark'); expect(f.get(6, 4)?.mat).toBe('dark');
+    expect(f.get(0, 6)?.mat).toBe('blush'); expect(f.get(7, 6)?.mat).toBe('blush');
+    expect(f.get(3, 7)?.mat).toBe('blush'); expect(f.get(4, 7)?.mat).toBe('blush');
+    for (const [x, y] of [[1, 5], [2, 5], [1, 6], [2, 6]] as const) expect(f.get(x, y)?.flat, `(${x},${y})`).toBe(true);
+  });
+
+  it('髪が目にかからない (前髪は3行まで)。ClassicでもSlimでも同じ', () => {
+    for (const model of ['classic', 'slim'] as const) {
+      for (const seed of SEEDS.slice(0, 30)) {
+        const b = buildBuffer({ ...randomSpec(seed), eyes: 'kawaii' }, getLayout(model));
+        for (const layer of ['base', 'over'] as const) {
+          const f = b.face('head', layer, 'front');
+          for (let y = 3; y < 8; y++) for (let x = 0; x < 8; x++) if (layer === 'over' || y > 3) expect(f.get(x, y)?.mat, `${model} ${seed} ${layer} (${x},${y})`).not.toBe('hair');
+        }
+      }
+    }
+  });
+});
+
+describe('髪の外側の層の凹凸', () => {
+  const build = (changes: Partial<SkinSpec>, seed: number) => buildBuffer({ ...randomSpec(seed), accessories: [], ...changes }, getLayout('classic'));
+  // 頭の帯の列ごとの、上から続く髪の行数
+  const depths = (b: PaintBuffer, layer: 'base' | 'over') => {
+    const band = b.band('head', layer);
+    return Array.from({ length: band.width }, (_, c) => { let d = 0; while (d < band.height && band.get(c, d)?.mat === 'hair') d++; return d; });
+  };
+
+  it('外側の層は、素の層の複製ではない。列ごとに長さが違い、毛先が素の層より長い所・短い所がある', () => {
+    let differing = 0, longer = 0, shorter = 0, total = 0;
+    for (const seed of SEEDS.slice(0, 40)) {
+      for (const hair of HAIR_STYLES) {
+        const b = build({ hair }, seed);
+        const [base, over] = [depths(b, 'base'), depths(b, 'over')];
+        base.forEach((d, c) => { total++; if (over[c] !== d) differing++; if (over[c] > d) longer++; if (over[c] < d) shorter++; });
+      }
+    }
+    expect(differing / total).toBeGreaterThan(0.25); // 4分の1以上の列で、素の層と長さが違う
+    expect(longer).toBeGreaterThan(0); expect(shorter).toBeGreaterThan(0);
+  });
+
+  it('毛先が尖る: 同じ束の中で、真ん中の列だけが1行長い (束のあいだに切れ込みができる)。ロングで特に多い', () => {
+    const notches = (hair: HairStyle) => {
+      let n = 0;
+      for (const seed of SEEDS.slice(0, 40)) {
+        const d = depths(build({ hair }, seed), 'over');
+        for (let c = 1; c < 31; c++) if (d[c] > d[c - 1] && d[c] > d[c + 1] && d[c] >= 3) n++; // 左右より1行以上長い列 = 尖った毛先
+      }
+      return n;
+    };
+    expect(notches('long')).toBeGreaterThan(40);
+    expect(notches('medium')).toBeGreaterThan(20);
+  });
+
+  it('前髪は、長い束と短い束が混ざる (どの seed でも、正面の外側の層の前髪が2種類以上の長さ)', () => {
+    let mixed = 0;
+    for (const seed of SEEDS.slice(0, 40)) {
+      const d = depths(build({ hair: 'medium' }, seed), 'over').slice(8, 16);
+      if (new Set(d).size >= 2) mixed++;
+    }
+    expect(mixed).toBeGreaterThan(30);
+  });
+
+  it('ロングは肩・背中、ミディアムは襟足に毛先が出る。ショートは出ない。肩の前に垂れる毛束は外側ほど長い', () => {
+    const body = (b: PaintBuffer) => b.pixels.filter((p, i) => p?.mat === 'hair' && b.cells[i]?.part === 'body' && b.cells[i]?.layer === 'over').length;
+    for (const seed of SEEDS.slice(0, 20)) {
+      expect(body(build({ hair: 'short' }, seed)), `short ${seed}`).toBe(0);
+      expect(body(build({ hair: 'medium' }, seed)), `medium ${seed}`).toBeLessThan(40);
+      expect(body(build({ hair: 'long' }, seed)), `long ${seed}`).toBeGreaterThan(25);
+      const over = build({ hair: 'long', top: 'tshirt' }, seed).band('body', 'over');
+      const f = over.frontStart;
+      const len = (x: number) => { let d = 0; while (over.get(f + x, d)?.mat === 'hair') d++; return d; };
+      expect(len(0), `外側ほど長い ${seed}`).toBeGreaterThanOrEqual(len(1));
+      expect(len(7)).toBeGreaterThanOrEqual(len(6));
+    }
+  });
+
+  it('外側の層の髪の下の素の層(髪・肌)は、接触部分の影で暗くなる (奥行き)', () => {
+    const b = build({ hair: 'long' }, 3);
+    const over = b.band('head', 'over'), base = b.band('head', 'base');
+    let checked = 0;
+    for (let c = 0; c < 32; c++) {
+      for (let y = 0; y < 8; y++) {
+        if (over.get(c, y)?.mat !== 'hair' || base.get(c, y)?.mat !== 'hair') continue;
+        const i = ((8 + y) * 64 + c); // 頭の帯の画素番号
+        expect(shadeOffset(b, i), `(${c},${y})`).toBeLessThan(FACE_LIGHT[b.cells[i]!.face]); // 外側の層に覆われた素の層は、必ず暗い
+        checked++;
+      }
+    }
+    expect(checked).toBeGreaterThan(50);
+  });
+});
+
+describe('アクセサリーの形', () => {
+  const build = (accessories: SkinSpec['accessories'], changes: Partial<SkinSpec> = {}, model: 'classic' | 'slim' = 'classic', seed = 5) =>
+    buildBuffer({ ...randomSpec(seed), hair: 'short', top: 'tshirt', accessories, ...changes }, getLayout(model));
+  const matAt = (b: PaintBuffer, part: string, layer: 'base' | 'over', face: string, x: number, y: number) =>
+    b.pixels[b.cells.findIndex(c => c && c.part === part && c.layer === layer && c.face === face && c.x === x && c.y === y)] ?? null;
+  const overlayCount = (b: PaintBuffer, part: string) => b.pixels.filter((p, i) => p && b.cells[i]?.part === part && b.cells[i]?.layer === 'over').length;
+
+  it('何も付けなければ、小物の跡は無い (Tシャツ+ショートの外側の層は、頭の髪の厚みだけ)', () => {
+    const b = build([]);
+    for (const part of ['body', 'rightArm', 'leftArm', 'rightLeg', 'leftLeg']) expect(overlayCount(b, part) - (part.endsWith('Leg') ? overlayCount(b, part) : 0), part).toBe(0); // 脚はズボンの裾の厚みが出ることがある
+    expect(b.pixels.filter((p, i) => p && b.cells[i]?.part === 'head' && b.cells[i]?.layer === 'over' && p.mat !== 'hair')).toHaveLength(0);
+  });
+
+  it('帽子: 頭の上3行を一周して覆い、ひさし(正面の3行目)が一番暗い。頭頂も覆う', () => {
+    const b = build(['hat']);
+    const band = b.band('head', 'over');
+    for (let c = 0; c < band.width; c++) for (let y = 0; y < 3; y++) expect(band.get(c, y)?.mat, `(${c},${y})`).toBe(y === 1 && (c === 11 || c === 12) ? 'accent' : 'top');
+    expect(band.get(band.frontStart + 2, 2)?.tone).toBe(-2); // ひさし
+    expect(band.get(0, 2)?.tone).toBe(-1); // 後ろ・横の縁
+    expect(matAt(b, 'head', 'over', 'top', 3, 3)?.mat).toBe('top');
+  });
+
+  it('メガネ: 目のまわりに枠 (外側の層)。目の部分は透明のままで、素の層の目が見える。どの目の種類でも、目を隠さない', () => {
+    for (const eyes of EYE_STYLES) {
+      const b = build(['glasses'], { eyes });
+      const front = b.face('head', 'over', 'front'), base = b.face('head', 'base', 'front');
+      const eyePixels: [number, number][] = [];
+      for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) if (['eye', 'white'].includes(base.get(x, y)?.mat ?? '')) eyePixels.push([x, y]);
+      expect(eyePixels.length, eyes).toBeGreaterThanOrEqual(4);
+      for (const [x, y] of eyePixels) expect(front.get(x, y), `${eyes} 目(${x},${y})が枠に隠れている`).toBeNull();
+      let frame = 0;
+      for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) { const p = front.get(x, y); if (p && p.mat !== 'hair') frame++; } // 髪の外側の層は数えない
+      expect(frame, `${eyes} 枠の画素数`).toBeGreaterThanOrEqual(10);
+      expect(frame, `${eyes} 枠が大きすぎない`).toBeLessThanOrEqual(26);
+      for (let y = 0; y < 8; y++) expect(front.get(3, y)?.mat === 'blush', `${eyes} 口を隠さない`).toBe(false);
+      expect(b.band('head', 'over').get(7, 4)?.mat ?? b.band('head', 'over').get(7, 3)?.mat ?? b.band('head', 'over').get(7, 5)?.mat).toBeTruthy(); // 側面のつる
+    }
+  });
+
+  it('メガネの枠は、肌と明るさが離れた色 (顔に溶けない)', () => {
+    for (const seed of SEEDS.slice(0, 40)) {
+      const spec = { ...randomSpec(seed), accessories: ['glasses' as const] };
+      const b = buildBuffer(spec, getLayout('classic'));
+      const mat = b.face('head', 'over', 'front').get(0, 4)?.mat ?? b.face('head', 'over', 'front').get(0, 5)?.mat;
+      expect(mat, String(seed)).toBeTruthy();
+      const l = { accent: spec.palette.accent.l, top: spec.palette.primary.l, white: 0.95, dark: 0.3 }[mat as 'accent' | 'top' | 'white' | 'dark'];
+      expect(Math.abs(l - spec.palette.skin.l), String(seed)).toBeGreaterThanOrEqual(0.15);
+    }
+  });
+
+  it('リボン: 正面の上に 5×3 の蝶結び。結び目は暗く、輪の内側は明るく、左右どちらかに寄る', () => {
+    const sides = new Set<number>();
+    for (const seed of SEEDS.slice(0, 20)) {
+      const b = build(['ribbon'], {}, 'classic', seed);
+      const front = b.face('head', 'over', 'front');
+      const knots = [0, 1, 2, 3, 4, 5, 6, 7].filter(x => front.get(x, 1)?.tone === -1 && front.get(x, 1)?.mat !== 'hair'); // 髪の外側の層(束の境目の影)は除く
+      expect(knots, String(seed)).toHaveLength(1);
+      const k = knots[0];
+      sides.add(k);
+      expect(front.get(k - 1, 1)?.tone).toBe(1); expect(front.get(k + 1, 1)?.tone).toBe(1);
+      for (const x of [k - 2, k + 2]) for (const y of [0, 1, 2]) expect(front.get(x, y)?.mat, `輪 (${x},${y})`).toBeTruthy();
+      const ribbonMat = front.get(k, 1)!.mat;
+      expect(front.get(k, 0)?.mat === ribbonMat, `結び目の上 ${seed}`).toBe(false); expect(front.get(k, 2)?.mat === ribbonMat, `結び目の下 ${seed}`).toBe(false); // 結び目の上下はあく (髪が見える)
+    }
+    expect(sides.size).toBe(2);
+  });
+
+  it('カチューシャ: 頭頂を横切り、両耳の前に降り、正面の生え際にも1行。帽子と同時には付かない (正規化)', () => {
+    const b = build(['headband']);
+    const top = b.face('head', 'over', 'top');
+    for (let x = 0; x < 8; x++) expect(top.get(x, 3)?.mat, `頭頂 ${x}`).toBeTruthy();
+    for (let y = 0; y <= 4; y++) { expect(b.band('head', 'over').get(5, y)).toBeTruthy(); expect(b.band('head', 'over').get(18, y)).toBeTruthy(); }
+    for (let x = 0; x < 8; x++) expect(b.face('head', 'over', 'front').get(x, 0)?.mat, `生え際 ${x}`).toBeTruthy();
+  });
+
+  it('イヤリング: 側面の耳の位置に、光る玉(flat)と垂れる飾り。右の側面には必ず付く', () => {
+    const b = build(['earrings']);
+    const band = b.band('head', 'over');
+    expect(band.get(3, 5)).toMatchObject({ flat: true, tone: 1 });
+    expect(band.get(3, 6)?.mat).toBeTruthy();
+  });
+
+  it('マフラー: 首を一周する2行 (編み目で1列おきに明るさが違う)。前に垂れる端は、先が欠ける', () => {
+    const b = build(['scarf']);
+    const body = b.band('body', 'over');
+    for (let c = 0; c < body.width; c++) for (let y = 0; y < 2; y++) expect(body.get(c, y), `(${c},${y})`).toBeTruthy();
+    expect(body.get(0, 0)?.tone).not.toBe(body.get(1, 0)?.tone);
+    const f = body.frontStart;
+    for (let y = 2; y <= 4; y++) { expect(body.get(f + 5, y)).toBeTruthy(); expect(body.get(f + 6, y)).toBeTruthy(); }
+    expect(body.get(f + 5, 5)).toBeTruthy(); expect(body.get(f + 6, 5)).toBeNull(); // ふさ
+  });
+
+  it('手袋: 手首から先の素の層 (9〜11行目) が肌でなくなり、外側の層に手首の縁。腕の幅が違うSlimでも同じ', () => {
+    for (const model of ['classic', 'slim'] as const) {
+      const b = build(['gloves'], {}, model);
+      for (const part of ['rightArm', 'leftArm']) {
+        const base = b.band(part as 'rightArm', 'base'), over = b.band(part as 'rightArm', 'over');
+        const mat = base.get(0, 9)?.mat;
+        expect(mat, `${model} ${part}`).not.toBe('skin');
+        for (let c = 0; c < base.width; c++) {
+          for (let y = 9; y < 12; y++) expect(base.get(c, y)?.mat, `${model} ${part} (${c},${y})`).toBe(mat);
+          expect(over.get(c, 9)?.tone, `${model} ${part} 縁`).toBe(1);
+          expect(base.get(c, 8)?.mat).not.toBe(mat); // 手首より上は手袋ではない
+        }
+      }
+    }
+  });
+
+  it('手袋の色は、肌と明るさが離れている (肌に溶けない)', () => {
+    for (const seed of SEEDS.slice(0, 40)) {
+      const spec = { ...randomSpec(seed), accessories: ['gloves' as const] };
+      const mat = buildBuffer(spec, getLayout('classic')).band('rightArm', 'base').get(0, 10)?.mat;
+      const l = { accent: spec.palette.accent.l, top: spec.palette.primary.l, white: 0.95, dark: 0.3 }[mat as 'accent' | 'top' | 'white' | 'dark'];
+      expect(Math.abs(l - spec.palette.skin.l), String(seed)).toBeGreaterThanOrEqual(0.15);
+    }
   });
 });
 
@@ -243,9 +493,10 @@ describe('契約: 見た目が意図せず変わらない (描き方を変えた
   // 描き方 (painters / shading / color / palettes) を変えると、この値が変わる。見た目を意図して変えたときは、
   // 画像を確認して、この値を更新し、RENDERER_VERSION を上げる (保存した設定で、昔と違う絵が作られないように)
   const GOLDEN: Record<string, string> = {
-    'classic:1000': '8f10c6a3', 'classic:8919': '2eb53e27', 'classic:16838': 'e85f7aa3', 'classic:40595': '9df10781', 'classic:167299': 'addd64f7', 'classic:301922': 'a33d0959',
-    'slim:1000': '39a422f3', 'slim:8919': '75215d9b', 'slim:16838': 'dbc19e1f', 'slim:40595': 'd11efed1', 'slim:167299': 'd792a66b', 'slim:301922': '1cf30d9d',
+    'classic:1000': '3fc2bdb8', 'classic:8919': '3fb5b24c', 'classic:16838': '0595ad95', 'classic:40595': 'f9717369', 'classic:167299': 'a7ff3f28', 'classic:301922': 'f15d2370',
+    'slim:1000': '1c3c5f58', 'slim:8919': '17dd0908', 'slim:16838': 'f73917f9', 'slim:40595': 'aa9dfb79', 'slim:167299': 'a7ec8a44', 'slim:301922': 'b19853ac',
   };
+
 
   for (const model of MODELS) {
     it(`${model}: 代表的な seed の画素のハッシュ`, () => {
@@ -255,7 +506,7 @@ describe('契約: 見た目が意図せず変わらない (描き方を変えた
     });
   }
 
-  it('描き方のバージョンは 1 (見た目を変えたら、ここも上げる)', () => {
-    expect(RENDERER_VERSION).toBe(1);
+  it('描き方のバージョンは 2 (見た目を変えたら、ここも上げる)', () => {
+    expect(RENDERER_VERSION).toBe(2);
   });
 });

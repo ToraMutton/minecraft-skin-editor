@@ -58,3 +58,43 @@ export function ChoiceGroup<T>({ label, choices, value, onChange, variant = 'chi
     </div>
   );
 }
+
+interface MultiChoice<T extends string> { value: T; label: string }
+
+interface MultiProps<T extends string> {
+  label: string; // グループの名前
+  choices: MultiChoice<T>[];
+  value: T[] | undefined; // undefined = おまかせ / [] = なし / 並び = その組み合わせ
+  onChange: (value: T[] | undefined) => void;
+  normalize: (list: T[]) => T[]; // 組み合わせを整える (一緒に付けられないものを外すなど)
+  conflicts: (value: T, selected: T[]) => boolean; // 今の選択と一緒に付けられないものか (そのボタンを押せなくする)
+}
+
+// 複数選べる選択肢のグループ (アクセサリー用)
+//   「おまかせ」「なし」は、それぞれ1つの選び方。小物を押すと、おまかせから「その組み合わせ」に変わり、全部外すと「なし」になる
+//   一緒に付けられない組み合わせ (帽子とカチューシャなど) は、押せなくして、理由をツールチップに出す
+export function MultiChoiceGroup<T extends string>({ label, choices, value, onChange, normalize, conflicts }: MultiProps<T>) {
+  const selected = value ?? [];
+  const toggle = (item: T) => {
+    const next = selected.includes(item) ? selected.filter(v => v !== item) : [...selected, item];
+    onChange(normalize(next));
+  };
+  return (
+    <div role="group" aria-label={label} className="vx-choice vx-choice--chips">
+      <button type="button" aria-pressed={value === undefined} className="vx-choice-item" onClick={() => onChange(undefined)}>おまかせ</button>
+      <button type="button" aria-pressed={value !== undefined && value.length === 0} className="vx-choice-item" onClick={() => onChange([])}>なし</button>
+      {choices.map(c => {
+        const on = selected.includes(c.value);
+        const blocked = !on && conflicts(c.value, selected);
+        return (
+          <button
+            key={c.value} type="button" aria-pressed={on} disabled={blocked} className="vx-choice-item"
+            title={blocked ? '今選んでいるものとは、一緒に付けられません' : c.label} onClick={() => toggle(c.value)}
+          >
+            {c.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}

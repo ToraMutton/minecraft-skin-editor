@@ -2,15 +2,15 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, ChevronLeft, ChevronRight, Dices, Heart, RotateCcw, Smile, Sparkles, X, Zap } from 'lucide-react';
 import { Button } from './Button';
 import { Switch } from './Switch';
-import { ChoiceGroup } from './ChoiceGroup';
+import { ChoiceGroup, MultiChoiceGroup } from './ChoiceGroup';
 import type { Choice } from './ChoiceGroup';
 import { SkinFigures } from './SkinFigures';
 import { useDialog } from './useDialog';
 import { getLayout } from '../skin/layout';
 import type { SkinModel } from '../skin/layout';
 import type { Pixels } from '../canvas/layers';
-import { designSkin, randomSeed, countAnswered, ANSWER_COUNT } from '../../generator';
-import type { SpecAnswers, Generation } from '../../generator';
+import { designSkin, randomSeed, countAnswered, normalizeAccessories, ANSWER_COUNT, ACCESSORIES } from '../../generator';
+import type { SpecAnswers, Generation, Accessory } from '../../generator';
 import { cssColor } from '../../generator/color';
 import { ALL_OUTFITS, HAIR_PALETTE, SKIN_NAMES, SKIN_TONES } from '../../generator/palettes';
 
@@ -39,7 +39,12 @@ const MOODS: Choice<SpecAnswers['mood']>[] = [
   auto(), { value: 'cute', label: 'かわいい', icon: <Heart size={14} /> }, { value: 'cool', label: 'クール', icon: <Zap size={14} /> }, { value: 'simple', label: 'シンプル', icon: <Smile size={14} /> },
 ];
 const HAIR: Choice<SpecAnswers['hair']>[] = [auto(), { value: 'short', label: 'ショート' }, { value: 'medium', label: 'ミディアム' }, { value: 'long', label: 'ロング' }];
-const EYES: Choice<SpecAnswers['eyes']>[] = [auto(), { value: 'classic', label: 'ふつう' }, { value: 'lashes', label: 'ぱっちり' }, { value: 'sharp', label: 'つり目' }];
+const EYES: Choice<SpecAnswers['eyes']>[] = [auto(), { value: 'classic', label: 'ふつう' }, { value: 'lashes', label: 'ぱっちり' }, { value: 'sharp', label: 'つり目' }, { value: 'kawaii', label: 'ちびかわ' }];
+const ACCESSORY_LABELS: Record<Accessory, string> = { hat: '帽子', headband: 'カチューシャ', ribbon: 'リボン', glasses: 'メガネ', earrings: 'イヤリング', scarf: 'マフラー', gloves: '手袋' };
+const ACCESSORY_CHOICES = ACCESSORIES.map(value => ({ value, label: ACCESSORY_LABELS[value] }));
+// 帽子は、カチューシャ・リボンと一緒に付けられない (頭の上で重なる)
+const accessoryConflicts = (item: Accessory, selected: Accessory[]) =>
+  item === 'hat' ? selected.includes('headband') || selected.includes('ribbon') : (item === 'headband' || item === 'ribbon') && selected.includes('hat');
 const TOPS: Choice<SpecAnswers['top']>[] = [auto(), { value: 'tshirt', label: 'Tシャツ' }, { value: 'hoodie', label: 'パーカー' }, { value: 'jacket', label: 'ジャケット' }];
 const STRIPES: Choice<SpecAnswers['stripes']>[] = [auto(), { value: true, label: 'あり' }, { value: false, label: 'なし' }];
 const BOTTOMS: Choice<SpecAnswers['bottom']>[] = [auto(), { value: 'pants', label: 'ズボン' }, { value: 'shorts', label: 'ショートパンツ' }];
@@ -98,6 +103,12 @@ export function QuickDesignDialog({ mode, initialAnswers, initialSeed, model: in
               <h3>顔</h3>
               <Row label="肌の色"><ChoiceGroup label="肌の色" variant="swatches" choices={SKIN} value={answers.skin} onChange={v => set('skin', v)} /></Row>
               <Row label="目"><ChoiceGroup label="目" choices={EYES} value={answers.eyes} onChange={v => set('eyes', v)} /></Row>
+            </section>
+            <section className="vx-qd-section">
+              <h3>小物</h3>
+              <Row label="アクセサリー" hint="いくつでも">
+                <MultiChoiceGroup label="アクセサリー" choices={ACCESSORY_CHOICES} value={answers.accessories} onChange={v => set('accessories', v)} normalize={normalizeAccessories} conflicts={accessoryConflicts} />
+              </Row>
             </section>
             <section className="vx-qd-section">
               <h3>服</h3>

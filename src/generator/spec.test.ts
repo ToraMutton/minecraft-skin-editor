@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { randomSpec, parseSpec, RENDERER_VERSION, MOODS, HAIR_STYLES, EYE_STYLES, TOPS, BOTTOMS } from './spec';
+import { randomSpec, parseSpec, normalizeAccessories, RENDERER_VERSION, MOODS, HAIR_STYLES, EYE_STYLES, TOPS, BOTTOMS, ACCESSORIES } from './spec';
 import { OUTFITS, HAIR_COLORS, HAIR_PALETTE, EYE_COLORS, SKIN_TONES } from './palettes';
 
 const SEEDS = Array.from({ length: 400 }, (_, i) => i * 7919 + 13);
@@ -21,6 +21,8 @@ describe('randomSpec', () => {
       expect(spec.seed).toBe(seed >>> 0);
       expect(MOODS).toContain(spec.mood); expect(HAIR_STYLES).toContain(spec.hair); expect(EYE_STYLES).toContain(spec.eyes);
       expect(TOPS).toContain(spec.top); expect(BOTTOMS).toContain(spec.bottom);
+      for (const a of spec.accessories) expect(ACCESSORIES).toContain(a);
+      expect(spec.accessories, `アクセサリーは重複せず、整った並び ${seed}`).toEqual(normalizeAccessories(spec.accessories));
     }
   });
 
@@ -35,7 +37,8 @@ describe('randomSpec', () => {
       return of.filter(f).length / of.length;
     };
     expect(share('cute', s => s.bottom === 'shorts')).toBeGreaterThan(0.6);
-    expect(share('cute', s => s.eyes === 'lashes')).toBeGreaterThan(0.6);
+    expect(share('cute', s => s.eyes === 'kawaii' || s.eyes === 'lashes')).toBeGreaterThan(0.6);
+    expect(share('cute', s => s.eyes === 'kawaii')).toBeGreaterThan(0.4); // かわいい系は、ちびかわの目が一番多い
     expect(share('cool', s => s.top !== 'tshirt')).toBeGreaterThan(0.7);
     expect(share('cool', s => s.eyes === 'sharp')).toBeGreaterThan(0.6);
     expect(share('simple', s => s.top === 'tshirt')).toBeGreaterThan(0.6);
@@ -103,6 +106,9 @@ describe('parseSpec', () => {
       ['知らない雰囲気', s => ({ ...s, mood: 'scary' })],
       ['知らない髪型', s => ({ ...s, hair: 'afro' })],
       ['stripesが真偽値でない', s => ({ ...s, stripes: 'yes' })],
+      ['アクセサリーが配列でない', s => ({ ...s, accessories: 'hat' })],
+      ['知らないアクセサリー', s => ({ ...s, accessories: ['hat', 'crown'] })],
+      ['アクセサリーが無い', s => ({ ...s, accessories: undefined })],
       ['paletteが無い', s => ({ ...s, palette: undefined })],
       ['色が足りない', s => ({ ...s, palette: { ...s.palette, shoes: undefined } })],
       ['明るさが範囲外', s => ({ ...s, palette: { ...s.palette, skin: { l: 1.5, c: 0.1, h: 0 } } })],
@@ -122,7 +128,30 @@ describe('parseSpec', () => {
 
   it('余計な項目は捨てる', () => {
     const parsed = parseSpec({ ...valid(), evil: 'x', palette: { ...valid().palette, extra: 1 } })!;
-    expect(Object.keys(parsed).sort()).toEqual(['bottom', 'eyes', 'hair', 'mood', 'palette', 'rendererVersion', 'seed', 'stripes', 'top']);
+    expect(Object.keys(parsed).sort()).toEqual(['accessories', 'bottom', 'eyes', 'hair', 'mood', 'palette', 'rendererVersion', 'seed', 'stripes', 'top']);
     expect(Object.keys(parsed.palette).sort()).toEqual(['accent', 'eye', 'hair', 'inner', 'primary', 'secondary', 'shoes', 'skin']);
+  });
+});
+
+describe('アクセサリー', () => {
+  const SEEDS2 = Array.from({ length: 600 }, (_, i) => i * 104729 + 7);
+
+  it('normalizeAccessories: 重複を除き、決まった並びにする。帽子があるとカチューシャとリボンは外れる', () => {
+    expect(normalizeAccessories(['gloves', 'hat', 'hat', 'glasses'])).toEqual(['hat', 'glasses', 'gloves']);
+    expect(normalizeAccessories(['ribbon', 'hat', 'headband', 'earrings'])).toEqual(['hat', 'earrings']);
+    expect(normalizeAccessories(['ribbon', 'headband'])).toEqual(['headband', 'ribbon']);
+    expect(normalizeAccessories([])).toEqual([]);
+  });
+
+  it('おまかせでは 0〜2個。雰囲気ごとに、似合うものから選ばれる', () => {
+    const specs = SEEDS2.map(randomSpec);
+    for (const s of specs) expect(s.accessories.length).toBeLessThanOrEqual(2);
+    const count = (mood: string, f: (a: string[]) => boolean) => specs.filter(s => s.mood === mood && f(s.accessories)).length / specs.filter(s => s.mood === mood).length;
+    expect(count('cute', a => a.length > 0)).toBeGreaterThan(0.55); // かわいい系は付けることが多い
+    expect(count('simple', a => a.length === 0)).toBeGreaterThan(0.45); // シンプルは、付けないことが多い
+    expect(count('cute', a => a.includes('scarf'))).toBe(0); // かわいい系のおまかせにマフラーは出ない
+    expect(count('simple', a => a.includes('ribbon') || a.includes('headband') || a.includes('earrings') || a.includes('gloves'))).toBe(0);
+    expect(count('cool', a => a.includes('glasses'))).toBeGreaterThan(0.1);
+    for (const a of ACCESSORIES) expect(specs.some(s => s.accessories.includes(a)), a).toBe(true); // どの小物も出る
   });
 });

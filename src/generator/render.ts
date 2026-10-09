@@ -15,6 +15,7 @@ import { paintBottom } from './painters/bottom';
 import { paintTop } from './painters/top';
 import { paintFace } from './painters/face';
 import { paintHair } from './painters/hair';
+import { paintAccessories } from './painters/accessories';
 
 // 素材ごとのランプ (暗い → 明るい の5色)
 export function makeRamps(spec: SkinSpec): Record<Mat, Rgb[]> {
@@ -32,13 +33,14 @@ export function makeRamps(spec: SkinSpec): Record<Mat, Rgb[]> {
 export function buildBuffer(spec: SkinSpec, layout: SkinLayout): PaintBuffer {
   if (spec.rendererVersion !== RENDERER_VERSION) throw new Error(`描き方のバージョンが違います (設定: ${spec.rendererVersion}, 現在: ${RENDERER_VERSION})`);
   const buf = new PaintBuffer(layout);
-  // 塗る順番: 体 → ズボン・靴 → 上着 → 顔 → 髪 (下から上へ重ねる)。処理ごとに専用の乱数の流れを使う
+  // 塗る順番: 体 → ズボン・靴 → 上着 → 顔 → 髪 → アクセサリー (下から上へ重ねる)。処理ごとに専用の乱数の流れを使う
   const ctx = (stream: string) => ({ buf, spec, rng: createRng(spec.seed, stream) });
   paintBody(ctx('body'));
   paintBottom(ctx('bottom'));
   paintTop(ctx('top'));
   paintFace(ctx('face'));
   paintHair(ctx('hair'));
+  paintAccessories(ctx('accessories'));
   return buf;
 }
 

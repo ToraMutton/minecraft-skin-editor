@@ -1,4 +1,5 @@
 // 顔 (頭の正面の 8×8)
+// 目は4種類: ふつう / ぱっちり(まつ毛) / つり目 / ちびかわ(2×2を顔の下寄りに)
 // 目は白目と黒目だけでなく、まつ毛・ハイライト・眉で表情を出す。光は左上から当たるので、ハイライトは両目とも同じ側に置く
 import { paint } from '../buffer';
 import type { PaintContext } from './util';
@@ -21,6 +22,16 @@ export function paintFace({ buf, spec }: PaintContext) {
     }
     f.set(4, 5, paint('skin', -1)); // 鼻の影 (光は左から)
     f.set(3, 6, lip(-2)); f.set(4, 6, lip(-2));
+  } else if (spec.eyes === 'kawaii') {
+    // ちびかわいい目: 2×2の大きな目を、顔の下寄り(5〜6行目)に置く。おでこが広くなって、幼く見える
+    //   2×2の中: 左上にハイライト(白)、上の段は上まぶたの影で少し暗く、下の段は明るく澄ませる。光は左上からなので、ハイライトは両目とも左上
+    for (const left of [1, 5]) {
+      f.set(left, 5, paint('white', 0, true)); f.set(left + 1, 5, iris(-1));
+      f.set(left, 6, iris()); f.set(left + 1, 6, iris(1));
+    }
+    f.set(1, 4, lash); f.set(6, 4, lash); // 外側のまつ毛 (目尻)
+    f.set(0, 6, paint('blush', 0, true)); f.set(7, 6, paint('blush', 0, true)); // ほっぺ
+    f.set(3, 7, lip(-1)); f.set(4, 7, lip(-1)); // 小さな口 (あごの行)
   } else if (spec.eyes === 'lashes') {
     // 大きな目 (かわいい系): まつ毛 + 2×2の黒目 + ハイライト + ほっぺ
     for (const { outer, inner } of EYES) {

@@ -103,27 +103,61 @@ export function paintHair({ buf, spec, rng }: PaintContext) {
   const part = int(rng, 2, 5); // 分け目の位置 (素の層と外側の層で同じ)
   paintCrown(buf.face('head', 'base', 'top'), part, hair);
 
-  // --- 外側の層: 厚みと、毛先の隙間 ---
+  // --- 外側の層: 毛先の凹凸 ---
+  // 素の層と同じ形をなぞるだけだと、のっぺりした塊になる。外側の層では、
+  //   ・前髪は、長い束(下に垂れる)と短い束(素の層が見える)を混ぜる
+  //   ・横髪は顔の側の束を長くして、顔を縁取る。後ろ髪は束ごとに毛先をずらす
+  //   ・毛先は、束の真ん中だけを残して尖らせ、束と束のあいだに切れ込み(下の層が見える)を作る
+  const lit = (strand: Strand) => Math.floor((strand.width - 1) / 2);
+  const overDepth: number[] = new Array(32).fill(0);
+  const reach = style === 'short' ? { lock: [0, 1], other: [0, 1] } : style === 'medium' ? { lock: [1, 2], other: [0, 1] } : { lock: [2, 3], other: [0, 1] };
+  const lockColumn = (c: number) => (c >= 5 && c <= 7) || (c >= 16 && c <= 18); // 顔に近い側面の列 (もみあげ)
+  strands.forEach(strand => {
+    const mid = strand.start + lit(strand);
+    const isFringe = mid >= 8 && mid < 16;
+    let extension = 0, shorten = 0;
+    if (isFringe) {
+      const longBang = chance(rng, kind === 'wispy' ? 0.7 : 0.5);
+      if (longBang) extension = 1; else shorten = chance(rng, 0.6) ? 1 : 0; // 長い束 / 短い束
+    } else {
+      const [lo, hi] = lockColumn(mid) ? reach.lock : reach.other;
+      extension = int(rng, lo, hi);
+    }
+    for (let k = 0; k < strand.width; k++) {
+      const c = strand.start + k;
+      const limit = c >= 8 && c < 16 ? 3 : 8; // 前髪の列は、どの束に含まれていても、目にかからない3行まで
+      overDepth[c] = Math.max(1, Math.min(limit, depth[c] + extension - shorten));
+    }
+  });
   strands.forEach((strand, index) => {
     const hy = 2 + (index % 3);
     for (let k = 0; k < strand.width; k++) {
       const c = strand.start + k;
-      const isFringe = c >= 8 && c < 16;
-      const d = isFringe ? depth[c] : Math.min(8, depth[c] + (chance(rng, 0.35) ? 1 : 0));
+      const d = overDepth[c];
       for (let y = 0; y < d; y++) {
-        const tip = y === d - 1 && y >= 2;
-        if (tip && chance(rng, isFringe && kind === 'wispy' ? 0.55 : 0.25)) continue; // 毛先の隙間 (下の層が見える)
+        const tip = y === d - 1 && d >= 3;
+        if (tip && strand.width >= 2 && k !== lit(strand)) continue; // 毛先は真ん中だけ: 尖って、束のあいだに切れ込みができる
         over.set(c, y, hair(hairTone(strand, k, y, d, hy)));
       }
     }
   });
   paintCrown(buf.face('head', 'over', 'top'), part, hair);
 
-  // --- 長い髪は、背中・肩にも垂らす ---
+  // --- 肩・背中にかかる髪 (体の外側の層) ---
   if (style === 'long') paintLong(buf.band('body', 'over'), rng, hair);
-  else if (style === 'medium') {
-    const back = buf.band('body', 'over');
-    for (let x = 1; x <= 6; x++) if (chance(rng, 0.7)) back.set(back.backStart + x, 0, hair(x % 2 === 0 ? 0 : -1)); // 襟足の毛先
+  else if (style === 'medium') paintFlick(buf.band('body', 'over'), rng, hair);
+}
+
+// 毛先が襟足から肩にはねる (ミディアム): 束の2列ごとに、短く尖った毛先を出す
+function paintFlick(back: BandView, rng: Rng, hair: (tone?: number) => Paint) {
+  for (let x = 1; x <= 6; x += 2) {
+    if (chance(rng, 0.3)) continue;
+    const depth = int(rng, 1, 3);
+    for (let y = 0; y < depth; y++) {
+      const tone = y === depth - 1 ? -1 : 0;
+      back.set(back.backStart + x, y, hair(tone));
+      if (y < depth - 1) back.set(back.backStart + x + 1, y, hair(x % 4 === 1 ? 0 : -1));
+    }
   }
 }
 
@@ -143,22 +177,30 @@ function paintCrown(top: FaceView, part: number, hair: (tone?: number) => Paint)
 }
 
 // 背中に垂らす髪 (体の外側の層) と、肩の前に垂れる毛束
+// 2列ずつの束で、長さを束ごとに変え、毛先は真ん中だけを尖らせる。細かい点は散らさない
 function paintLong(back: BandView, rng: Rng, hair: (tone?: number) => Paint) {
-  // 2列ずつの束にして、毛先と、束の境目の短い影、ツヤの1点だけを描く (細かい点を散らさない)
-  for (let x = 0; x < 8; x++) {
-    const strand = Math.floor(x / 2);
-    const depth = 3 + ((strand * 7 + int(rng, 0, 2)) % 3) + (x === 0 || x === 7 ? 1 : 0);
-    for (let y = 0; y < depth; y++) {
-      let tone = 0;
-      if (y === depth - 1) tone = -1;
-      else if (x % 2 === 1 && y >= 1 && y <= 2) tone = -1;
-      else if (x % 2 === 0 && y === 1) tone = 1;
-      back.set(back.backStart + x, y, hair(tone));
+  for (let strand = 0; strand < 4; strand++) {
+    const depth = 3 + int(rng, 0, 4) + (strand === 0 || strand === 3 ? 1 : 0); // 3〜8行
+    for (let k = 0; k < 2; k++) {
+      const x = strand * 2 + k;
+      for (let y = 0; y < depth; y++) {
+        const tip = y === depth - 1;
+        if (tip && k === 1) continue; // 毛先は左の列だけ (尖らせる)
+        let tone = 0;
+        if (tip) tone = -1;
+        else if (k === 1 && y >= 1 && y <= 3) tone = -1; // 束の境目 (途切れる影)
+        else if (k === 0 && y === 1) tone = 1; // ツヤ
+        back.set(back.backStart + x, y, hair(tone));
+      }
     }
   }
+  // 肩の前に垂れる毛束: 外側ほど長く、毛先は尖る
   const f = back.frontStart;
   for (const [x, length] of [[0, 5], [1, 3], [6, 3], [7, 5]] as const) {
     const depth = Math.max(2, length + int(rng, -1, 0));
-    for (let y = 0; y < depth; y++) back.set(f + x, y, hair(y === depth - 1 ? -1 : 0));
+    for (let y = 0; y < depth; y++) {
+      if (y === depth - 1 && (x === 1 || x === 6)) continue; // 内側の毛束は、先を少し短く
+      back.set(f + x, y, hair(y === depth - 1 ? -1 : (y === 1 ? 1 : 0)));
+    }
   }
 }

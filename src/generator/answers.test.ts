@@ -98,11 +98,11 @@ describe('parseAnswers / countAnswered', () => {
     expect(parseAnswers({ skin: 0, hairColor: 0, outfit: 0 })).toEqual({ skin: 0, hairColor: 0, outfit: 0 });
   });
 
-  it('答えた数を数える。質問は9つ', () => {
+  it('答えた数を数える。質問は10個 (アクセサリーを含む)', () => {
     expect(countAnswered({})).toBe(0);
     expect(countAnswered({ mood: 'cool', skin: 0, stripes: false })).toBe(3);
-    expect(ANSWER_COUNT).toBe(9);
-    expect(countAnswered({ mood: 'cute', hair: 'long', hairColor: 0, skin: 0, eyes: 'classic', top: 'tshirt', stripes: true, bottom: 'pants', outfit: 0 })).toBe(ANSWER_COUNT);
+    expect(ANSWER_COUNT).toBe(10);
+    expect(countAnswered({ mood: 'cute', hair: 'long', hairColor: 0, skin: 0, eyes: 'classic', top: 'tshirt', stripes: true, bottom: 'pants', outfit: 0, accessories: [] })).toBe(ANSWER_COUNT); // 空(付けない)も、答えの1つ
   });
 
   it('色の名前が付いている (画面で説明するため)', () => {
@@ -113,5 +113,32 @@ describe('parseAnswers / countAnswered', () => {
     // 画面では、髪の色・肌の色・服の配色を名前で選ぶので、名前が重ならないようにする (読み上げ・テストで区別できるように)
     const all = [...SKIN_NAMES, ...HAIR_PALETTE.map(h => h.name), ...ALL_OUTFITS.map(o => o.outfit.name)];
     expect(new Set(all).size).toBe(all.length);
+  });
+});
+
+describe('アクセサリーの答え', () => {
+  it('指定した組み合わせがそのまま付く (重複は除き、並びは整う)。空なら何も付けない', () => {
+    for (const seed of SEEDS.slice(0, 40)) {
+      expect(specFromAnswers({ accessories: ['gloves', 'glasses'] }, seed).accessories).toEqual(['glasses', 'gloves']);
+      expect(specFromAnswers({ accessories: [] }, seed).accessories).toEqual([]);
+      expect(specFromAnswers({ accessories: ['hat', 'ribbon', 'headband'] }, seed).accessories).toEqual(['hat']);
+    }
+  });
+
+  it('アクセサリーの答えを変えても、他の項目は変わらない。他の項目を変えても、おまかせのアクセサリーは (雰囲気が同じなら) 変わらない', () => {
+    for (const seed of SEEDS.slice(0, 60)) {
+      const a = specFromAnswers({ mood: 'cool' }, seed), b = specFromAnswers({ mood: 'cool', accessories: ['scarf'] }, seed);
+      expect({ ...b, accessories: 0 }).toEqual({ ...a, accessories: 0 });
+      const c = specFromAnswers({ mood: 'cool', hair: 'short', eyes: 'sharp', top: 'hoodie' }, seed);
+      expect(c.accessories).toEqual(a.accessories);
+    }
+  });
+
+  it('parseAnswers: アクセサリーは、全部使える名前のときだけ残る (空の配列も残る)。整った並びになる', () => {
+    expect(parseAnswers({ accessories: ['gloves', 'hat'] })).toEqual({ accessories: ['hat', 'gloves'] });
+    expect(parseAnswers({ accessories: [] })).toEqual({ accessories: [] });
+    expect(parseAnswers({ accessories: ['hat', 'crown'] })).toEqual({});
+    expect(parseAnswers({ accessories: 'hat' })).toEqual({});
+    expect(parseAnswers({ accessories: ['hat', 5] })).toEqual({});
   });
 });

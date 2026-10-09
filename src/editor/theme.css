@@ -317,8 +317,8 @@
 }
 .vx-choice-item:hover:not(:disabled) { background: #58595c; }
 .vx-choice-item:active:not(:disabled) { transform: translateY(2px); }
-.vx-choice-item[aria-checked="true"] { background: var(--vx-green); box-shadow: inset 0 2px 0 #52a535; }
-.vx-choice-item[aria-checked="true"]:hover { background: #469b2e; }
+.vx-choice-item[aria-checked="true"], .vx-choice-item[aria-pressed="true"] { background: var(--vx-green); box-shadow: inset 0 2px 0 #52a535; }
+.vx-choice-item[aria-checked="true"]:hover, .vx-choice-item[aria-pressed="true"]:hover { background: #469b2e; }
 .vx-choice-item:focus-visible { outline: 2px solid var(--vx-text); outline-offset: 2px; }
 .vx-choice-item:disabled { opacity: 0.4; cursor: default; }
 /* 色見本: 色の四角。選ばれているものは白い枠で囲む */
