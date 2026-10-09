@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { randomSpec, parseSpec, normalizeAccessories, RENDERER_VERSION, MOODS, HAIR_STYLES, EYE_STYLES, TOPS, BOTTOMS, ACCESSORIES } from './spec';
-import { OUTFITS, HAIR_COLORS, HAIR_PALETTE, EYE_COLORS, SKIN_TONES } from './palettes';
+import { randomSpec, specFromAnswers, parseSpec, normalizeAccessories, RENDERER_VERSION, MOODS, HAIR_STYLES, EYE_STYLES, TOPS, BOTTOMS, ACCESSORIES } from './spec';
+import { OUTFITS, HAIR_COLORS, HAIR_PALETTE, EYE_COLORS, SKIN_TONES, TOP_COLORS, BOTTOM_COLORS, ACCESSORY_COLORS } from './palettes';
 
 const SEEDS = Array.from({ length: 400 }, (_, i) => i * 7919 + 13);
 
@@ -37,10 +37,11 @@ describe('randomSpec', () => {
       return of.filter(f).length / of.length;
     };
     expect(share('cute', s => s.bottom === 'shorts')).toBeGreaterThan(0.6);
-    expect(share('cute', s => s.eyes === 'kawaii' || s.eyes === 'lashes')).toBeGreaterThan(0.6);
-    expect(share('cute', s => s.eyes === 'kawaii')).toBeGreaterThan(0.4); // かわいい系は、ちびかわの目が一番多い
+    expect(share('cute', s => ['kawaii', 'vertical', 'lashes'].includes(s.eyes))).toBeGreaterThan(0.6);
+    expect(share('cute', s => s.eyes === 'kawaii')).toBeGreaterThan(0.3); // かわいい系は、四角い大きな目が一番多い
+    expect(share('cute', s => ['twintails', 'bun', 'ponytail'].includes(s.hair))).toBeGreaterThan(0.3); // かわいい系は、結んだ髪型も多い
     expect(share('cool', s => s.top !== 'tshirt')).toBeGreaterThan(0.7);
-    expect(share('cool', s => s.eyes === 'sharp')).toBeGreaterThan(0.6);
+    expect(share('cool', s => s.eyes === 'sharp')).toBeGreaterThan(0.45);
     expect(share('simple', s => s.top === 'tshirt')).toBeGreaterThan(0.6);
     // 3つの雰囲気が、どれもそれなりに出る
     for (const mood of MOODS) expect(specs.filter(s => s.mood === mood).length).toBeGreaterThan(80);
@@ -62,6 +63,8 @@ describe('配色の読みやすさ (どの seed でも)', () => {
       expect(dl(p.shoes, p.secondary), `靴とズボン ${seed}`).toBeGreaterThan(0.08);
       expect(dl(p.accent, p.primary), `アクセントと上着 ${seed}`).toBeGreaterThan(0.08);
       expect(dl(p.inner, p.primary), `中のシャツと上着 ${seed}`).toBeGreaterThan(0.08);
+      // 小物の色は、肌・髪・上着のどれとも、はっきり離れている (リボンが髪に、手袋が肌に溶けない)
+      for (const [name, c] of [['肌', p.skin], ['髪', p.hair], ['上着', p.primary]] as const) expect(dl(p.accessory, c), `小物と${name} ${seed}`).toBeGreaterThan(0.08);
     }
   });
 
@@ -79,7 +82,8 @@ describe('配色の読みやすさ (どの seed でも)', () => {
 
   it('色は、真っ黒・真っ白に近づけない (明るさ 0.17〜0.97)', () => {
     const all = [...SKIN_TONES, ...Object.values(HAIR_COLORS).flat(), ...Object.values(EYE_COLORS).flat(), ...HAIR_PALETTE.map(h => h.color),
-      ...Object.values(OUTFITS).flat().flatMap(o => [o.primary, o.inner, o.accent, o.secondary, o.shoes])];
+      ...Object.values(OUTFITS).flat().flatMap(o => [o.primary, o.inner, o.accent, o.secondary, o.shoes]),
+      ...TOP_COLORS.map(c => c.color), ...BOTTOM_COLORS.map(c => c.color), ...ACCESSORY_COLORS.map(c => c.color)];
     for (const c of all) { expect(c.l).toBeGreaterThanOrEqual(0.17); expect(c.l).toBeLessThanOrEqual(0.97); }
   });
 });
@@ -109,6 +113,8 @@ describe('parseSpec', () => {
       ['アクセサリーが配列でない', s => ({ ...s, accessories: 'hat' })],
       ['知らないアクセサリー', s => ({ ...s, accessories: ['hat', 'crown'] })],
       ['アクセサリーが無い', s => ({ ...s, accessories: undefined })],
+      ['口が真偽値でない', s => ({ ...s, mouth: 'yes' })],
+      ['小物の色が無い', s => ({ ...s, palette: { ...s.palette, accessory: undefined } })],
       ['paletteが無い', s => ({ ...s, palette: undefined })],
       ['色が足りない', s => ({ ...s, palette: { ...s.palette, shoes: undefined } })],
       ['明るさが範囲外', s => ({ ...s, palette: { ...s.palette, skin: { l: 1.5, c: 0.1, h: 0 } } })],
@@ -128,8 +134,8 @@ describe('parseSpec', () => {
 
   it('余計な項目は捨てる', () => {
     const parsed = parseSpec({ ...valid(), evil: 'x', palette: { ...valid().palette, extra: 1 } })!;
-    expect(Object.keys(parsed).sort()).toEqual(['accessories', 'bottom', 'eyes', 'hair', 'mood', 'palette', 'rendererVersion', 'seed', 'stripes', 'top']);
-    expect(Object.keys(parsed.palette).sort()).toEqual(['accent', 'eye', 'hair', 'inner', 'primary', 'secondary', 'shoes', 'skin']);
+    expect(Object.keys(parsed).sort()).toEqual(['accessories', 'bottom', 'eyes', 'hair', 'mood', 'mouth', 'palette', 'rendererVersion', 'seed', 'stripes', 'top']);
+    expect(Object.keys(parsed.palette).sort()).toEqual(['accent', 'accessory', 'eye', 'hair', 'inner', 'primary', 'secondary', 'shoes', 'skin']);
   });
 });
 
@@ -153,5 +159,36 @@ describe('アクセサリー', () => {
     expect(count('simple', a => a.includes('ribbon') || a.includes('headband') || a.includes('earrings') || a.includes('gloves'))).toBe(0);
     expect(count('cool', a => a.includes('glasses'))).toBeGreaterThan(0.1);
     for (const a of ACCESSORIES) expect(specs.some(s => s.accessories.includes(a)), a).toBe(true); // どの小物も出る
+  });
+});
+
+describe('口と目の組み合わせ・色', () => {
+  const SEEDS3 = Array.from({ length: 800 }, (_, i) => i * 6007 + 11);
+  it('目だけで表情を作る目 (大きな目・縦目・横目) は口なしが多く、他の目は口ありが多い', () => {
+    const specs = SEEDS3.map(randomSpec);
+    const low = specs.filter(s => ['kawaii', 'vertical', 'sideways'].includes(s.eyes)), other = specs.filter(s => !['kawaii', 'vertical', 'sideways'].includes(s.eyes));
+    expect(low.filter(s => !s.mouth).length / low.length).toBeGreaterThan(0.55);
+    expect(other.filter(s => s.mouth).length / other.length).toBeGreaterThan(0.75);
+  });
+
+  it('上着の色・ズボンの色を選ぶと、そのとおりになる。選ばなかった色 (中のシャツ・アクセント・靴) は、読める明るさの差が保たれる', () => {
+    for (let i = 0; i < TOP_COLORS.length; i++) {
+      for (const seed of SEEDS3.slice(0, 20)) {
+        const spec = specFromAnswers({ topColor: i, bottomColor: i % BOTTOM_COLORS.length }, seed);
+        expect(spec.palette.primary).toEqual(TOP_COLORS[i].color);
+        expect(spec.palette.secondary).toEqual(BOTTOM_COLORS[i % BOTTOM_COLORS.length].color);
+        expect(Math.abs(spec.palette.inner.l - spec.palette.primary.l), `シャツ ${TOP_COLORS[i].name} ${seed}`).toBeGreaterThanOrEqual(0.09);
+        expect(Math.abs(spec.palette.accent.l - spec.palette.primary.l), `アクセント ${TOP_COLORS[i].name} ${seed}`).toBeGreaterThanOrEqual(0.09);
+        expect(Math.abs(spec.palette.shoes.l - spec.palette.secondary.l), `靴 ${seed}`).toBeGreaterThanOrEqual(0.09);
+      }
+    }
+  });
+
+  it('小物の色を選ぶと、そのとおりになる (どの seed でも)', () => {
+    for (let i = 0; i < ACCESSORY_COLORS.length; i++) expect(specFromAnswers({ accessoryColor: i }, 5).palette.accessory).toEqual(ACCESSORY_COLORS[i].color);
+  });
+
+  it('色の名前は、それぞれの選択肢の中で重ならない', () => {
+    for (const list of [TOP_COLORS, BOTTOM_COLORS, ACCESSORY_COLORS, HAIR_PALETTE]) expect(new Set(list.map(c => c.name)).size).toBe(list.length);
   });
 });

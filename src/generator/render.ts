@@ -21,7 +21,7 @@ import { paintAccessories } from './painters/accessories';
 export function makeRamps(spec: SkinSpec): Record<Mat, Rgb[]> {
   const p = spec.palette;
   const base = {
-    skin: p.skin, hair: p.hair, top: p.primary, inner: p.inner, bottom: p.secondary, shoes: p.shoes, accent: p.accent, eye: p.eye,
+    skin: p.skin, hair: p.hair, top: p.primary, inner: p.inner, bottom: p.secondary, shoes: p.shoes, accent: p.accent, accessory: p.accessory, eye: p.eye,
     white: { l: 0.95, c: 0.008, h: p.skin.h }, // 白目: 真っ白でなく、肌となじむオフホワイト
     dark: { l: 0.3, c: 0.035, h: 290 }, // まつ毛: 真っ黒でなく、青紫がかった濃い色
     blush: { l: 0.74, c: 0.09, h: 15 }, // ほっぺ・唇

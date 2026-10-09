@@ -3,15 +3,16 @@
 import type { Oklch } from './color';
 import { createRng, pick, chance, int, shuffle } from './prng';
 import type { Rng } from './prng';
-import { OUTFITS, ALL_OUTFITS, HAIR_PALETTE, SKIN_TONES, EYE_COLORS, pickHair, jitter } from './palettes';
+import { OUTFITS, HAIR_PALETTE, SKIN_TONES, TOP_COLORS, BOTTOM_COLORS, ACCESSORY_COLORS, EYE_COLORS, pickHair, jitter, gapL, innerFor, accentFor, shoesFor, pickAccessoryColor } from './palettes';
 import type { Mood } from './palettes';
 
 // 描き方のバージョン。絵の描き方を変えたら増やす (同じ設定でも、バージョンが違えば違う絵になるため、設定に記録しておく)
-export const RENDERER_VERSION = 2;
+export const RENDERER_VERSION = 3;
 
 export const MOODS = ['cute', 'cool', 'simple'] as const;
-export const HAIR_STYLES = ['short', 'medium', 'long'] as const;
-export const EYE_STYLES = ['classic', 'lashes', 'sharp', 'kawaii'] as const; // kawaii: 2×2の大きな目を顔の下寄りに置く、ちびかわいいスタイル
+export const HAIR_STYLES = ['short', 'medium', 'long', 'ponytail', 'twintails', 'bun'] as const; // ponytail: ポニーテール / twintails: ツインテール / bun: お団子
+export const EYE_STYLES = ['classic', 'lashes', 'sharp', 'kawaii', 'vertical', 'sideways'] as const;
+// kawaii: 四角い大きな目 (2×2を顔の下寄りに。口なしが似合う) / vertical: 縦目 (1×3で、下ほど濃い) / sideways: 横目 (白と黒の2ピクセル)
 // アクセサリー。頭の上のもの(帽子・カチューシャ・リボン)から、顔・首・手の順に並べる (描く順番もこの順)
 export const ACCESSORIES = ['hat', 'headband', 'ribbon', 'glasses', 'earrings', 'scarf', 'gloves'] as const;
 export const TOPS = ['tshirt', 'hoodie', 'jacket'] as const;
@@ -34,6 +35,7 @@ export function normalizeAccessories(list: readonly Accessory[]): Accessory[] {
 export interface SkinPalette {
   skin: Oklch; hair: Oklch; eye: Oklch;
   primary: Oklch; inner: Oklch; accent: Oklch; secondary: Oklch; shoes: Oklch;
+  accessory: Oklch; // アクセサリーの色
 }
 
 export interface SkinSpec {
@@ -42,6 +44,7 @@ export interface SkinSpec {
   mood: Mood;
   hair: HairStyle;
   eyes: EyeStyle;
+  mouth: boolean; // 口を描くか (大きな目だけの顔は、口なしが多い)
   top: TopStyle;
   bottom: BottomStyle;
   stripes: boolean; // Tシャツの縞
@@ -49,7 +52,7 @@ export interface SkinSpec {
   palette: SkinPalette;
 }
 
-const PALETTE_KEYS = ['skin', 'hair', 'eye', 'primary', 'inner', 'accent', 'secondary', 'shoes'] as const;
+const PALETTE_KEYS = ['skin', 'hair', 'eye', 'primary', 'inner', 'accent', 'secondary', 'shoes', 'accessory'] as const;
 
 // --- 質問への答え ---
 // どの項目も省略できる (省略 = おまかせ)。色は、palettes の並びの番号で答える
@@ -59,14 +62,17 @@ export interface SpecAnswers {
   hairColor?: number; // HAIR_PALETTE の番号
   skin?: number; // SKIN_TONES の番号
   eyes?: EyeStyle;
+  mouth?: boolean; // 省略 = おまかせ / true = 口あり / false = 口なし
   top?: TopStyle;
+  topColor?: number; // TOP_COLORS の番号
   stripes?: boolean; // Tシャツのときだけ効く
   bottom?: BottomStyle;
-  outfit?: number; // ALL_OUTFITS の番号
+  bottomColor?: number; // BOTTOM_COLORS の番号
   accessories?: Accessory[]; // 省略 = おまかせ / 空 = 付けない / 並び = その組み合わせ
+  accessoryColor?: number; // ACCESSORY_COLORS の番号
 }
 
-export const ANSWER_COUNT = 10; // 質問の数
+export const ANSWER_COUNT = 13; // 質問の数
 
 export function countAnswered(answers: SpecAnswers): number {
   return Object.values(answers).filter(v => v !== undefined).length;
@@ -77,6 +83,9 @@ export function countAnswered(answers: SpecAnswers): number {
 //     (髪型を変えたら服まで変わった、ということが起きない)。ただし「雰囲気」だけは、他の項目の選ばれやすさを決めるので、変えると影響する
 //   ・雰囲気ごとに選ばれやすいものを変える = 簡単なルールエンジン
 //   ・答えで指定した色はそのまま使い、おまかせで選んだ色だけ少しゆらす
+//   ・上着の色・ズボンの色・小物の色は、別々に選べる。選んだ色と、組み合わせる色 (中のシャツ・アクセント・靴) が近くなりすぎたら、読める色に直す
+const LOW_EYES: readonly EyeStyle[] = ['kawaii', 'vertical', 'sideways']; // 目だけで表情を作る(下寄りの)目は、口なしが似合う
+
 export function specFromAnswers(answers: SpecAnswers, seed: number): SkinSpec {
   const s = seed >>> 0;
   const stream = (name: string): Rng => createRng(s, `spec:${name}`);
@@ -91,36 +100,43 @@ export function specFromAnswers(answers: SpecAnswers, seed: number): SkinSpec {
   })();
   const hair: HairStyle = answers.hair ?? (() => {
     const rng = stream('hair');
-    return mood === 'cute' ? prefer(rng, ['medium', 'long'], HAIR_STYLES) : mood === 'cool' ? prefer(rng, ['short', 'medium'], HAIR_STYLES) : pick(rng, HAIR_STYLES);
+    return mood === 'cute' ? prefer(rng, ['twintails', 'bun', 'medium', 'long', 'ponytail'], HAIR_STYLES)
+      : mood === 'cool' ? prefer(rng, ['short', 'medium', 'ponytail'], HAIR_STYLES) : pick(rng, HAIR_STYLES);
   })();
   const eyes: EyeStyle = answers.eyes ?? (() => {
     const rng = stream('eyes');
-    return mood === 'cute' ? prefer(rng, ['kawaii', 'kawaii', 'lashes'], EYE_STYLES) : mood === 'cool' ? prefer(rng, ['sharp'], EYE_STYLES) : prefer(rng, ['classic'], EYE_STYLES);
+    return mood === 'cute' ? prefer(rng, ['kawaii', 'kawaii', 'vertical', 'lashes'], EYE_STYLES)
+      : mood === 'cool' ? prefer(rng, ['sharp', 'sharp', 'classic'], EYE_STYLES) : prefer(rng, ['classic', 'classic', 'sideways'], EYE_STYLES);
   })();
+  const mouth = answers.mouth ?? chance(stream('mouth'), LOW_EYES.includes(eyes) ? 0.3 : 0.9);
   const bottom: BottomStyle = answers.bottom ?? (mood === 'cute' ? prefer(stream('bottom'), ['shorts'], BOTTOMS) : prefer(stream('bottom'), ['pants'], BOTTOMS));
   const stripes = top === 'tshirt' && (answers.stripes ?? chance(stream('stripes'), 0.5));
   const accessories = normalizeAccessories(answers.accessories ?? randomAccessories(mood, stream('accessories')));
 
-  // 服の配色: 指定があればそれ、無ければ雰囲気の配色から選んでゆらす
-  const chosenOutfit = answers.outfit === undefined ? undefined : ALL_OUTFITS[answers.outfit]?.outfit;
-  const outfit = chosenOutfit ?? pick(stream('outfit'), OUTFITS[mood]);
-  const j = (name: string, color: Oklch, lightness?: number, hue?: number) => (chosenOutfit ? color : jitter(stream(`jitter:${name}`), color, lightness, hue));
+  // 服の色: おまかせなら、雰囲気の配色から選んでゆらす。上着・ズボンの色を選んだら、それに差し替える
+  const curated = pick(stream('outfit'), OUTFITS[mood]);
+  const chosenTop = answers.topColor === undefined ? undefined : TOP_COLORS[answers.topColor]?.color;
+  const chosenBottom = answers.bottomColor === undefined ? undefined : BOTTOM_COLORS[answers.bottomColor]?.color;
+  const primary = chosenTop ?? jitter(stream('jitter:primary'), curated.primary);
+  const secondary = chosenBottom ?? jitter(stream('jitter:secondary'), curated.secondary);
+  const readable = (color: Oklch, against: Oklch, fix: (a: Oklch) => Oklch) => (gapL(color, against) >= 0.1 ? color : fix(against));
+  const inner = readable(jitter(stream('jitter:inner'), curated.inner, 0.01, 4), primary, innerFor);
+  const accent = readable(jitter(stream('jitter:accent'), curated.accent, 0.01, 4), primary, accentFor);
+  const shoes = readable(jitter(stream('jitter:shoes'), curated.shoes, 0.01, 4), secondary, shoesFor);
 
   const chosenHair = answers.hairColor === undefined ? undefined : HAIR_PALETTE[answers.hairColor]?.color;
+  const hairColor = chosenHair ?? jitter(stream('jitter:hair'), pickHair(stream('hairColor'), mood, skin));
+  // 小物の色: 選べる。おまかせなら、肌・髪・上着のどれとも明るさが離れた色から選ぶ (リボンが髪に、手袋が肌に溶けない)
+  const chosenAccessory = answers.accessoryColor === undefined ? undefined : ACCESSORY_COLORS[answers.accessoryColor]?.color;
+  const accessory = chosenAccessory ?? pickAccessoryColor(stream('accessoryColor'), [skin, hairColor, primary]);
 
   return {
     rendererVersion: RENDERER_VERSION,
     seed: s,
-    mood, hair, eyes, top, bottom, stripes, accessories,
+    mood, hair, eyes, mouth, top, bottom, stripes, accessories,
     palette: {
-      skin,
-      hair: chosenHair ?? jitter(stream('jitter:hair'), pickHair(stream('hairColor'), mood, skin)),
-      eye: jitter(stream('jitter:eye'), pick(stream('eyeColor'), EYE_COLORS[mood]), 0.02, 8),
-      primary: j('primary', outfit.primary),
-      inner: j('inner', outfit.inner, 0.01, 4),
-      accent: j('accent', outfit.accent, 0.01, 4),
-      secondary: j('secondary', outfit.secondary),
-      shoes: j('shoes', outfit.shoes, 0.01, 4),
+      skin, hair: hairColor, eye: jitter(stream('jitter:eye'), pick(stream('eyeColor'), EYE_COLORS[mood]), 0.02, 8),
+      primary, inner, accent, secondary, shoes, accessory,
     },
   };
 }
@@ -154,11 +170,10 @@ export function parseAnswers(value: unknown): SpecAnswers {
   if (Array.isArray(v.accessories) && v.accessories.every(a => isOneOf(ACCESSORIES, a))) out.accessories = normalizeAccessories(v.accessories as Accessory[]);
   if (isOneOf(BOTTOMS, v.bottom)) out.bottom = v.bottom;
   if (typeof v.stripes === 'boolean') out.stripes = v.stripes;
+  if (typeof v.mouth === 'boolean') out.mouth = v.mouth;
   const index = (x: unknown, length: number) => (typeof x === 'number' && Number.isInteger(x) && x >= 0 && x < length ? x : undefined);
-  const [hairColor, skin, outfit] = [index(v.hairColor, HAIR_PALETTE.length), index(v.skin, SKIN_TONES.length), index(v.outfit, ALL_OUTFITS.length)];
-  if (hairColor !== undefined) out.hairColor = hairColor;
-  if (skin !== undefined) out.skin = skin;
-  if (outfit !== undefined) out.outfit = outfit;
+  const colors = { hairColor: index(v.hairColor, HAIR_PALETTE.length), skin: index(v.skin, SKIN_TONES.length), topColor: index(v.topColor, TOP_COLORS.length), bottomColor: index(v.bottomColor, BOTTOM_COLORS.length), accessoryColor: index(v.accessoryColor, ACCESSORY_COLORS.length) };
+  for (const [key, value] of Object.entries(colors)) if (value !== undefined) out[key as keyof typeof colors] = value;
   return out;
 }
 
@@ -182,7 +197,7 @@ export function parseSpec(value: unknown): SkinSpec | null {
   if (v.rendererVersion !== RENDERER_VERSION) return null;
   if (!isNumber(v.seed) || !Number.isInteger(v.seed) || v.seed < 0 || v.seed > 0xffffffff) return null;
   if (!isOneOf(MOODS, v.mood) || !isOneOf(HAIR_STYLES, v.hair) || !isOneOf(EYE_STYLES, v.eyes) || !isOneOf(TOPS, v.top) || !isOneOf(BOTTOMS, v.bottom)) return null;
-  if (typeof v.stripes !== 'boolean') return null;
+  if (typeof v.stripes !== 'boolean' || typeof v.mouth !== 'boolean') return null;
   if (!Array.isArray(v.accessories) || !v.accessories.every(a => isOneOf(ACCESSORIES, a))) return null;
   if (typeof v.palette !== 'object' || v.palette === null) return null;
   const raw = v.palette as Record<string, unknown>;
@@ -193,7 +208,7 @@ export function parseSpec(value: unknown): SkinSpec | null {
     palette[key] = color;
   }
   return {
-    rendererVersion: RENDERER_VERSION, seed: v.seed, mood: v.mood, hair: v.hair, eyes: v.eyes, top: v.top, bottom: v.bottom,
+    rendererVersion: RENDERER_VERSION, seed: v.seed, mood: v.mood, hair: v.hair, eyes: v.eyes, mouth: v.mouth, top: v.top, bottom: v.bottom,
     stripes: v.stripes, accessories: normalizeAccessories(v.accessories as Accessory[]), palette: palette as SkinPalette,
   };
 }

@@ -854,9 +854,8 @@ test.describe('Slim モデルの作品', () => {
     await page.getByRole('menuitem', { name: /素体から/ }).click();
     // 素体は、腕の展開図に合わせて塗られる。右腕の背面は Slim なら x=51〜53 (Classic は 52〜55 なので、x=55 が塗られていない)
     const has = (pixels: [number, number][], x: number, y: number) => pixels.some(([px, py]) => px === x && py === y);
-    const pixels = await paintedPixels(page);
-    expect(has(pixels, 53, 25)).toBe(true);
-    expect(has(pixels, 55, 25)).toBe(false);
+    await expect.poll(async () => has(await paintedPixels(page), 53, 25)).toBe(true); // 新しい作品の絵が描かれるまで待つ (負荷が高いと、押した直後はまだ前の作品のまま)
+    expect(has(await paintedPixels(page), 55, 25)).toBe(false);
     expect(await currentModelLabel(page)).toBe('Slim');
   });
 
@@ -1104,13 +1103,13 @@ test.describe('Quick Design', () => {
   test('開くと、質問がすべて「おまかせ」になっていて、プレビュー(正面・背面)が出ている。「作る」にフォーカスがある', async ({ page }) => {
     await openWithSkin(page);
     await openDialog(page);
-    for (const g of ['雰囲気', '髪型', '髪の色', '肌の色', '目', '上着', '縞', '下', '服の配色']) {
+    for (const g of ['雰囲気', '髪型', '髪の色', '肌の色', '目', '口', '上着', '上着の色', '縞', '下', '下の色', '小物の色']) {
       await expect(isOn(page, g, 'おまかせ'), g).toHaveAttribute('aria-checked', 'true');
     }
     await expect(isOn(page, 'モデル', 'Classic (腕4px)')).toHaveAttribute('aria-checked', 'true');
     await expect(accessory(page, 'おまかせ')).toHaveAttribute('aria-pressed', 'true'); // アクセサリーも、おまかせ
     await expect(dialog(page).getByRole('button', { name: /この内容で作る/ })).toBeFocused();
-    await expect(dialog(page)).toContainText('指定 0・おまかせ 10');
+    await expect(dialog(page)).toContainText('指定 0・おまかせ 13');
     const canvases = dialog(page).locator('canvas');
     await expect(canvases).toHaveCount(2);
     for (const i of [0, 1]) {
@@ -1138,12 +1137,13 @@ test.describe('Quick Design', () => {
     await expect(panel(page)).toHaveCount(0);
   });
 
-  test('選んだ答えが絵に反映される: Tシャツ+ショートは外側の層が空、ジャケットは外側の層が使われる', async ({ page }) => {
+  test('選んだ答えが絵に反映される: Tシャツ+ショートは外側の層が少し (襟・裾・ベルト)、ジャケットは外側の層をたくさん使う', async ({ page }) => {
     await openWithSkin(page);
     await createWith(page, [['上着', 'Tシャツ'], ['髪型', 'ショート']]);
-    expect(await bodyOverlay(page)).toBe(0);
+    const tee = await bodyOverlay(page);
+    expect(tee).toBeGreaterThan(40); expect(tee).toBeLessThan(130); // 厚み (裾・ベルト・襟) だけ。おまかせの小物 (マフラーなど) が付くこともある
     await createWith(page, [['上着', 'ジャケット'], ['髪型', 'ショート']]);
-    expect(await bodyOverlay(page)).toBeGreaterThan(40);
+    expect(await bodyOverlay(page)).toBeGreaterThan(200);
   });
 
   test('モデルを選べる: Slim で作ると、作品も Slim になる。次に開いたときの「新規」も Slim', async ({ page }) => {
@@ -1195,7 +1195,7 @@ test.describe('Quick Design', () => {
     const [a, b] = [palette(before), palette(afterHair)];
     const common = [...a].filter(c => b.has(c)).length;
     expect(common / Math.max(a.size, b.size)).toBeGreaterThan(0.5);
-    await expect(dialog(page)).toContainText('指定 3・おまかせ 7');
+    await expect(dialog(page)).toContainText('指定 3・おまかせ 10');
   });
 
   test('「全部おまかせに戻す」で、選んだ項目が全部おまかせに戻る (何も選んでいなければ押せない)', async ({ page }) => {
@@ -1203,11 +1203,11 @@ test.describe('Quick Design', () => {
     await openDialog(page);
     const reset = dialog(page).getByRole('button', { name: /全部おまかせに戻す/ });
     await expect(reset).toBeDisabled();
-    await choose(page, '雰囲気', 'クール'); await choose(page, '髪の色', 'ティール'); await choose(page, '服の配色', 'サイバー');
+    await choose(page, '雰囲気', 'クール'); await choose(page, '髪の色', 'ティール'); await choose(page, '上着の色', 'レッド'); await choose(page, '下の色', 'デニム'); await choose(page, '小物の色', 'ネオンピンク');
     await accessory(page, 'メガネ').click();
     await expect(isOn(page, '髪の色', 'ティール')).toHaveAttribute('aria-checked', 'true');
     await reset.click();
-    for (const g of ['雰囲気', '髪の色', '服の配色']) await expect(isOn(page, g, 'おまかせ')).toHaveAttribute('aria-checked', 'true');
+    for (const g of ['雰囲気', '髪の色', '上着の色', '下の色', '小物の色']) await expect(isOn(page, g, 'おまかせ')).toHaveAttribute('aria-checked', 'true');
     await expect(accessory(page, 'おまかせ')).toHaveAttribute('aria-pressed', 'true');
     await expect(accessory(page, 'メガネ')).toHaveAttribute('aria-pressed', 'false');
     await expect(reset).toBeDisabled();
@@ -1232,7 +1232,7 @@ test.describe('Quick Design', () => {
     await expect(isOn(page, '髪型', 'ショート')).toBeFocused();
     await expect(isOn(page, '髪型', 'ショート')).toHaveAttribute('aria-checked', 'true');
     await page.keyboard.press('End');
-    await expect(isOn(page, '髪型', 'ロング')).toHaveAttribute('aria-checked', 'true');
+    await expect(isOn(page, '髪型', 'お団子')).toHaveAttribute('aria-checked', 'true'); // 最後の選択肢
     await page.keyboard.press('ArrowRight'); // 端から先頭へ回る
     await expect(isOn(page, '髪型', 'おまかせ')).toHaveAttribute('aria-checked', 'true');
     for (let i = 0; i < 40; i++) {
@@ -1366,17 +1366,32 @@ test.describe('Quick Design', () => {
     await expect(panel(page)).toBeVisible();
   });
 
-  test('目に「ちびかわ」がある: 2×2の目が顔の下寄り(5〜6行目)に、左上にハイライトが付く', async ({ page }) => {
+  test('目の選択肢は6種類。「大きな目」は、2×2が顔の下寄り(5〜6行目)にあり、上に黒いまつ毛の帯、外側が白・内側が目の色。口なしにできる', async ({ page }) => {
     await openWithSkin(page);
-    await createWith(page, [['目', 'ちびかわ'], ['髪型', 'ショート']]);
+    await openDialog(page);
+    await expect(group(page, '目').getByRole('radio')).toHaveText(['おまかせ', 'ふつう', 'ぱっちり', 'つり目', '大きな目', '縦目', '横目']);
+    await expect(group(page, '口').getByRole('radio')).toHaveText(['おまかせ', 'あり', 'なし']);
+    await dialog(page).getByRole('button', { name: 'キャンセル' }).click();
+
+    await createWith(page, [['目', '大きな目'], ['口', 'なし'], ['髪型', 'ショート']]);
     const bright = ([r, g, b]: number[]) => r > 200 && g > 200 && b > 200;
-    // 顔 (頭の正面) は (8,8)〜(15,15)。ハイライトは各目の左上: 左目 (9,13)・右目 (13,13)
-    expect(bright(await pixelColor(page, 8 + 1, 8 + 5)), '左目のハイライト').toBe(true);
-    expect(bright(await pixelColor(page, 8 + 5, 8 + 5)), '右目のハイライト').toBe(true);
     const dark = ([r, g, b]: number[]) => r + g + b < 360;
-    expect(dark(await pixelColor(page, 8 + 1, 8 + 4)), '目尻のまつ毛').toBe(true);
-    // おでこ(上から4行)は、目の部品が無く、髪か肌 (明るい白目・ハイライトは無い)
-    for (let x = 0; x < 8; x++) expect(bright(await pixelColor(page, 8 + x, 8 + 3)), `おでこ ${x}`).toBe(false);
+    // 顔 (頭の正面) は (8,8)〜(15,15)。外側の白は (9,14)・(14,14)、まつ毛の帯は4行目 (9,12)、目尻の縁は (8,13)・(15,13)
+    expect(bright(await pixelColor(page, 8 + 1, 8 + 6)), '左目の白').toBe(true);
+    expect(bright(await pixelColor(page, 8 + 6, 8 + 6)), '右目の白').toBe(true);
+    expect(dark(await pixelColor(page, 8 + 1, 8 + 4)), 'まつ毛の帯').toBe(true);
+    expect(dark(await pixelColor(page, 8 + 0, 8 + 5)), '目尻の縁').toBe(true);
+    for (let x = 0; x < 8; x++) expect(bright(await pixelColor(page, 8 + x, 8 + 3)), `おでこ ${x}`).toBe(false); // おでこに目の部品は無い
+    // 口なし: あごの行の中央2ピクセルは、同じ色 (口の色が付かない)
+    expect(await pixelColor(page, 8 + 3, 8 + 7)).toEqual(await pixelColor(page, 8 + 4, 8 + 7));
+  });
+
+  test('口を「あり」にすると、目の下に小さな口 (あごの行の中央2ピクセル)が付く。他の目の種類でも選べる', async ({ page }) => {
+    await openWithSkin(page);
+    await createWith(page, [['目', '大きな目'], ['口', 'あり'], ['髪型', 'ショート']]);
+    const a = await pixelColor(page, 8 + 3, 8 + 7), b = await pixelColor(page, 8 + 2, 8 + 7);
+    expect(a).not.toEqual(b); // 口の色 (ピンク寄り) が付いている
+    expect(a[0]).toBeGreaterThan(a[2]); // 赤みがある
   });
 
   test('アクセサリー: おまかせ / なし / 複数選択。選ぶとプレビューが変わり、外すと元に戻る。帽子とカチューシャ・リボンは一緒に付けられない', async ({ page }) => {
@@ -1388,7 +1403,7 @@ test.describe('Quick Design', () => {
     const none = await preview(page);
     await expect(accessory(page, 'なし')).toHaveAttribute('aria-pressed', 'true');
     await expect(accessory(page, 'おまかせ')).toHaveAttribute('aria-pressed', 'false');
-    await expect(dialog(page)).toContainText('指定 1・おまかせ 9'); // 「なし」も答えの1つ
+    await expect(dialog(page)).toContainText('指定 1・おまかせ 12'); // 「なし」も答えの1つ
 
     await accessory(page, 'メガネ').click();
     await expect(accessory(page, 'メガネ')).toHaveAttribute('aria-pressed', 'true');
@@ -1433,5 +1448,93 @@ test.describe('Quick Design', () => {
     await expect(accessory(page, '手袋')).toHaveAttribute('aria-pressed', 'true');
     await expect(accessory(page, 'メガネ')).toHaveAttribute('aria-pressed', 'false');
     await expect(accessory(page, 'おまかせ')).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  test('髪型は6種類 (ショート・ミディアム・ロング・ポニーテール・ツインテール・お団子)。選ぶとプレビューが変わる', async ({ page }) => {
+    await openWithSkin(page);
+    await openDialog(page);
+    await expect(group(page, '髪型').getByRole('radio')).toHaveText(['おまかせ', 'ショート', 'ミディアム', 'ロング', 'ポニーテール', 'ツインテール', 'お団子']);
+    await choose(page, '雰囲気', 'シンプル');
+    await choose(page, '髪の色', 'ブラウン'); // 色を固定して、形の違いだけを見る
+    const seen = new Set<string>();
+    for (const hair of ['ショート', 'ミディアム', 'ロング', 'ポニーテール', 'ツインテール', 'お団子']) {
+      await choose(page, '髪型', hair);
+      seen.add(await preview(page));
+    }
+    expect(seen.size).toBe(6); // 全部違う絵
+  });
+
+  test('ポニーテール・ツインテール・お団子で作ると、髪ゴム(小物の色)が付く。ショートには付かない', async ({ page }) => {
+    await openWithSkin(page);
+    const answers = (hair: string): [string, string][] => [['髪型', hair], ['雰囲気', 'シンプル'], ['上着', 'Tシャツ']];
+    // 小物の色を「ネオンピンク」に固定して、髪ゴムの色が画面のスキンにあるかを調べる (ほかにその色は無い: 小物なし)
+    const create = async (hair: string) => {
+      await openDialog(page);
+      for (const [g, c] of answers(hair)) await choose(page, g, c);
+      await choose(page, '小物の色', 'ネオンピンク'); await choose(page, '髪の色', 'ブラウン'); // 髪ゴム以外にピンクが無いように、髪を茶色に
+      await accessory(page, 'なし').click();
+      await dialog(page).getByRole('button', { name: /この内容で作る/ }).click();
+      await expect(panel(page)).toBeVisible();
+      await page.waitForTimeout(400);
+    };
+    const pinkCount = async () => { const d = await canvasData(page); let n = 0; for (let i = 0; i < d.length; i += 4) if (d[i + 3] > 0 && d[i] > 140 && d[i] - d[i + 1] > 60 && d[i + 2] - d[i + 1] > 30) n++; return n; }; // ピンク (赤と青が緑より強い)
+    await create('ショート');
+    const none = await pinkCount();
+    await create('ポニーテール'); expect(await pinkCount()).toBeGreaterThan(none);
+    await create('ツインテール'); expect(await pinkCount()).toBeGreaterThan(none + 2);
+    await create('お団子'); expect(await pinkCount()).toBeGreaterThan(none);
+  });
+
+  test('上着の色・下の色・小物の色を、それぞれ選べる。選んだ色がスキンに出る (上着は赤、ズボンは青、スカーフは選んだ色)', async ({ page }) => {
+    await openWithSkin(page);
+    await createWith(page, [['上着', 'Tシャツ'], ['上着の色', 'レッド'], ['下', 'ズボン'], ['下の色', 'デニム'], ['髪型', 'ショート']]);
+    const body = await pixelColor(page, 24, 26); // 胴の正面の中ほど (シワ・縞が無い所とは限らないが、赤系)
+    expect(body[0]).toBeGreaterThan(body[2]); // 赤み
+    const leg = await pixelColor(page, 6, 26); // 右脚の正面の中ほど
+    expect(leg[2]).toBeGreaterThan(leg[0]); // 青み
+  });
+
+  test('小物の色: マフラーを付けて色を選ぶと、その色になる。リボンも同じ色 (全部の小物に同じ色)', async ({ page }) => {
+    await openWithSkin(page);
+    await openDialog(page);
+    await choose(page, '雰囲気', 'シンプル'); await choose(page, '上着', 'Tシャツ'); await choose(page, '髪型', 'ショート');
+    await choose(page, '小物の色', 'ネオンシアン');
+    await accessory(page, 'マフラー').click();
+    await dialog(page).getByRole('button', { name: /この内容で作る/ }).click();
+    await expect(panel(page)).toBeVisible();
+    await page.waitForTimeout(400);
+    // マフラーは胴の外側の層の首まわり (正面: u 24〜27, v 36)
+    const c = await pixelColor(page, 21 + 3, 36);
+    expect(c[2]).toBeGreaterThan(c[0]); // シアン寄り (青緑)
+    expect(c[1]).toBeGreaterThan(c[0]);
+  });
+
+  test('作ったあとの「条件を変える」で、目・口・色の答えも入った状態で開く', async ({ page }) => {
+    await openWithSkin(page);
+    await createWith(page, [['目', '縦目'], ['口', 'なし'], ['上着の色', 'ミント'], ['下の色', 'ブラウン'], ['小物の色', 'ゴールド']]);
+    await panel(page).getByRole('button', { name: /条件を変える/ }).click();
+    await expect(isOn(page, '目', '縦目')).toHaveAttribute('aria-checked', 'true');
+    await expect(isOn(page, '口', 'なし')).toHaveAttribute('aria-checked', 'true');
+    await expect(isOn(page, '上着の色', 'ミント')).toHaveAttribute('aria-checked', 'true');
+    await expect(isOn(page, '下の色', 'ブラウン')).toHaveAttribute('aria-checked', 'true');
+    await expect(isOn(page, '小物の色', 'ゴールド')).toHaveAttribute('aria-checked', 'true');
+    await expect(isOn(page, '髪型', 'おまかせ')).toHaveAttribute('aria-checked', 'true');
+  });
+
+  test('昔の記録 (描き方のバージョン1、廃止した「服の配色」の答え入り) の作品も、そのまま開ける。パネルが出て、使える答えは引き継がれる', async ({ page }) => {
+    await openWithSkin(page);
+    const id = await addProject(page, { name: '昔のQuick Design', model: 'classic', generation: { seed: 4242, rendererVersion: 1, answers: { mood: 'cute', hair: 'long', outfit: 3, eyes: 'lashes' } } });
+    await page.evaluate(([key, value]) => localStorage.setItem(key, value), [LAST_OPENED_KEY, id]);
+    await page.reload();
+    await page.evaluate(() => document.fonts.ready);
+    await expect(panel(page)).toBeVisible();
+    await panel(page).getByRole('button', { name: /条件を変える/ }).click();
+    await expect(isOn(page, '雰囲気', 'かわいい')).toHaveAttribute('aria-checked', 'true');
+    await expect(isOn(page, '髪型', 'ロング')).toHaveAttribute('aria-checked', 'true');
+    await expect(isOn(page, '目', 'ぱっちり')).toHaveAttribute('aria-checked', 'true');
+    await expect(isOn(page, '上着の色', 'おまかせ')).toHaveAttribute('aria-checked', 'true'); // 廃止した「服の配色」は、読み捨てられる
+    await dialog(page).getByRole('button', { name: /この条件で作り直す/ }).click(); // 作り直せる
+    await expect(dialog(page)).toBeHidden();
+    expect((await paintedPixels(page)).length).toBeGreaterThan(1600);
   });
 });

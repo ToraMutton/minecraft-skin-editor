@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { specFromAnswers, randomSpec, parseAnswers, countAnswered, ANSWER_COUNT, MOODS, HAIR_STYLES, EYE_STYLES, BOTTOMS } from './spec';
 import type { SkinSpec, SpecAnswers } from './spec';
-import { ALL_OUTFITS, HAIR_PALETTE, SKIN_TONES, SKIN_NAMES, OUTFITS } from './palettes';
+import { HAIR_PALETTE, SKIN_TONES, SKIN_NAMES, OUTFITS, TOP_COLORS, BOTTOM_COLORS, ACCESSORY_COLORS } from './palettes';
 
 const SEEDS = Array.from({ length: 200 }, (_, i) => i * 7919 + 3);
 
@@ -11,14 +11,16 @@ describe('specFromAnswers', () => {
   });
 
   it('答えた項目は、その通りになる (どの seed でも)', () => {
-    const answers: SpecAnswers = { mood: 'cool', hair: 'long', eyes: 'lashes', top: 'hoodie', bottom: 'shorts', skin: 3, hairColor: 9, outfit: 7 };
+    const answers: SpecAnswers = { mood: 'cool', hair: 'long', eyes: 'lashes', mouth: false, top: 'hoodie', bottom: 'shorts', skin: 3, hairColor: 9, topColor: 4, bottomColor: 2, accessoryColor: 5 };
     for (const seed of SEEDS) {
       const spec = specFromAnswers(answers, seed);
       expect(spec).toMatchObject({ mood: 'cool', hair: 'long', eyes: 'lashes', top: 'hoodie', bottom: 'shorts' });
       expect(spec.palette.skin).toEqual(SKIN_TONES[3]);
       expect(spec.palette.hair).toEqual(HAIR_PALETTE[9].color);
-      const outfit = ALL_OUTFITS[7].outfit;
-      expect(spec.palette).toMatchObject({ primary: outfit.primary, inner: outfit.inner, accent: outfit.accent, secondary: outfit.secondary, shoes: outfit.shoes }); // 指定した配色は、ゆらさない
+      expect(spec.mouth).toBe(false);
+      expect(spec.palette.primary).toEqual(TOP_COLORS[4].color); // 指定した色は、ゆらさない
+      expect(spec.palette.secondary).toEqual(BOTTOM_COLORS[2].color);
+      expect(spec.palette.accessory).toEqual(ACCESSORY_COLORS[5].color);
     }
   });
 
@@ -34,7 +36,8 @@ describe('specFromAnswers', () => {
     for (const seed of SEEDS.slice(0, 60)) {
       const base = specFromAnswers({ mood: 'simple' }, seed); // 雰囲気を固定してから、他の1項目を変える
       for (const hair of HAIR_STYLES) expect(rest(specFromAnswers({ mood: 'simple', hair }, seed), 'hair'), `髪型 ${seed}`).toEqual(rest(base, 'hair'));
-      for (const eyes of EYE_STYLES) expect(rest(specFromAnswers({ mood: 'simple', eyes }, seed), 'eyes'), `目 ${seed}`).toEqual(rest(base, 'eyes'));
+      for (const eyes of EYE_STYLES) expect(rest(specFromAnswers({ mood: 'simple', eyes }, seed), 'eyes', 'mouth'), `目 ${seed}`).toEqual(rest(base, 'eyes', 'mouth')); // 口のおまかせだけは、目の種類に合わせて決まる (目だけの顔は口なしが多い)
+      for (const mouth of [true, false]) expect(rest(specFromAnswers({ mood: 'simple', mouth }, seed), 'mouth'), `口 ${seed}`).toEqual(rest(base, 'mouth'));
       for (const bottom of BOTTOMS) expect(rest(specFromAnswers({ mood: 'simple', bottom }, seed), 'bottom'), `下 ${seed}`).toEqual(rest(base, 'bottom'));
     }
   });
@@ -43,11 +46,11 @@ describe('specFromAnswers', () => {
     for (const seed of SEEDS.slice(0, 60)) {
       const a = specFromAnswers({ mood: 'cute' }, seed), b = specFromAnswers({ mood: 'cute', hairColor: 4 }, seed);
       expect(b.palette.hair).toEqual(HAIR_PALETTE[4].color);
-      expect({ ...b.palette, hair: 0 }).toEqual({ ...a.palette, hair: 0 });
+      expect({ ...b.palette, hair: 0, accessory: 0 }).toEqual({ ...a.palette, hair: 0, accessory: 0 }); // 小物の色は、髪との明るさの差で選ぶので、髪の色を変えると変わりうる
       expect({ ...b, palette: 0 }).toEqual({ ...a, palette: 0 });
       const c = specFromAnswers({ mood: 'cute', skin: 4 }, seed);
       expect(c.palette.skin).toEqual(SKIN_TONES[4]);
-      expect({ ...c.palette, skin: 0, hair: 0 }).toEqual({ ...a.palette, skin: 0, hair: 0 }); // 髪の色は、肌との明るさの差で選ぶので、肌を変えると変わりうる
+      expect({ ...c.palette, skin: 0, hair: 0, accessory: 0 }).toEqual({ ...a.palette, skin: 0, hair: 0, accessory: 0 }); // 髪・小物の色は、肌との明るさの差で選ぶので、肌を変えると変わりうる
     }
   });
 
@@ -73,7 +76,7 @@ describe('specFromAnswers', () => {
 
   it('範囲外の番号の答えは、おまかせとして扱う (例外にならない)', () => {
     for (const bad of [-1, 99, 1.5, NaN]) {
-      const spec = specFromAnswers({ skin: bad, hairColor: bad, outfit: bad }, 7);
+      const spec = specFromAnswers({ skin: bad, hairColor: bad, topColor: bad, bottomColor: bad, accessoryColor: bad }, 7);
       expect(SKIN_TONES).toContainEqual(spec.palette.skin);
       expect(spec.palette.hair.l).toBeGreaterThan(0);
     }
@@ -82,37 +85,37 @@ describe('specFromAnswers', () => {
 
 describe('parseAnswers / countAnswered', () => {
   it('作った答えは、JSONにして戻しても同じ', () => {
-    const answers: SpecAnswers = { mood: 'cute', hair: 'medium', hairColor: 3, skin: 1, eyes: 'sharp', top: 'tshirt', stripes: false, bottom: 'pants', outfit: 5 };
+    const answers: SpecAnswers = { mood: 'cute', hair: 'medium', hairColor: 3, skin: 1, eyes: 'sharp', mouth: true, top: 'tshirt', topColor: 2, stripes: false, bottom: 'pants', bottomColor: 4, accessories: ['glasses'], accessoryColor: 6 };
     expect(parseAnswers(JSON.parse(JSON.stringify(answers)))).toEqual(answers);
   });
 
   it('壊れた項目だけを捨てて、使える項目は残す。全部壊れていれば、全部おまかせ', () => {
-    expect(parseAnswers({ mood: 'scary', hair: 'long', skin: 99, eyes: 5, stripes: 'yes', evil: 1 })).toEqual({ hair: 'long' });
+    expect(parseAnswers({ mood: 'scary', hair: 'long', skin: 99, eyes: 5, stripes: 'yes', mouth: 'no', evil: 1, outfit: 3 })).toEqual({ hair: 'long' }); // 昔の「服の配色(outfit)」の答えは、読み捨てる
     expect(parseAnswers(null)).toEqual({});
     expect(parseAnswers('x')).toEqual({});
     expect(parseAnswers([1, 2])).toEqual({});
-    expect(parseAnswers({ skin: -1, hairColor: 1.5, outfit: 'a' })).toEqual({});
+    expect(parseAnswers({ skin: -1, hairColor: 1.5, topColor: 'a', bottomColor: 99, accessoryColor: -3 })).toEqual({});
   });
 
   it('色の番号 0 も、有効な答えとして残る', () => {
-    expect(parseAnswers({ skin: 0, hairColor: 0, outfit: 0 })).toEqual({ skin: 0, hairColor: 0, outfit: 0 });
+    expect(parseAnswers({ skin: 0, hairColor: 0, topColor: 0, bottomColor: 0, accessoryColor: 0 })).toEqual({ skin: 0, hairColor: 0, topColor: 0, bottomColor: 0, accessoryColor: 0 });
   });
 
-  it('答えた数を数える。質問は10個 (アクセサリーを含む)', () => {
+  it('答えた数を数える。質問は13個 (口・色の質問・アクセサリーを含む)', () => {
     expect(countAnswered({})).toBe(0);
     expect(countAnswered({ mood: 'cool', skin: 0, stripes: false })).toBe(3);
-    expect(ANSWER_COUNT).toBe(10);
-    expect(countAnswered({ mood: 'cute', hair: 'long', hairColor: 0, skin: 0, eyes: 'classic', top: 'tshirt', stripes: true, bottom: 'pants', outfit: 0, accessories: [] })).toBe(ANSWER_COUNT); // 空(付けない)も、答えの1つ
+    expect(ANSWER_COUNT).toBe(13);
+    expect(countAnswered({ mood: 'cute', hair: 'long', hairColor: 0, skin: 0, eyes: 'classic', mouth: false, top: 'tshirt', topColor: 0, stripes: true, bottom: 'pants', bottomColor: 0, accessories: [], accessoryColor: 0 })).toBe(ANSWER_COUNT); // 空(付けない)も、答えの1つ
   });
 
   it('色の名前が付いている (画面で説明するため)', () => {
     expect(SKIN_NAMES).toHaveLength(SKIN_TONES.length);
     expect(HAIR_PALETTE.every(h => h.name.length > 0)).toBe(true);
-    expect(ALL_OUTFITS.every(o => o.outfit.name.length > 0)).toBe(true);
-    expect(new Set(ALL_OUTFITS.map(o => o.outfit.name)).size).toBe(ALL_OUTFITS.length);
-    // 画面では、髪の色・肌の色・服の配色を名前で選ぶので、名前が重ならないようにする (読み上げ・テストで区別できるように)
-    const all = [...SKIN_NAMES, ...HAIR_PALETTE.map(h => h.name), ...ALL_OUTFITS.map(o => o.outfit.name)];
-    expect(new Set(all).size).toBe(all.length);
+    for (const list of [TOP_COLORS, BOTTOM_COLORS, ACCESSORY_COLORS]) {
+      expect(list.every(c => c.name.length > 0)).toBe(true);
+      expect(new Set(list.map(c => c.name)).size).toBe(list.length); // 画面では名前で選ぶので、それぞれの選択肢の中で重ならないようにする
+    }
+    expect(new Set(SKIN_NAMES).size).toBe(SKIN_NAMES.length);
   });
 });
 

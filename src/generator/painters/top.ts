@@ -71,13 +71,46 @@ export function paintTop({ buf, spec, rng }: PaintContext) {
   }
 
   // --- シワ (胴の前・後ろ) ---
-  if (!jacket) {
+  if (!jacket && !spec.stripes) { // 縞のシャツは、シワが縞を乱して見えるので付けない
     drawFolds(body, f, rng, 2, -1);
     drawFolds(body, b, rng, 1, -1);
   }
 
   if (hoodie) paintHoodie(buf, body, rng);
   if (jacket) paintJacket(buf, rng);
+  else paintRelief(buf, spec.top === 'hoodie', rng);
+}
+
+// 服の立体的な凹凸 (Tシャツ・パーカー): 外側の層を一部だけ使って、襟・裾・袖口・ポケットに厚みを出す
+//   厚みの下の素の層は、接触部分の影で暗くなる。全体を厚くはしない (必要な所だけ)
+function paintRelief(buf: PaintContext['buf'], hoodie: boolean, rng: Rng) {
+  const cloth = (tone = 0) => paint('top', tone);
+  const over = buf.band('body', 'over');
+  const f = over.frontStart, b = over.backStart;
+  // 裾: 一周する厚み。パーカーは編み目(リブ)のように1列おきに
+  const hem = hoodie ? 10 : 9;
+  for (let c = 0; c < over.width; c++) over.set(c, hem, cloth(hoodie ? (c % 2 === 0 ? -1 : 1) : -1));
+  // 袖口: 腕を一周する厚み
+  for (const name of ['rightArm', 'leftArm'] as const) {
+    const arm = buf.band(name, 'over');
+    const cuff = hoodie ? 9 : 3;
+    for (let c = 0; c < arm.width; c++) arm.set(c, cuff, cloth(hoodie ? (c % 2 === 0 ? -1 : 1) : -1));
+  }
+  if (!hoodie) {
+    // 襟 (Tシャツ): 首のまわりのふちが、前と後ろで盛り上がる
+    for (const [x, y] of [[2, 0], [5, 0], [3, 1], [4, 1]]) over.set(f + x, y, cloth(1));
+    for (let x = 2; x <= 5; x++) over.set(b + x, 0, cloth(1));
+    // 胸ポケット (Tシャツの半分): 左右どちらかの胸に、縁の盛り上がった小さなポケット
+    if (chance(rng, 0.5)) {
+      const x0 = f + (chance(rng, 0.5) ? 1 : 5);
+      for (let x = 0; x < 3; x++) { over.set(x0 + x, 3, cloth(0)); over.set(x0 + x, 5, cloth(-1)); }
+      over.set(x0, 4, cloth(0)); over.set(x0 + 2, 4, cloth(-1)); // 縁は、影の線だけ
+    }
+  } else {
+    // カンガルーポケット (パーカー): 縁だけを外側の層で盛り上げる (中は素の層のまま)。上の縁は明るく、下と横は暗く
+    for (let x = 1; x <= 6; x++) { over.set(f + x, 6, cloth(1)); over.set(f + x, 8, cloth(-1)); }
+    for (const x of [1, 6]) over.set(f + x, 7, cloth(-1));
+  }
 }
 
 // パーカー: 紐・ポケット(素の層)と、フード(外側の層)
@@ -85,10 +118,11 @@ function paintHoodie(buf: PaintContext['buf'], body: BandView, rng: Rng) {
   const f = body.frontStart, b = body.backStart;
   const cloth = (tone = 0) => paint('top', tone);
 
-  // 紐: 襟ぐりから垂れる2本。先(金具)は少し明るく
+  // 紐: 襟ぐりから垂れる2本 (外側の層。服の前に垂れる)。先(金具)は少し明るく
+  const strings = buf.band('body', 'over');
   for (const x of [2, 5]) {
-    body.set(f + x, 2, paint('accent')); body.set(f + x, 3, paint('accent'));
-    body.set(f + x, 4, paint('accent', 1));
+    strings.set(f + x, 2, paint('accent')); strings.set(f + x, 3, paint('accent'));
+    strings.set(f + x, 4, paint('accent', 1));
   }
   // カンガルーポケット: 上の縁は影になり、両端が縫い目
   for (let x = 1; x <= 6; x++) body.set(f + x, 6, cloth(-1));
@@ -124,7 +158,9 @@ function paintJacket(buf: PaintContext['buf'], rng: Rng) {
   for (const x of [1, 6]) over.set(f + x, 0, cloth(1));
   for (let x = 1; x <= 6; x++) over.set(b + x, 0, cloth(1));
   // ポケットの口 と ファスナーの引き手
-  over.set(f + 1, 7, cloth(-1)); over.set(f + 6, 7, cloth(-1));
+  // ポケットのふた: 口の線(暗)と、その下のふた(明るい縁と暗い下の辺)
+  for (const x of [1, 6]) { over.set(f + x, 7, cloth(-1)); over.set(f + x, 8, cloth(1)); }
+  for (const x of [2, 5]) over.set(f + x, 8, cloth(-1));
   over.set(f + 2, 3, paint('accent', 1));
   buf.face('body', 'over', 'top').fill(cloth());
 

@@ -12,8 +12,8 @@ export const PARTS: readonly Part[] = ['head', 'body', 'rightArm', 'leftArm', 'r
 export const FACE_NAMES: readonly FaceName[] = ['right', 'front', 'left', 'back', 'top', 'bottom'];
 
 // 素材。それぞれが5色のランプ(色の段階)を持つ
-export type Mat = 'skin' | 'hair' | 'top' | 'inner' | 'bottom' | 'shoes' | 'accent' | 'eye' | 'white' | 'dark' | 'blush';
-export const MATS: readonly Mat[] = ['skin', 'hair', 'top', 'inner', 'bottom', 'shoes', 'accent', 'eye', 'white', 'dark', 'blush'];
+export type Mat = 'skin' | 'hair' | 'top' | 'inner' | 'bottom' | 'shoes' | 'accent' | 'accessory' | 'eye' | 'white' | 'dark' | 'blush';
+export const MATS: readonly Mat[] = ['skin', 'hair', 'top', 'inner', 'bottom', 'shoes', 'accent', 'accessory', 'eye', 'white', 'dark', 'blush'];
 
 // 1ピクセルの塗り
 //   tone: 基本の色からの段階の差 (-2〜+2。負は暗く、正は明るく)

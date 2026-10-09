@@ -12,7 +12,7 @@ import type { Pixels } from '../canvas/layers';
 import { designSkin, randomSeed, countAnswered, normalizeAccessories, ANSWER_COUNT, ACCESSORIES } from '../../generator';
 import type { SpecAnswers, Generation, Accessory } from '../../generator';
 import { cssColor } from '../../generator/color';
-import { ALL_OUTFITS, HAIR_PALETTE, SKIN_NAMES, SKIN_TONES } from '../../generator/palettes';
+import { HAIR_PALETTE, SKIN_NAMES, SKIN_TONES, TOP_COLORS, BOTTOM_COLORS, ACCESSORY_COLORS } from '../../generator/palettes';
 
 export interface QuickDesignResult {
   pixels: Pixels;
@@ -38,8 +38,9 @@ const auto = <T,>(): Choice<T | undefined> => AUTO as Choice<T | undefined>;
 const MOODS: Choice<SpecAnswers['mood']>[] = [
   auto(), { value: 'cute', label: 'かわいい', icon: <Heart size={14} /> }, { value: 'cool', label: 'クール', icon: <Zap size={14} /> }, { value: 'simple', label: 'シンプル', icon: <Smile size={14} /> },
 ];
-const HAIR: Choice<SpecAnswers['hair']>[] = [auto(), { value: 'short', label: 'ショート' }, { value: 'medium', label: 'ミディアム' }, { value: 'long', label: 'ロング' }];
-const EYES: Choice<SpecAnswers['eyes']>[] = [auto(), { value: 'classic', label: 'ふつう' }, { value: 'lashes', label: 'ぱっちり' }, { value: 'sharp', label: 'つり目' }, { value: 'kawaii', label: 'ちびかわ' }];
+const HAIR: Choice<SpecAnswers['hair']>[] = [auto(), { value: 'short', label: 'ショート' }, { value: 'medium', label: 'ミディアム' }, { value: 'long', label: 'ロング' }, { value: 'ponytail', label: 'ポニーテール' }, { value: 'twintails', label: 'ツインテール' }, { value: 'bun', label: 'お団子' }];
+const EYES: Choice<SpecAnswers['eyes']>[] = [auto(), { value: 'classic', label: 'ふつう' }, { value: 'lashes', label: 'ぱっちり' }, { value: 'sharp', label: 'つり目' }, { value: 'kawaii', label: '大きな目' }, { value: 'vertical', label: '縦目' }, { value: 'sideways', label: '横目' }];
+const MOUTH: Choice<SpecAnswers['mouth']>[] = [auto(), { value: true, label: 'あり' }, { value: false, label: 'なし' }];
 const ACCESSORY_LABELS: Record<Accessory, string> = { hat: '帽子', headband: 'カチューシャ', ribbon: 'リボン', glasses: 'メガネ', earrings: 'イヤリング', scarf: 'マフラー', gloves: '手袋' };
 const ACCESSORY_CHOICES = ACCESSORIES.map(value => ({ value, label: ACCESSORY_LABELS[value] }));
 // 帽子は、カチューシャ・リボンと一緒に付けられない (頭の上で重なる)
@@ -51,7 +52,10 @@ const BOTTOMS: Choice<SpecAnswers['bottom']>[] = [auto(), { value: 'pants', labe
 const MODELS: Choice<SkinModel>[] = [{ value: 'classic', label: 'Classic (腕4px)' }, { value: 'slim', label: 'Slim (腕3px)' }];
 const SKIN: Choice<number | undefined>[] = [auto(), ...SKIN_TONES.map((c, i) => ({ value: i as number | undefined, label: SKIN_NAMES[i], colors: [cssColor(c)] }))];
 const HAIR_COLOR: Choice<number | undefined>[] = [auto(), ...HAIR_PALETTE.map((h, i) => ({ value: i as number | undefined, label: h.name, colors: [cssColor(h.color)] }))];
-const OUTFIT: Choice<number | undefined>[] = [auto(), ...ALL_OUTFITS.map(({ outfit: o }, i) => ({ value: i as number | undefined, label: o.name, colors: [cssColor(o.primary), cssColor(o.secondary), cssColor(o.accent)] }))];
+const swatches = (list: { name: string; color: Parameters<typeof cssColor>[0] }[]): Choice<number | undefined>[] => [auto(), ...list.map((c, i) => ({ value: i as number | undefined, label: c.name, colors: [cssColor(c.color)] }))];
+const TOP_COLOR = swatches(TOP_COLORS);
+const BOTTOM_COLOR = swatches(BOTTOM_COLORS);
+const ACCESSORY_COLOR = swatches(ACCESSORY_COLORS);
 
 export function QuickDesignDialog({ mode, initialAnswers, initialSeed, model: initialModel, initialKeepPaint = true, onClose, onSubmit }: Props) {
   const redo = mode === 'redo';
@@ -103,19 +107,22 @@ export function QuickDesignDialog({ mode, initialAnswers, initialSeed, model: in
               <h3>顔</h3>
               <Row label="肌の色"><ChoiceGroup label="肌の色" variant="swatches" choices={SKIN} value={answers.skin} onChange={v => set('skin', v)} /></Row>
               <Row label="目"><ChoiceGroup label="目" choices={EYES} value={answers.eyes} onChange={v => set('eyes', v)} /></Row>
+              <Row label="口"><ChoiceGroup label="口" choices={MOUTH} value={answers.mouth} onChange={v => set('mouth', v)} /></Row>
             </section>
             <section className="vx-qd-section">
               <h3>小物</h3>
               <Row label="アクセサリー" hint="いくつでも">
                 <MultiChoiceGroup label="アクセサリー" choices={ACCESSORY_CHOICES} value={answers.accessories} onChange={v => set('accessories', v)} normalize={normalizeAccessories} conflicts={accessoryConflicts} />
               </Row>
+              <Row label="小物の色"><ChoiceGroup label="小物の色" variant="swatches" choices={ACCESSORY_COLOR} value={answers.accessoryColor} onChange={v => set('accessoryColor', v)} /></Row>
             </section>
             <section className="vx-qd-section">
               <h3>服</h3>
               <Row label="上着"><ChoiceGroup label="上着" choices={TOPS} value={answers.top} onChange={v => set('top', v)} /></Row>
+              <Row label="上着の色"><ChoiceGroup label="上着の色" variant="swatches" choices={TOP_COLOR} value={answers.topColor} onChange={v => set('topColor', v)} /></Row>
               <Row label="縞" hint={stripesOff ? 'Tシャツのときだけ' : undefined}><ChoiceGroup label="縞" choices={STRIPES} value={stripesOff ? undefined : answers.stripes} onChange={v => set('stripes', v)} disabled={stripesOff} /></Row>
               <Row label="下"><ChoiceGroup label="下" choices={BOTTOMS} value={answers.bottom} onChange={v => set('bottom', v)} /></Row>
-              <Row label="服の配色"><ChoiceGroup label="服の配色" variant="swatches" choices={OUTFIT} value={answers.outfit} onChange={v => set('outfit', v)} /></Row>
+              <Row label="下の色"><ChoiceGroup label="下の色" variant="swatches" choices={BOTTOM_COLOR} value={answers.bottomColor} onChange={v => set('bottomColor', v)} /></Row>
             </section>
           </div>
 

@@ -51,8 +51,45 @@ export const OUTFITS: Record<Mood, Outfit[]> = {
 export const SKIN_TONES: Oklch[] = [o(0.91, 0.045, 65), o(0.84, 0.06, 62), o(0.74, 0.08, 60), o(0.62, 0.09, 55), o(0.48, 0.07, 50)];
 export const SKIN_NAMES = ['ごく明るい', '明るい', 'ふつう', 'こんがり', '濃い'];
 
-// 全ての配色 (雰囲気ごとに並べたもの)。「服の配色」の選択肢の番号は、この並びの番号
-export const ALL_OUTFITS: { mood: Mood; outfit: Outfit }[] = (['cute', 'cool', 'simple'] as const).flatMap(mood => OUTFITS[mood].map(outfit => ({ mood, outfit })));
+// 上着・ズボン・小物の色 (名前付き)。画面では、それぞれ別々に選べる。選択肢の番号は、この並びの番号
+export const TOP_COLORS: { name: string; color: Oklch }[] = [
+  { name: 'オフホワイト', color: o(0.95, 0.012, 90) }, { name: 'クリーム', color: o(0.93, 0.04, 90) }, { name: 'ピンク', color: o(0.8, 0.09, 5) },
+  { name: 'コーラル', color: o(0.7, 0.14, 30) }, { name: 'レッド', color: o(0.58, 0.15, 28) }, { name: 'オレンジ', color: o(0.7, 0.15, 55) },
+  { name: 'イエロー', color: o(0.84, 0.14, 95) }, { name: 'ミント', color: o(0.84, 0.08, 170) }, { name: 'グリーン', color: o(0.55, 0.11, 150) },
+  { name: 'カーキ', color: o(0.6, 0.06, 100) }, { name: 'スカイ', color: o(0.82, 0.07, 235) }, { name: 'ブルー', color: o(0.55, 0.12, 250) },
+  { name: 'ネイビー', color: o(0.36, 0.07, 255) }, { name: 'ラベンダー', color: o(0.78, 0.09, 300) }, { name: 'パープル', color: o(0.5, 0.13, 305) },
+  { name: 'グレー', color: o(0.6, 0.01, 260) }, { name: 'チャコール', color: o(0.36, 0.02, 270) }, { name: 'ブラック', color: o(0.25, 0.02, 275) },
+];
+export const BOTTOM_COLORS: { name: string; color: Oklch }[] = [
+  { name: 'デニム', color: o(0.45, 0.09, 255) }, { name: 'ネイビー', color: o(0.3, 0.06, 258) }, { name: 'ブラック', color: o(0.24, 0.015, 270) },
+  { name: 'チャコール', color: o(0.34, 0.015, 270) }, { name: 'グレー', color: o(0.58, 0.01, 260) }, { name: 'ベージュ', color: o(0.8, 0.05, 85) },
+  { name: 'ブラウン', color: o(0.4, 0.06, 55) }, { name: 'カーキ', color: o(0.62, 0.06, 95) }, { name: 'オリーブ', color: o(0.45, 0.07, 125) },
+  { name: 'ホワイト', color: o(0.93, 0.01, 90) }, { name: 'ワイン', color: o(0.38, 0.1, 15) }, { name: 'プラム', color: o(0.42, 0.09, 335) },
+  { name: 'ピンク', color: o(0.8, 0.09, 5) }, { name: 'スカイ', color: o(0.78, 0.07, 235) },
+];
+export const ACCESSORY_COLORS: { name: string; color: Oklch }[] = [
+  { name: 'ホワイト', color: o(0.95, 0.01, 90) }, { name: 'ブラック', color: o(0.26, 0.03, 285) }, { name: 'ピンク', color: o(0.78, 0.11, 350) },
+  { name: 'レッド', color: o(0.55, 0.17, 25) }, { name: 'ゴールド', color: o(0.8, 0.13, 90) }, { name: 'ミント', color: o(0.82, 0.09, 165) },
+  { name: 'スカイ', color: o(0.78, 0.09, 235) }, { name: 'ブルー', color: o(0.5, 0.15, 260) }, { name: 'パープル', color: o(0.52, 0.15, 305) },
+  { name: 'ネオンシアン', color: o(0.8, 0.13, 195) }, { name: 'ネオンピンク', color: o(0.66, 0.2, 350) }, { name: 'オレンジ', color: o(0.7, 0.15, 55) },
+  { name: 'ブラウン', color: o(0.38, 0.06, 55) },
+];
+
+// 色を選び直したとき、組み合わせる色が近くなりすぎたら、読める色に直す (明るさが離れた色に)
+export const gapL = (a: Oklch, b: Oklch) => Math.abs(a.l - b.l);
+// 上着の中に着るシャツ: 上着が明るければ濃い色、暗ければオフホワイト
+export const innerFor = (primary: Oklch): Oklch => (primary.l > 0.65 ? o(0.35, 0.05, primary.h) : o(0.95, 0.015, primary.h));
+// アクセント (縞・紐・靴紐など): 上着が明るければ濃い補色寄り、暗ければ明るいクリーム寄り
+export const accentFor = (primary: Oklch): Oklch => (primary.l > 0.65 ? o(0.42, 0.1, (primary.h + 150) % 360) : o(0.93, 0.03, (primary.h + 60) % 360));
+// 靴: ズボンが明るければ濃い茶、暗ければオフホワイト
+export const shoesFor = (secondary: Oklch): Oklch => (secondary.l > 0.6 ? o(0.35, 0.05, 55) : o(0.92, 0.012, 90));
+
+// 小物の色を、肌・髪・上着と明るさが離れたものから選ぶ。全部に対して離れた色が無ければ、一番離れた色
+export function pickAccessoryColor(rng: Rng, against: Oklch[]): Oklch {
+  const minGap = (c: Oklch) => Math.min(...against.map(a => gapL(a, c)));
+  const good = ACCESSORY_COLORS.filter(a => minGap(a.color) >= 0.15);
+  return good.length > 0 ? pick(rng, good).color : [...ACCESSORY_COLORS].sort((a, b) => minGap(b.color) - minGap(a.color))[0].color;
+}
 
 // 髪の色 (名前付き)。自然な色・ファンタジーな色・クールな色
 export const HAIR_PALETTE: { name: string; color: Oklch }[] = [

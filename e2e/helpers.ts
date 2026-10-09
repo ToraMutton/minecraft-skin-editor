@@ -127,8 +127,8 @@ export async function createNewProject(page: Page, how: '素体から' | '白紙
 
 // IndexedDB に、完全に透明な作品を直接入れる (「新規」メニューにまだ無い Slim の作品を、テストで使うため)
 // 更新日時は新しくしてある (一覧の先頭に出る)。リロードで開かれるのは「最後に開いた作品」なので、開きたいときは LAST_OPENED_KEY に id を入れる
-export async function addProject(page: Page, options: { name: string; model: 'classic' | 'slim' }): Promise<string> {
-  return page.evaluate(({ name, model }) => new Promise<string>((resolve, reject) => {
+export async function addProject(page: Page, options: { name: string; model: 'classic' | 'slim'; generation?: unknown }): Promise<string> {
+  return page.evaluate(({ name, model, generation }) => new Promise<string>((resolve, reject) => {
     const id = crypto.randomUUID();
     const now = new Date(Date.now() + 60_000).toISOString();
     const open = indexedDB.open('vextra');
@@ -136,7 +136,7 @@ export async function addProject(page: Page, options: { name: string; model: 'cl
     open.onsuccess = () => {
       const tx = open.result.transaction('projects', 'readwrite');
       tx.objectStore('projects').put({
-        schemaVersion: 1, id, name, model, createdAt: now, updatedAt: now,
+        schemaVersion: 1, id, name, model, createdAt: now, updatedAt: now, ...(generation ? { generation } : {}),
         layers: { base: new Uint8ClampedArray(64 * 64 * 4), paint: new Uint8ClampedArray(64 * 64 * 4), erased: new Uint8Array(64 * 64) },
       });
       tx.oncomplete = () => { open.result.close(); resolve(id); };
